@@ -2450,21 +2450,22 @@ function cloudLine(){const C=CLOUD.meta;if(CLOUD.st==='wait')return '계정 저�
   if(CLOUD.st==='err')return '계정 저장에 연결하지 못했습니다 ('+CLOUD.err+'). 이 기기에만 저장합니다.';
   return C?`항해 ${SLOT} 계정 저장: ${C.day}일째 · ${(C.gold||0).toLocaleString()}골드 · ${ago(C.t)} · ${C.dev||''}에서 저장${CLOUD.err?' · 마지막 저장 실패('+CLOUD.err+')':''}`:`계정 저장이 연결됐습니다. 항해 ${SLOT} 칸에는 아직 저장이 없습니다.`;}
 function cloudUI(){const el=$('cloudst');if(el)el.textContent='☁ '+cloudLine();drawSlots();contChoice();}
+const CN=()=>typeof ONLINE!=='undefined'?'서버':'계정';
 function contChoice(){const pk=$('contpick'),bc=$('bCont');if(!pk||!bc)return;const L=localMeta(),C=CLOUD.st==='ok'?CLOUD.meta:null;pk.innerHTML='';
-  const goCloud=async btn=>{btn.disabled=true;btn.textContent='계정에서 불러오는 중…';try{const raw=await cloudLoad();localStorage.setItem(skey(),raw);try{localStorage.setItem(skey()+'_m',JSON.stringify({t:CLOUD.meta.t,day:CLOUD.meta.day,gold:CLOUD.meta.gold}));}catch(e){}Snd.init();start(true);}
-    catch(e){btn.disabled=false;btn.textContent='계정 저장을 불러오지 못했습니다 ('+((e&&e.code)||'오류')+')';}};
-  if(C&&L&&Math.abs((C.t||0)-(L.t||0))>5000){bc.style.display='none';const cNew=(C.t||0)>(L.t||0);
+  const goCloud=async btn=>{btn.disabled=true;btn.textContent=CN()+'에서 불러오는 중…';try{const raw=await cloudLoad();localStorage.setItem(skey(),raw);try{localStorage.setItem(skey()+'_m',JSON.stringify({t:CLOUD.meta.t,day:CLOUD.meta.day,gold:CLOUD.meta.gold}));}catch(e){}Snd.init();start(true);}
+    catch(e){btn.disabled=false;btn.textContent=CN()+' 저장을 불러오지 못했습니다 ('+((e&&e.code)||'오류')+')';}};
+  if(C&&L&&(C.t||0)-(L.t||0)>5000){bc.style.display='none';const cNew=(C.t||0)>(L.t||0);
     const card=(id,ico,name,m,isNew)=>{const gd=typeof m.day==='number'?dateOf(m.day):null;return `<button id="${id}" class="svc ${isNew?'main':''}">${isNew?'<span class="newb">✔ 가장 최근 저장 · 추천</span>':'<span class="oldb">예전 저장</span>'}<b>${ico} ${name}</b>
       <span class="svt">${m.t?realTime(m.t):'저장 시각 모름'}${m.t?` <small>(${ago(m.t)})</small>`:''}</span>
       <small>게임 속 ${gd?`${gd.y}년 ${gd.m}월 ${gd.d}일 (${m.day}일째)`:'날짜 모름'} · ${(m.gold||0).toLocaleString()}골드${m.dev?' · '+m.dev+'에서':''}</small></button>`;};
-    const cc=card('pkC','☁','계정 저장',C,cNew),lc=card('pkL',MOB?'📱':'🖥','이 기기 저장',L,!cNew);
-    pk.innerHTML=`<p class="hint">계정과 이 기기의 저장이 서로 다릅니다. 보통은 <b>가장 최근 저장</b>을 고르면 됩니다. 고른 쪽이 앞으로 양쪽에 저장되고, 다른 쪽은 덮어써집니다.</p><div class="svlist">${cNew?cc+lc:lc+cc}</div>`;
+    const cc=card('pkC','☁',CN()+' 저장',C,cNew),lc=card('pkL',MOB?'📱':'🖥','이 기기 저장',L,!cNew);
+    pk.innerHTML=`<p class="hint">다른 기기에서 더 진행한 ${CN()} 저장이 있습니다. 보통은 <b>가장 최근 저장</b>을 고르면 됩니다. 고른 쪽이 앞으로 양쪽에 저장되고, 다른 쪽은 덮어써집니다.</p><div class="svlist">${cNew?cc+lc:lc+cc}</div>`;
     $('pkC').onclick=()=>goCloud($('pkC'));$('pkL').onclick=startLocal;return;}
-  bc.style.display='';if(C&&!L){bc.disabled=false;bc.textContent='☁ 이어하기 (계정 저장)';bc.onclick=()=>goCloud(bc);}
-  else{bc.disabled=!L;bc.textContent='이어하기';bc.onclick=startLocal;}}
+  bc.style.display='';if(C&&!L){bc.disabled=false;bc.textContent='☁ 이어하기 ('+CN()+' 저장)';bc.onclick=()=>goCloud(bc);}
+  else{bc.disabled=!L;bc.textContent='이어하기';bc.onclick=startLocal;if(C&&L&&(L.t||0)-(C.t||0)>5000)pk.innerHTML=`<p class="hint">이 기기에 ${CN()} 저장보다 최근 진행이 있어, 이어하면 그 진행을 ${CN()}에도 올립니다.</p>`;}}
 function startLocal(){Snd.init();start(true);if(CLOUD.st!=='ok')return;
   setTimeout(async()=>{if(!S)return;const t0=Date.now();CLOUD.lastT=0;CLOUD.err='';save();for(let i=0;i<80&&(CLOUD.busy||CLOUD.okT<t0)&&!CLOUD.err;i++)await new Promise(r=>setTimeout(r,250));
-    toast(CLOUD.okT>=t0?'☁ 이 기기 저장을 계정에 올렸습니다. 이제 다른 기기에서도 이어할 수 있습니다.':'계정에 올리지 못했습니다'+(CLOUD.err?' ('+CLOUD.err+')':'')+'. 이 기기에는 그대로 저장됩니다.',true);},1500);}
+    toast(CLOUD.okT>=t0?'☁ 이 기기 저장을 '+CN()+'에 올렸습니다. 이제 다른 기기에서도 이어할 수 있습니다.':CN()+'에 올리지 못했습니다'+(CLOUD.err?' ('+CLOUD.err+')':'')+'. 이 기기에는 그대로 저장됩니다.',true);},1500);}
 addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&S&&!B){save();cloudFlush(true);}});
 addEventListener('pagehide',()=>{if(S&&!B){save();cloudFlush(true);}});
 
@@ -2479,7 +2480,7 @@ function drawSlots(){const el=$('slots');if(!el||S)return;el.innerHTML=[1,2,3].m
 const ON={live:false,id:0,nm:'',tok:'',ws:null,wsOk:false,W:{mk:{},dev:{},disc:{}},players:[],chat:[],unread:0,tab:'chat',qmk:{},qdev:{},rank:null,rankT:0,open:false,retry:0,posT:0};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function onApi(method,p,body,ms){const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),ms||15000);
-  try{const r=await fetch(p,{method,signal:ctl.signal,headers:{'Content-Type':'application/json',...(ON.tok?{Authorization:'Bearer '+ON.tok}:{})},body:body?JSON.stringify(body):undefined});
+  try{const bs=body?JSON.stringify(body):undefined;const r=await fetch(p,{method,signal:ctl.signal,keepalive:!!(bs&&bs.length<60000),headers:{'Content-Type':'application/json',...(ON.tok?{Authorization:'Bearer '+ON.tok}:{})},body:bs});
     const j=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign({code:j.err||('http_'+r.status),status:r.status},j);return j;}
   catch(e){if(e&&e.name==='AbortError')throw {code:'timeout'};throw e&&e.code?e:{code:'network'};}finally{clearTimeout(tm);}}
 // ---------- 스타일 ----------
@@ -2608,6 +2609,31 @@ function panelUI(){const p=$('onpanel');if(!p)return;p.classList.toggle('open',O
   const bd=$('onBody');if(bd&&ON.tab==='chat')bd.scrollTop=bd.scrollHeight;
   const ti=$('onTxt');if(ti){const sendIt=()=>{const v=ti.value.trim();if(!v)return;if(wsSend({type:'chat',text:v,where:where()})){ti.value='';}else toast('서버와 연결이 끊겨 보내지 못했습니다.');};
     ti.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter')sendIt();});ti.addEventListener('keyup',e=>e.stopPropagation());$('onSend').onclick=sendIt;}}
+
+// ---------- 서버 저장: 한 번의 요청으로 조각과 요약을 함께 보낸다 ----------
+let PREZ=null,prezBusy=false;
+setInterval(async()=>{if(!ON.live||prezBusy||!LASTRAW||(PREZ&&PREZ.raw===LASTRAW))return;prezBusy=true;try{const raw=LASTRAW;PREZ={raw,t:LASTT,z:await gz(raw)};}catch(e){}prezBusy=false;},1500);
+function saveDocs(z,t){const sid=Date.now().toString(36),n=Math.max(1,Math.ceil(z.d.length/CHN)),docs={};
+  for(let i=0;i<n;i++)docs[dn('c'+i)]={sid,i,d:z.d.slice(i*CHN,(i+1)*CHN)};
+  const meta={sid,n,z:z.z,t,day:Math.floor(S.day),gold:S.gold,fame:S.fame||0,ch:S.sto?S.sto.ch:0,dev:MOB?'모바일':'PC',asset:typeof assetNow==='function'?assetNow():S.gold,disc:Object.keys(S.df||{}).length};
+  docs[dn('meta')]=meta;return {docs,meta};}
+const cloudSave0=cloudSave;
+cloudSave=async function(raw,t,force){if(!ON.live)return cloudSave0(raw,t,force);if(CLOUD.st!=='ok'||!S)return;const now=Date.now();
+  if(document.visibilityState==='hidden'){ // 창을 닫거나 다른 앱으로 넘어갈 때: 기다리지 않고 바로 보낸다
+    const z=raw.length<60000?{z:0,d:raw}:(PREZ?PREZ.z:null);if(!z)return;const {docs,meta}=saveDocs(z,raw.length<60000?t:PREZ.t);
+    try{fetch('/api/save',{method:'PUT',keepalive:true,headers:{'Content-Type':'application/json',Authorization:'Bearer '+ON.tok},body:JSON.stringify({docs})});CLOUD.meta=meta;CLOUD.metas[SLOT]=meta;CLOUD.lastT=now;}catch(e){}return;}
+  if(!force&&now-CLOUD.lastT<30000)return;if(CLOUD.busy){CLOUD.again=true;return;}CLOUD.busy=true;CLOUD.lastT=now;
+  try{const z=(PREZ&&PREZ.raw===raw)?PREZ.z:await gz(raw);const {docs,meta}=saveDocs(z,t);await onApi('PUT','/api/save',{docs},30000);CLOUD.meta=meta;CLOUD.metas[SLOT]=meta;CLOUD.okT=now;CLOUD.err='';}
+  catch(e){CLOUD.err=(e&&e.code)||'오류';}
+  CLOUD.busy=false;if(CLOUD.again){CLOUD.again=false;setTimeout(()=>cloudFlush(true),500);}};
+
+// ---------- 온라인판: 저장 고르기 없이 더 최근 것을 자동으로 ----------
+const contChoice0=contChoice;
+contChoice=function(){if(!ON.live)return contChoice0();contChoice0();const pk=$('contpick'),bc=$('bCont');if(!pk||!bc)return;
+  if(pk.querySelector('#pkC')){const C=CLOUD.meta;pk.innerHTML='';bc.style.display='';bc.disabled=false;bc.textContent='이어하기';
+    bc.onclick=async()=>{bc.disabled=true;bc.textContent='서버에서 불러오는 중…';try{const raw=await cloudLoad();localStorage.setItem(skey(),raw);try{localStorage.setItem(skey()+'_m',JSON.stringify({t:C.t,day:C.day,gold:C.gold}));}catch(e){}Snd.init();start(true);}
+      catch(e){bc.disabled=false;bc.textContent='서버 저장을 불러오지 못했습니다 ('+((e&&e.code)||'오류')+') · 다시 누르기';}};}
+  else pk.innerHTML='';};
 
 </script>
 </body></html>

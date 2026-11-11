@@ -76,6 +76,14 @@ async function api(req, res, url) {
     if (req.method === 'GET') { const d = await store.docGet(uid, n); return send(res, 200, d ? { exists: true, data: JSON.parse(d) } : { exists: false }); }
     if (req.method === 'PUT') { const b = await body(req, 700000); await store.docSet(uid, n, JSON.stringify(b.data)); return send(res, 200, { ok: true }); }
   }
+  if (p === '/api/save' && req.method === 'PUT') {
+    const uid = await authUid(req); if (!uid) return send(res, 401, { err: 'auth' });
+    const b = await body(req, 900000); const docs = b && b.docs; if (!docs || typeof docs !== 'object') return send(res, 400, { err: 'docs' });
+    const names = Object.keys(docs); if (!names.length || names.length > 20 || !names.every(n => DOC_RE.test(n))) return send(res, 400, { err: 'doc' });
+    names.sort((x, y) => (/meta$/.test(x) ? 1 : 0) - (/meta$/.test(y) ? 1 : 0));   // 조각을 먼저, 요약(meta)을 마지막에
+    for (const n of names) await store.docSet(uid, n, JSON.stringify(docs[n]));
+    return send(res, 200, { ok: true });
+  }
   if (p === '/api/rank') {
     const best = new Map();
     for (const r of await store.metasAll()) { let m; try { m = JSON.parse(r.data); } catch (e) { continue; } const a = m.asset || m.gold || 0; const o = best.get(r.uid); if (!o || a > o.asset) best.set(r.uid, { name: r.name, asset: a, gold: m.gold || 0, fame: m.fame || 0, day: m.day || 0, disc: m.disc || 0, ch: m.ch || 0, t: m.t || 0 }); }
