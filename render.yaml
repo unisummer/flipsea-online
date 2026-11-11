@@ -9,3 +9,5 @@ services:
     envVars:
       - key: DATABASE_URL
         sync: false
+      - key: ADMIN_KEY
+        sync: false

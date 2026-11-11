@@ -19,6 +19,7 @@
 1. Render에서 New → Web Service → 이 저장소 선택
 2. Runtime: Node, Build Command: `npm install`, Start Command: `node server.js`, Instance Type: Free
 3. Environment에 `DATABASE_URL` = Neon 등 PostgreSQL 연결 주소 (없으면 서버를 다시 시작할 때 저장이 사라짐)
+4. Environment에 `ADMIN_KEY` = 선생님용 관리자 비밀번호 (6자 이상). `/admin` 주소에서 학생 비밀번호 초기화·선장 삭제를 할 수 있습니다.
 4. 배포가 끝나면 나오는 `https://….onrender.com` 주소로 접속
 
 ## 주의

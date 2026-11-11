@@ -10,7 +10,8 @@ let storeOk = false, storeErr = '';
 // ---------- 게임 화면 ----------
 const PUB = path.join(__dirname, 'public');
 let INDEX = null, INDEX_GZ = null;
-function loadIndex() { INDEX = fs.readFileSync(path.join(PUB, 'index.html')); INDEX_GZ = zlib.gzipSync(INDEX, { level: 9 }); }
+let ETAG = '';
+function loadIndex() { INDEX = fs.readFileSync(path.join(PUB, 'index.html')); INDEX_GZ = zlib.gzipSync(INDEX, { level: 9 }); ETAG = '"' + crypto.createHash('sha1').update(INDEX).digest('hex').slice(0, 16) + '"'; }
 loadIndex();
 
 // ---------- 함께 쓰는 세계 ----------
@@ -50,21 +51,22 @@ function body(req, limit) {
 async function api(req, res, url) {
   const p = url.pathname;
   if (p === '/api/login' && req.method === 'POST') {
-    const b = await body(req, 4096); const name = String(b.name || '').trim(), pin = String(b.pin || '');
+    const b = await body(req, 4096); const name = String(b.name || '').normalize('NFC').replace(/\s+/g, ' ').trim(), pin = String(b.pin || ''), fk = name.toLowerCase();
     if (!NAME_RE.test(name)) return send(res, 400, { err: 'name' });
     if (!PIN_RE.test(pin)) return send(res, 400, { err: 'pin_format' });
-    const f = fails.get(name); if (f && f.until > Date.now()) return send(res, 429, { err: 'locked', wait: Math.ceil((f.until - Date.now()) / 1000) });
+    const f = fails.get(fk); if (f && f.until > Date.now()) return send(res, 429, { err: 'locked', wait: Math.ceil((f.until - Date.now()) / 1000) });
     let u = await store.userByName(name), isNew = false;
+    if (u && b.create) return send(res, 409, { err: 'taken' });   // 이미 있는 이름은 새로 만들 수 없다
     if (!u) {
       if (!b.create) return send(res, 404, { err: 'no_user' });
       const salt = crypto.randomBytes(12).toString('hex'); const id = await store.createUser(name, salt, await hashPin(pin, salt)); u = { id, name }; isNew = true;
     } else {
       const h = await hashPin(pin, u.salt);
       if (!crypto.timingSafeEqual(Buffer.from(h, 'hex'), Buffer.from(u.hash, 'hex'))) {
-        const g = f && f.until > Date.now() - 600000 ? f : { n: 0, until: 0 }; g.n++; if (g.n >= 5) { g.until = Date.now() + 5 * 60000; g.n = 0; } fails.set(name, g);
+        const g = f && f.until > Date.now() - 600000 ? f : { n: 0, until: 0 }; g.n++; if (g.n >= 5) { g.until = Date.now() + 5 * 60000; g.n = 0; } fails.set(fk, g);
         return send(res, 401, { err: 'pin', left: 5 - g.n });
       }
-      fails.delete(name);
+      fails.delete(fk);
     }
     const token = crypto.randomBytes(24).toString('hex'); await store.tokenSet(token, Number(u.id));
     return send(res, 200, { token, name: u.name, id: Number(u.id), isNew });
@@ -84,6 +86,7 @@ async function api(req, res, url) {
     for (const n of names) await store.docSet(uid, n, JSON.stringify(docs[n]));
     return send(res, 200, { ok: true });
   }
+  if (p.startsWith('/api/admin/') && req.method === 'POST') return admin(req, res, p.slice(11));
   if (p === '/api/rank') {
     const best = new Map();
     for (const r of await store.metasAll()) { let m; try { m = JSON.parse(r.data); } catch (e) { continue; } const a = m.asset || m.gold || 0; const o = best.get(r.uid); if (!o || a > o.asset) best.set(r.uid, { name: r.name, asset: a, gold: m.gold || 0, fame: m.fame || 0, day: m.day || 0, disc: m.disc || 0, ch: m.ch || 0, t: m.t || 0 }); }
@@ -91,16 +94,51 @@ async function api(req, res, url) {
   }
   send(res, 404, { err: 'not_found' });
 }
+// ---------- 선생님(관리자) ----------
+// Render 환경 변수 ADMIN_KEY에 넣은 관리자 비밀번호로만 쓸 수 있다.
+let adminFail = { n: 0, until: 0 };
+function kick(uid) { for (const [c, v] of clients) if (v.uid === uid) { c.send(JSON.stringify({ type: 'auth_fail' })); c.close(); } }
+async function admin(req, res, act) {
+  const KEY = process.env.ADMIN_KEY || '';
+  if (KEY.length < 6) return send(res, 403, { err: 'no_admin' });
+  if (adminFail.until > Date.now()) return send(res, 429, { err: 'locked', wait: Math.ceil((adminFail.until - Date.now()) / 1000) });
+  const b = await body(req, 4096), k = Buffer.from(String(b.key || '')), K = Buffer.from(KEY);
+  if (k.length !== K.length || !crypto.timingSafeEqual(k, K)) { if (++adminFail.n >= 5) adminFail = { n: 0, until: Date.now() + 10 * 60000 }; return send(res, 401, { err: 'key' }); }
+  adminFail.n = 0;
+  if (act === 'users') {
+    const metas = {}; for (const r of await store.metasAll()) { let m; try { m = JSON.parse(r.data); } catch (e) { continue; } const o = metas[r.uid]; if (!o || (m.t || 0) > (o.t || 0)) metas[r.uid] = m; }
+    const on = new Set([...clients.values()].map(v => v.uid));
+    return send(res, 200, { list: (await store.usersAll()).map(u => { const m = metas[u.id] || {}; return { id: u.id, name: u.name, created: u.created, last: u.last, day: m.day || 0, gold: m.gold || 0, asset: m.asset || 0, online: on.has(u.id) }; }) });
+  }
+  const id = Number(b.id); if (!Number.isInteger(id) || !(await store.userById(id))) return send(res, 404, { err: 'no_user' });
+  if (act === 'pin') {
+    const pin = String(b.pin || ''); if (!PIN_RE.test(pin)) return send(res, 400, { err: 'pin_format' });
+    const salt = crypto.randomBytes(12).toString('hex'); await store.setPin(id, salt, await hashPin(pin, salt)); kick(id);
+    const u = await store.userById(id); fails.delete(u.name.toLowerCase());
+    return send(res, 200, { ok: true });
+  }
+  if (act === 'delete') {
+    kick(id); await store.deleteUser(id);
+    for (const p in W.inv) if (W.inv[p][id]) { delete W.inv[p][id]; invChanged.add(+p); worldDirty = true; }
+    delete W.nm[id]; return send(res, 200, { ok: true });
+  }
+  send(res, 404, { err: 'not_found' });
+}
+let ADMIN_HTML = null; try { ADMIN_HTML = fs.readFileSync(path.join(PUB, 'admin.html')); } catch (e) {}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
     if (url.pathname.startsWith('/api/')) return await api(req, res, url);
     if (url.pathname === '/healthz') return send(res, 200, { ok: true, store: store.kind, storeOk, storeErr, players: clients.size });
     if (url.pathname === '/' || url.pathname === '/index.html') {
+      // 같은 판이면 다시 보내지 않는다 (304) — 새로 고침 때 0.6MB를 아낀다
+      if (req.headers['if-none-match'] === ETAG) { res.writeHead(304, { ETag: ETAG, 'Cache-Control': 'no-cache' }); return res.end(); }
       const gz = /\bgzip\b/.test(req.headers['accept-encoding'] || '');
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', ...(gz ? { 'Content-Encoding': 'gzip' } : {}) });
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', ETag: ETAG, Vary: 'Accept-Encoding', ...(gz ? { 'Content-Encoding': 'gzip' } : {}) });
       return res.end(gz ? INDEX_GZ : INDEX);
     }
+    if (url.pathname === '/admin' && ADMIN_HTML) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(ADMIN_HTML); }
     res.writeHead(404); res.end('not found');
   } catch (e) {
     if (e && e.code === 413) return send(res, 413, { err: 'too_big' }); if (e && e.code === 400) return send(res, 400, { err: 'bad_json' });
@@ -153,7 +191,20 @@ setInterval(() => {
   if (devChanged.size) { const dev = {}; for (const p of devChanged) dev[p] = W.dev[p]; devChanged.clear(); bc({ type: 'dev', dev }); }
 }, 400);
 // 배 위치는 2초마다
-setInterval(() => { if (clients.size) bc({ type: 'players', list: playerList(), now: Date.now() }); }, 2000);
+// 줄여 보내기: [id, 위도×1000, 경도×1000, 뱃머리, 항구, 배 수×2+전투]
+const sentKey = new Map(); let fullT = 0;
+setInterval(() => {
+  if (!clients.size) { sentKey.clear(); return; }
+  const now = Date.now(), list = playerList();
+  if (now - fullT > 30000) { fullT = now; sentKey.clear(); for (const o of list) fullSeen.add(o.id); bc({ type: 'players', list, now }); for (const o of list) sentKey.set(o.id, pk(o).join()); return; }
+  const d = [], here = new Set();
+  for (const o of list) { here.add(o.id); const a = pk(o), k = a.join(); if (sentKey.get(o.id) !== k) { sentKey.set(o.id, k); d.push(a); } }
+  const gone = []; for (const id of sentKey.keys()) if (!here.has(id)) { gone.push(id); sentKey.delete(id); fullSeen.delete(id); }
+  const add = list.filter(o => !fullSeen.has(o.id)); for (const o of add) fullSeen.add(o.id);
+  if (d.length || gone.length) bc({ type: 'pd', now, d, gone, add: add.map(o => ({ id: o.id, nm: o.nm, fl: o.fl, day: o.day })) });
+}, 2000);
+const fullSeen = new Set();
+function pk(o) { return [o.id, Math.round(o.lat * 1000), Math.round(o.lon * 1000), Math.round(o.hd || 0), o.port, (o.ships || 1) * 2 + (o.bat ? 1 : 0)]; }
 // 끊긴 연결 정리
 setInterval(() => { for (const c of clients.keys()) { if (!c.alive) { c.close(); continue; } c.alive = false; c.ping(); } }, 30000);
 

@@ -2507,11 +2507,11 @@ function onSaved(){try{return JSON.parse(localStorage.getItem(ONK)||'null');}cat
 function loginBox(){let el=$('onlogin');if(!el){el=document.createElement('div');el.id='onlogin';const box=$('title').querySelector('.box');box.insertBefore(el,$('slots'));}return el;}
 function setNeed(on){$('title').querySelector('.box').classList.toggle('needlogin',on);}
 function loginForm(msg,bad){const el=loginBox();setNeed(true);const sv=onSaved();
-  el.innerHTML=`<b>⚓ 선장 이름으로 들어가기</b> <small class="hint">처음이면 새로 만들어집니다</small>
+  el.innerHTML=`<b>⚓ 선장 이름으로 들어가기</b> <small class="hint">처음이면 「새 선장 만들기」 · 이름은 한 사람만 쓸 수 있습니다</small>
    <div class="row"><input id="onName" maxlength="12" placeholder="선장 이름 (2~12자)" value="${esc(sv&&sv.nm||'')}" autocomplete="username"><input id="onPin" type="password" inputmode="numeric" maxlength="8" placeholder="비밀번호 (숫자 4~8자리)" autocomplete="current-password"></div>
-   <div class="row"><button class="main" id="onGo">🌐 온라인 모드로 들어가기</button><button id="onSolo">🧭 싱글 모드 (혼자 · 배율 자유)</button></div><div class="msg ${bad?'bad':''}" id="onMsg">${msg||'🌐 온라인: 모든 선장이 같은 속도(하루 2.5초)로 항해하고 서로의 배가 보입니다. 같은 이름·비밀번호로 PC와 휴대폰에서 이어집니다.<br>🧭 싱글: 혼자 하며 시간 배율(×1~×16)과 멈춤을 마음대로 씁니다. 이 기기에만 저장됩니다.'}</div>`;
+   <div class="row"><button class="main" id="onGo">🌐 온라인 모드로 들어가기</button><button id="onMake">✚ 새 선장 만들기</button><button id="onSolo">🧭 싱글 모드 (혼자 · 배율 자유)</button></div><div class="msg ${bad?'bad':''}" id="onMsg">${msg||'🌐 온라인: 모든 선장이 같은 속도(하루 2.5초)로 항해하고 서로의 배가 보입니다. 같은 이름·비밀번호로 PC와 휴대폰에서 이어집니다.<br>🧭 싱글: 혼자 하며 시간 배율(×1~×16)과 멈춤을 마음대로 씁니다. 이 기기에만 저장됩니다.'}</div>`;
   ['onName','onPin'].forEach(i=>{const x=$(i);x.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter')doLogin(false);});x.addEventListener('keyup',e=>e.stopPropagation());});
-  $('onGo').onclick=()=>doLogin(false);$('onSolo').onclick=goSolo;}
+  $('onGo').onclick=()=>doLogin(false);$('onMake').onclick=()=>doLogin(true);$('onSolo').onclick=goSolo;}
 async function doLogin(create){const name=$('onName').value.trim(),pin=$('onPin').value.trim(),m=$('onMsg');
   if(!/^[\p{L}\p{N}_\- ]{2,12}$/u.test(name)){m.className='msg bad';m.textContent='선장 이름은 2~12자의 한글·영문·숫자로 정해 주세요.';return;}
   if(!/^\d{4,8}$/.test(pin)){m.className='msg bad';m.textContent='비밀번호는 숫자 4~8자리입니다.';return;}
@@ -2520,6 +2520,7 @@ async function doLogin(create){const name=$('onName').value.trim(),pin=$('onPin'
     onReady(r.isNew?`새 선장 '${r.name}'을(를) 등록했습니다. 이 이름과 비밀번호를 기억해 두세요.`:'');}
   catch(e){$('onGo').disabled=false;m.className='msg bad';
     if(e.code==='no_user'){m.className='msg';m.innerHTML=`'<b>${esc(name)}</b>'은(는) 처음 보는 이름입니다. 새 선장으로 등록할까요? <button class="main" id="onNew">새 선장 등록</button>`;$('onNew').onclick=()=>doLogin(true);}
+    else if(e.code==='taken')m.textContent=`'${name}'은(는) 이미 다른 선장이 쓰는 이름입니다. 다른 이름을 골라 주세요. (내 이름이라면 「들어가기」를 누르세요)`;
     else if(e.code==='pin')m.textContent=`비밀번호가 다릅니다. (남은 기회 ${e.left}번, 다 쓰면 5분 동안 잠깁니다)`;
     else if(e.code==='locked')m.textContent=`비밀번호를 여러 번 틀려 잠겼습니다. ${e.wait}초 뒤에 다시 해 주세요.`;
     else if(e.code==='timeout'||e.code==='network')m.textContent='서버에 닿지 못했습니다. 잠에서 깨는 중일 수 있으니 잠시 뒤 다시 눌러 주세요.';
@@ -2561,6 +2562,9 @@ function onWs(m){
   else if(m.type==='inv'){const lord0={};for(const p in m.inv)lord0[p]=ivInfo(p).lord;Object.assign(ON.W.nm,m.nm||{});for(const p in m.inv){ON.W.inv[p]=Object.assign(ON.W.inv[p]||{},m.inv[p]);
       const L=ivInfo(p);if(L.lord&&lord0[p]&&L.lord.id!==lord0[p].id&&S){if(L.lord.id===ON.id)toast(`👑 ${PORTS[p].name}의 투자 1위가 되었습니다! 이제 이 도시의 영주입니다.`,true);else if(lord0[p].id===ON.id)toast(`${L.lord.nm} 선장이 ${PORTS[p].name}의 영주 자리를 가져갔습니다.`,true);}}
     if(ON.open&&ON.tab==='lord')panelUI();}
+  else if(m.type==='pd'){const M=new Map(ON.players.map(o=>[o.id,o]));for(const a of m.add||[])M.set(a.id,Object.assign(M.get(a.id)||{},a));for(const g of m.gone||[])M.delete(g);
+    for(const a of m.d||[]){const o=M.get(a[0])||{id:a[0],nm:'?'};o.lat=a[1]/1000;o.lon=a[2]/1000;o.hd=a[3];o.port=a[4];o.ships=a[5]>>1;o.bat=!!(a[5]&1);M.set(a[0],o);}
+    ON.players=[...M.values()].filter(o=>typeof o.lat==='number');ghostUpdate(ON.players);if(ON.open&&ON.tab==='who')panelUI();chipUI();}
   else if(m.type==='players'){ON.players=m.list||[];ghostUpdate(ON.players);if(ON.open&&ON.tab==='who')panelUI();chipUI();}
   else if(m.type==='chat'){ON.chat.push(m.m);if(ON.chat.length>80)ON.chat=ON.chat.slice(-60);if(!(ON.open&&ON.tab==='chat')&&m.m.nm!==ON.nm){ON.unread++;if(S)toast(`💬 ${m.m.nm}: ${m.m.text.slice(0,40)}`);}chipUI();if(ON.open&&ON.tab==='chat')panelUI();}
   else if(m.type==='sys'){ON.chat.push({sys:1,text:m.text,t:Date.now()});if(ON.open&&ON.tab==='chat')panelUI();}

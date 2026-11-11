@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>선장 관리</title>
+<style>
+:root{--bg:#f4ead6;--card:#fffaf0;--ink:#3a2a18;--sub:#7a5f40;--line:#d9c7a3;--accent:#2f5d73;--bad:#a8322a}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1d1913;--card:#29231b;--ink:#efe3cc;--sub:#b9a17d;--line:#4a3f2e;--accent:#7fb2c9;--bad:#e07a6f}}
+:root[data-theme="dark"]{--bg:#1d1913;--card:#29231b;--ink:#efe3cc;--sub:#b9a17d;--line:#4a3f2e;--accent:#7fb2c9;--bad:#e07a6f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+main{max-width:860px;margin:0 auto;padding:20px 16px 60px}h1{font-size:22px;margin:0 0 4px}.sub{color:var(--sub);font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-top:14px}
+input,button{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+button{cursor:pointer}button.main{background:var(--accent);color:#fff;border-color:var(--accent)}button.bad{color:var(--bad);border-color:var(--bad)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{color:var(--sub);font-weight:600}td.n{text-align:right;font-variant-numeric:tabular-nums}.on{color:#2e8b57}
+#msg{min-height:22px;margin-top:8px}.err{color:var(--bad)}.wrap{overflow-x:auto}
+@media (max-width:600px){.hide-s{display:none}}
+</style></head><body><main>
+<h1>⚓ 선장 관리 (선생님용)</h1>
+<div class="sub">뒤집힌 바다 온라인 — 학생 비밀번호 초기화, 선장 삭제</div>
+<div class="card">
+  <div class="row"><input id="key" type="password" placeholder="관리자 비밀번호 (Render의 ADMIN_KEY)" style="flex:1;min-width:220px"><button class="main" id="go">선장 목록 보기</button></div>
+  <div id="msg" class="sub">관리자 비밀번호는 Render 대시보드 → 이 서비스 → Environment 에서 ADMIN_KEY 로 정합니다. 5번 틀리면 10분 동안 잠깁니다.</div>
+</div>
+<div class="card" id="box" hidden>
+  <div class="row" style="justify-content:space-between"><b id="cnt"></b><input id="q" placeholder="이름 찾기" style="width:160px"></div>
+  <div class="wrap"><table><thead><tr><th>#</th><th>선장</th><th class="n hide-s">날짜</th><th class="n hide-s">자산</th><th class="hide-s">마지막 저장</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>
+</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);let L=[];
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ERR={key:'관리자 비밀번호가 다릅니다.',locked:'여러 번 틀려 잠겼습니다. 잠시 뒤 다시 해 주세요.',no_admin:'서버에 ADMIN_KEY(6자 이상)가 아직 없습니다. Render의 Environment에 먼저 넣어 주세요.',pin_format:'새 비밀번호는 숫자 4~8자리여야 합니다.',no_user:'그 선장을 찾지 못했습니다.'};
+async function call(act,extra){const r=await fetch('/api/admin/'+act,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:$('key').value,...extra})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(ERR[j.err]||('오류: '+(j.err||r.status)));return j;}
+function say(t,bad){$('msg').textContent=t;$('msg').className=bad?'err':'sub';}
+const ago=t=>{if(!t)return '-';const m=Math.round((Date.now()-t)/60000);return m<1?'방금':m<60?m+'분 전':m<1440?Math.round(m/60)+'시간 전':Math.round(m/1440)+'일 전';};
+function draw(){const q=$('q').value.trim().toLowerCase();const S=L.filter(u=>!q||u.name.toLowerCase().includes(q));
+  $('cnt').textContent=`선장 ${L.length}명 · 지금 접속 ${L.filter(u=>u.online).length}명`;
+  $('tb').innerHTML=S.map(u=>`<tr><td>${u.id}</td><td><b>${esc(u.name)}</b>${u.online?' <span class="on">● 접속 중</span>':''}</td><td class="n hide-s">${u.day?u.day+'일째':'-'}</td><td class="n hide-s">${(u.asset||u.gold||0).toLocaleString()}</td><td class="hide-s">${ago(u.last)}</td>
+  <td class="row" style="justify-content:flex-end"><button data-pin="${u.id}">비밀번호 초기화</button><button class="bad" data-del="${u.id}">삭제</button></td></tr>`).join('')||'<tr><td colspan="6" class="sub">선장이 없습니다.</td></tr>';
+  document.querySelectorAll('[data-pin]').forEach(b=>b.onclick=async()=>{const u=L.find(x=>x.id==b.dataset.pin);const pin=prompt(`'${u.name}' 선장의 새 비밀번호 (숫자 4~8자리)`,'');if(pin===null)return;
+    try{await call('pin',{id:u.id,pin:pin.trim()});say(`'${u.name}' 선장의 비밀번호를 바꿨습니다. 학생에게 새 비밀번호를 알려 주세요. (저장된 항해는 그대로입니다)`);}catch(e){say(e.message,true);}});
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const u=L.find(x=>x.id==b.dataset.del);const t=prompt(`'${u.name}' 선장과 저장된 항해, 투자 기록을 모두 지웁니다. 되돌릴 수 없습니다.\n지우려면 선장 이름을 그대로 입력하세요.`,'');if(t===null)return;
+    if(t.trim()!==u.name){say('이름이 달라 지우지 않았습니다.',true);return;}
+    try{await call('delete',{id:u.id});say(`'${u.name}' 선장을 지웠습니다. 이제 그 이름을 다른 학생이 쓸 수 있습니다.`);load();}catch(e){say(e.message,true);}});}
+async function load(){try{const j=await call('users');L=j.list;$('box').hidden=false;draw();}catch(e){say(e.message,true);}}
+$('go').onclick=()=>{say('불러오는 중…');load().then(()=>{if(!$('msg').classList.contains('err'))say('목록을 불러왔습니다.');});};
+$('key').onkeydown=e=>{if(e.key==='Enter')$('go').click();};$('q').oninput=draw;
+</script></body></html>
