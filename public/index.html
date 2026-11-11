@@ -2478,7 +2478,7 @@ function drawSlots(){const el=$('slots');if(!el||S)return;el.innerHTML=[1,2,3].m
   el.querySelectorAll('[data-slot]').forEach(b=>b.onclick=()=>{SLOT=+b.dataset.slot;try{localStorage.setItem('flipsea_slot',SLOT);}catch(e){}CLOUD.meta=CLOUD.metas[SLOT]||null;newClick=0;$('bNew').textContent='새로 시작';$('bCont').disabled=!hasSave();drawSlots();contChoice();const c=$('cloudst');if(c)c.textContent='☁ '+cloudLine();});}
 
 // ===== 온라인 (Render 서버용) — ONLINE 빌드에서만 들어간다 =====
-const ON={live:false,id:0,nm:'',tok:'',ws:null,wsOk:false,W:{mk:{},dev:{},disc:{}},players:[],chat:[],unread:0,tab:'chat',qmk:{},qdev:{},rank:null,rankT:0,open:false,retry:0,posT:0};
+const ON={live:false,id:0,nm:'',tok:'',ws:null,wsOk:false,W:{mk:{},dev:{},disc:{},inv:{},nm:{}},players:[],chat:[],unread:0,tab:'chat',qmk:{},qdev:{},rank:null,rankT:0,open:false,retry:0,posT:0};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function onApi(method,p,body,ms){const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),ms||15000);
   try{const bs=body?JSON.stringify(body):undefined;const r=await fetch(p,{method,signal:ctl.signal,keepalive:!!(bs&&bs.length<60000),headers:{'Content-Type':'application/json',...(ON.tok?{Authorization:'Bearer '+ON.tok}:{})},body:bs});
@@ -2554,10 +2554,13 @@ function wsConnect(){if(!ON.live||!ON.tok)return;try{if(ON.ws)ON.ws.close();}cat
 function wsSend(o){if(ON.ws&&ON.wsOk&&ON.ws.readyState===1){ON.ws.send(JSON.stringify(o));return true;}return false;}
 function setMk(k,a){const q=ON.qmk[k];ON.W.mk[k]={s:a[0]+(q?q[0]:0),b:a[1]+(q?q[1]:0),t:Date.now()};}
 function onWs(m){
-  if(m.type==='init'){ON.W.mk={};ON.qmk=ON.qmk||{};for(const k in m.world.mk)setMk(k,m.world.mk[k]);ON.W.dev={};for(const p in m.world.dev)ON.W.dev[p]=m.world.dev[p]+(ON.qdev[p]||0);ON.W.disc=m.world.disc||{};
+  if(m.type==='init'){ON.W.mk={};ON.qmk=ON.qmk||{};for(const k in m.world.mk)setMk(k,m.world.mk[k]);ON.W.dev={};for(const p in m.world.dev)ON.W.dev[p]=m.world.dev[p]+(ON.qdev[p]||0);ON.W.disc=m.world.disc||{};ON.W.inv=m.world.inv||{};ON.W.nm=m.world.nm||{};invSync(true);
     ON.chat=m.chat||[];ON.players=m.players||[];chipUI();panelUI();}
   else if(m.type==='mk'){for(const k in m.mk)setMk(k,m.mk[k]);}
   else if(m.type==='dev'){for(const p in m.dev)ON.W.dev[p]=m.dev[p]+(ON.qdev[p]||0);}
+  else if(m.type==='inv'){const lord0={};for(const p in m.inv)lord0[p]=ivInfo(p).lord;Object.assign(ON.W.nm,m.nm||{});for(const p in m.inv){ON.W.inv[p]=Object.assign(ON.W.inv[p]||{},m.inv[p]);
+      const L=ivInfo(p);if(L.lord&&lord0[p]&&L.lord.id!==lord0[p].id&&S){if(L.lord.id===ON.id)toast(`👑 ${PORTS[p].name}의 투자 1위가 되었습니다! 이제 이 도시의 영주입니다.`,true);else if(lord0[p].id===ON.id)toast(`${L.lord.nm} 선장이 ${PORTS[p].name}의 영주 자리를 가져갔습니다.`,true);}}
+    if(ON.open&&ON.tab==='lord')panelUI();}
   else if(m.type==='players'){ON.players=m.list||[];ghostUpdate(ON.players);if(ON.open&&ON.tab==='who')panelUI();chipUI();}
   else if(m.type==='chat'){ON.chat.push(m.m);if(ON.chat.length>80)ON.chat=ON.chat.slice(-60);if(!(ON.open&&ON.tab==='chat')&&m.m.nm!==ON.nm){ON.unread++;if(S)toast(`💬 ${m.m.nm}: ${m.m.text.slice(0,40)}`);}chipUI();if(ON.open&&ON.tab==='chat')panelUI();}
   else if(m.type==='sys'){ON.chat.push({sys:1,text:m.text,t:Date.now()});if(ON.open&&ON.tab==='chat')panelUI();}
@@ -2573,12 +2576,10 @@ function wm(k){let m=ON.W.mk[k];const now=Date.now();if(!m)m=ON.W.mk[k]={s:0,b:0
 function qmk(k,ds,db){const q=ON.qmk[k]||(ON.qmk[k]=[0,0]);q[0]+=ds;q[1]+=db;}
 const mk0=mk;
 mk=function(p,g){if(!ON.live)return mk0(p,g);const k=p+'_'+g;return {get s(){return wm(k).s;},set s(v){const m=wm(k),d=v-m.s;m.s=v;if(d>0)qmk(k,d,0);},get b(){return wm(k).b;},set b(v){const m=wm(k),d=v-m.b;m.b=v;if(d>0)qmk(k,0,d);},t:S?S.day:0};};
-const devPts0=devPts;
-devPts=function(p){if(!ON.live)return devPts0(p);return baseDev(p)+(ON.W.dev[p]||0);};
 const addDev0=addDev;
-addDev=function(p,kind,v){if(!ON.live)return addDev0(p,kind,v);const before=stageOf(p);if(kind==='inv')S.inv[p]=(S.inv[p]||0)+v;else S.tp[p]=(S.tp[p]||0)+v;
-  const pts=kind==='inv'?v*.02:v;ON.W.dev[p]=(ON.W.dev[p]||0)+pts;ON.qdev[p]=(ON.qdev[p]||0)+pts;const after=stageOf(p);
-  if(after>before){sfx('mission');toast(`${PORTS[p].name}이(가) ${STAGES[after-1][1]}(${after}단계)로 발전했습니다!${after===3&&PROCP[p].length?' 공방이 열려 '+PROCP[p].map(i=>GOODS[i][0]).join(', ')+'을(를) 만듭니다.':''}${after>=2?' 특산품 품질이 '+after+'등급이 됩니다.':''} (모든 선장이 함께 키운 항구입니다)`,true);}};
+addDev=function(p,kind,v){if(!ON.live)return addDev0(p,kind,v);const before=stageOf(p);if(kind==='inv')S.inv[p]=(S.inv[p]||0)+v;else S.tp[p]=(S.tp[p]||0)+v;const after=stageOf(p);
+  if(kind==='inv'){ivMine(p,S.inv[p]);invSync();}
+  if(after>before){sfx('mission');toast(`${PORTS[p].name}에서 ${STAGES[after-1][1]}(${after}단계 투자자)가 되었습니다!${after===3&&PROCP[p].length?' 공방 물건 '+PROCP[p].map(i=>GOODS[i][0]).join(', ')+'을(를) 살 수 있습니다.':''}${after>=2?' 이 항구 특산품을 '+after+'등급 품질로 받습니다.':''}`,true);}};
 // ---------- 발견 ----------
 window.onDisc=id=>{if(ON.live)wsSend({type:'disc',id});};
 const showDisc0=showDisc;
@@ -2614,10 +2615,11 @@ function chipUI(){const c=$('onchip');if(!c)return;const n=new Set(ON.players.ma
   c.innerHTML=`<span class="dot"></span>${ON.wsOk?`온라인 ${n}명`:'연결 끊김 · 다시 연결 중'}${ON.unread?`<span class="bdg">${ON.unread}</span>`:''}`;}
 function where(){if(!S)return '';return inPort>=0?PORTS[inPort].name:regionName(regionOf(S.lat,S.lon));}
 function panelUI(){const p=$('onpanel');if(!p)return;p.classList.toggle('open',ON.open);if(!ON.open)return;
-  const tabs=[['chat','💬 대화'],['who',`⚓ 접속 중 (${new Set(ON.players.map(x=>x.id)).size})`],['rank','🏆 순위']];
+  const tabs=[['chat','💬 대화'],['who',`⚓ 접속 중 (${new Set(ON.players.map(x=>x.id)).size})`],['rank','🏆 순위'],['lord','👑 작위']];
   let body='';
   if(ON.tab==='chat')body=ON.chat.slice(-60).map(m=>m.sys?`<div class="cm sys">${esc(m.text)}</div>`:`<div class="cm ${m.nm===ON.nm?'me':''}"><b>${esc(m.nm)}</b><small>${esc(m.where||'')}</small><br>${esc(m.text)}</div>`).join('')||'<p class="hint">아직 대화가 없습니다. 먼저 인사해 보세요.</p>';
   else if(ON.tab==='who'){const L=ON.players;body=L.length?L.map(o=>`<div class="pl" data-pl="${o.id}"><span><b>${esc(o.nm)}</b>${o.id===ON.id?' (나)':''}<br><small class="hint">${o.port>=0&&PORTS[o.port]?PORTS[o.port].name+'에 정박':regionName(regionOf(o.lat,o.lon))+' 바다 위'}${o.bat?' · 해전 중':''}</small></span><small>${o.day}일째 · 배 ${o.ships}척</small></div>`).join('')+'<p class="hint">이름을 누르면 지도에서 그 선장의 배를 보여 줍니다.</p>':'<p class="hint">지금 바다에 나온 선장이 없습니다.</p>';}
+  else if(ON.tab==='lord')body=lordHTML();
   else{const R=ON.rank;body=R?`<table class="mt"><tr><th>#</th><th>선장</th><th class="n">자산</th><th class="n">명성</th><th class="n">발견</th></tr>${R.map((r,i)=>`<tr${r.name===ON.nm?' style="background:#efe2c4"':''}><td>${i+1}</td><td>${esc(r.name)}<br><small class="hint">${r.day}일째</small></td><td class="n">${Math.round(r.asset).toLocaleString()}</td><td class="n">${(r.fame||0).toLocaleString()}</td><td class="n">${r.disc||0}</td></tr>`).join('')}</table><p class="hint">저장된 항해 가운데 선장마다 가장 좋은 기록입니다. 자산 = 소지금 + 배 값의 절반 + 화물 + 누적 투자.</p>`:'<p class="hint">불러오는 중…</p>';
     if(!R||Date.now()-ON.rankT>60000){ON.rankT=Date.now();onApi('GET','/api/rank').then(r=>{ON.rank=r.list;if(ON.open&&ON.tab==='rank')panelUI();}).catch(()=>{});}}
   p.innerHTML=`<div class="tabs">${tabs.map(t=>`<button data-ot="${t[0]}" class="${ON.tab===t[0]?'on':''}">${t[1]}</button>`).join('')}<button data-ot="x" style="flex:0 0 38px">✕</button></div><div class="body" id="onBody">${body}</div>${ON.tab==='chat'?`<div class="cin"><input id="onTxt" maxlength="200" placeholder="${ON.wsOk?'모두에게 말하기':'연결되면 말할 수 있습니다'}"><button class="main" id="onSend">보내기</button></div>`:''}`;
@@ -2661,8 +2663,8 @@ const stepSpeed0=stepSpeed;stepSpeed=function(d){if(!ON.live)return stepSpeed0(d
 const slowDown0=slowDown;slowDown=function(w){if(!ON.live)return slowDown0(w);};
 const renderSpeed0=renderSpeed;
 renderSpeed=function(){if(!ON.live)return renderSpeed0();const el=$('speed');if(!el||!S)return;if(inPort<0&&!B)tspeed=OSPD;
-  const k=['on',S.sail,MOB,paused].join();if(k===spKey)return;spKey=k;el.classList.remove('flash');
-  el.innerHTML=`${paused?'<button data-sl="0" title="계속">▶ 계속</button>':''}<span class="olock">🌐 세계 시간 ×${OSPD}</span><button data-sl="-1" title="돛 내리기 (S)">돛 ▼</button><span class="olock">${['⚓ 멈춤','반 돛','가득'][S.sail]||''}</span><button data-sl="1" title="돛 올리기 (W)">돛 ▲</button>`;};
+  const stuck=paused&&inPort<0&&!B&&!infoOpen&&!encOpen&&!storyOpen&&!carEvOpen;const k=['on',S.sail,MOB,stuck].join();if(k===spKey)return;spKey=k;el.classList.remove('flash');
+  el.innerHTML=`${stuck?'<button data-sl="0" title="계속">▶ 계속</button>':''}<span class="olock">🌐 세계 시간 ×${OSPD}</span><button data-sl="-1" title="돛 내리기 (S)">돛 ▼</button><span class="olock">${['⚓ 멈춤','반 돛','가득'][S.sail]||''}</span><button data-sl="1" title="돛 올리기 (W)">돛 ▲</button>`;};
 (()=>{const st=document.createElement('style');st.textContent=`#speed .olock{padding:0 8px;font-size:13px;white-space:nowrap;align-self:center}#speed [data-sl]{min-width:56px}`;document.head.appendChild(st);
   document.addEventListener('pointerdown',e=>{const b=e.target.closest&&e.target.closest('#speed [data-sl]');if(!b||!S||!ON.live)return;e.preventDefault();e.stopPropagation();const d=+b.dataset.sl;if(!d){paused=false;}
     if(d>0&&S.sail<2){S.sail++;sfx('sailUp');}else if(d<0&&S.sail>0){S.sail--;sfx('sailDown');}spKey='';renderSpeed();},true);})();
@@ -2673,6 +2675,41 @@ function onHelp(on){document.querySelectorAll('td').forEach(td=>{const t=td.next
   if(td.textContent==='1~5 · 휠'){t.dataset.o=t.dataset.o||t.textContent;t.textContent=on?'온라인 모드: 세계 시간 ×4 고정 (배 속도는 돛으로)':t.dataset.o;}
   if(td.textContent==='Space'&&/멈춤/.test(t.textContent)){t.dataset.o=t.dataset.o||t.textContent;t.textContent=on?'온라인 모드: 멈추지 않음 (돛을 내리면 배가 섭니다)':t.dataset.o;}});}
 {const om0=onlineMode;onlineMode=function(on){om0(on);try{onHelp(on);}catch(e){}};}
+
+// ---------- 투자자 등급과 작위 ----------
+// 도시는 처음부터 다 자라 있다. 단계는 '그 도시에서 나의 투자자 등급'이고,
+// 같은 도시에 투자한 모든 선장 중 내 몫(지분)만큼 물건을 더 받는다.
+const IV_MIN=1000, IV_POOL=100, IV_FLOOR=5;
+const IV_STAGE=['손님','단골 상인','후원자','큰 후원자','명예 시민'];
+const STAGE0=STAGES.map(s=>s[1]);
+const TITLES=[[0,'👑','영주'],[.25,'🛡','백작'],[.10,'⚜','자작'],[.03,'🎖','남작'],[0,'🗡','기사']];
+function ivMine(p,v){const P=ON.W.inv[p]||(ON.W.inv[p]={});if(v>(P[ON.id]||0))P[ON.id]=Math.floor(v);ON.W.nm[ON.id]=ON.nm;}
+let ivSent={};
+function invSync(all){if(!ON.live||!S||!S.inv)return;if(all)ivSent={};const d=[];for(const p in S.inv){const v=Math.floor(S.inv[p]||0);if(v>0&&v>(ivSent[p]||0)){ivMine(+p,v);d.push([+p,v]);}}
+  if(d.length&&wsSend({type:'inv',d}))d.forEach(x=>ivSent[x[0]]=x[1]);}
+setInterval(()=>invSync(),5000);
+function titleOf(x){if(x.g<IV_MIN)return null;if(x.rk===1)return TITLES[0];for(let i=1;i<4;i++)if(x.sh>=TITLES[i][0])return TITLES[i];return TITLES[4];}
+function ivInfo(p){const P=ON.W.inv[p]||{};const L=Object.keys(P).map(u=>({id:+u,nm:ON.W.nm[u]||'?',g:P[u]})).filter(x=>x.g>0).sort((a,b)=>b.g-a.g);
+  const tot=L.reduce((s,x)=>s+x.g,0);L.forEach((x,i)=>{x.sh=tot?x.g/tot:0;x.rk=i+1;x.t=titleOf(x);x.b=x.g>=IV_MIN?Math.max(IV_FLOOR,Math.round(IV_POOL*x.sh)):0;});
+  const me=L.find(x=>x.id===ON.id)||null;return {L,tot,me,lord:L.length&&L[0].g>=IV_MIN?L[0]:null};}
+function ivBonus(p){if(!ON.live)return 0;const I=ivInfo(p);return I.me?I.me.b:0;}
+const stock0=stock;stock=function(p,g){const s=stock0(p,g);if(!ON.live)return s;return s+ivBonus(p);};
+const investHTML0=investHTML;
+investHTML=function(p){const h=investHTML0(p);if(!ON.live)return h;const I=ivInfo(p),b=ivBonus(p),t=I.me&&I.me.t;
+  const top=I.L.slice(0,8).map(x=>`<tr${x.id===ON.id?' style="background:#efe2c4"':''}><td>${x.rk}</td><td>${x.t?x.t[1]+' '+x.t[2]:''}</td><td>${esc(x.nm)}${x.id===ON.id?' (나)':''}</td><td class="n">${x.g.toLocaleString()}</td><td class="n">${(x.sh*100).toFixed(1)}%</td><td class="n">+${x.b}</td></tr>`).join('');
+  return `<div class="hint" style="background:#f3e7cc;border-radius:8px;padding:8px 10px;margin-bottom:8px">🌐 <b>온라인 투자</b> — 이 도시는 이미 다 자란 도시입니다. 단계는 <b>이 도시에서 나의 투자자 등급</b>이고, 등급이 오를수록 더 많은 물건과 좋은 품질을 내어 줍니다.<br>
+  여기에 더해, 이 도시에 들어온 <b>모든 선장의 투자금 중 내 몫</b>만큼 물건마다 최대 +${IV_POOL}개를 더 받습니다. ${IV_MIN.toLocaleString()}골드 이상 투자했다면 몫이 작아도 최소 +${IV_FLOOR}개는 받습니다.</div>
+  <div class="grid"><b>이 도시 총 투자금</b><span>${I.tot.toLocaleString()}골드 · 투자자 ${I.L.length}명</span><b>내 몫</b><span>${I.me?(I.me.sh*100).toFixed(1)+'% · '+I.me.rk+'위':'아직 없음'}</span>
+  <b>나의 작위</b><span>${t?t[1]+' '+t[2]:'없음 ('+IV_MIN.toLocaleString()+'골드부터)'}</span><b>추가 공급</b><span>${b?'물건마다 +'+b+'개':'없음'}</span></div>
+  ${top?`<table class="mt"><tr><th>#</th><th>작위</th><th>선장</th><th class="n">투자금</th><th class="n">몫</th><th class="n">추가</th></tr>${top}</table>`:'<p class="hint">아직 이 도시에 투자한 선장이 없습니다. 첫 투자자가 곧 영주입니다.</p>'}
+  <p class="hint">작위: 👑 영주(투자 1위) · 🛡 백작(몫 25% 이상) · ⚜ 자작(10% 이상) · 🎖 남작(3% 이상) · 🗡 기사(${IV_MIN.toLocaleString()}골드 이상)</p><hr>`+h;};
+function lordHTML(){const lords={},mine=[];for(const p in ON.W.inv){const I=ivInfo(p);if(I.lord)(lords[I.lord.nm]=lords[I.lord.nm]||[]).push(+p);if(I.me&&I.me.t)mine.push([+p,I.me]);}
+  const R=Object.entries(lords).sort((a,b)=>b[1].length-a[1].length).slice(0,15);
+  mine.sort((a,b)=>a[1].rk-b[1].rk||b[1].sh-a[1].sh);
+  return `<p class="hint">항구에 투자한 몫에 따라 작위를 받습니다. 도시마다 투자 1위가 영주입니다.</p>
+  <b>👑 영주 순위</b>${R.length?`<table class="mt"><tr><th>#</th><th>선장</th><th class="n">다스리는 도시</th></tr>${R.map(([n,ps],i)=>`<tr${n===ON.nm?' style="background:#efe2c4"':''}><td>${i+1}</td><td>${esc(n)}<br><small class="hint">${ps.slice(0,4).map(p=>PORTS[p]?PORTS[p].name:'').join(', ')}${ps.length>4?' 외':''}</small></td><td class="n">${ps.length}</td></tr>`).join('')}</table>`:'<p class="hint">아직 영주가 없습니다.</p>'}
+  <b>나의 작위</b>${mine.length?`<table class="mt"><tr><th>도시</th><th>작위</th><th class="n">몫</th></tr>${mine.map(([p,x])=>`<tr><td>${PORTS[p]?PORTS[p].name:p}</td><td>${x.t[1]} ${x.t[2]}</td><td class="n">${(x.sh*100).toFixed(1)}%</td></tr>`).join('')}</table>`:`<p class="hint">아직 작위가 없습니다. 항구의 투자 탭에서 ${IV_MIN.toLocaleString()}골드 이상 투자해 보세요.</p>`}`;}
+{const om1=onlineMode;onlineMode=function(on){om1(on);STAGES.forEach((s,i)=>s[1]=on?IV_STAGE[i]:STAGE0[i]);if(on&&S)invSync(true);};}
 
 </script>
 </body></html>

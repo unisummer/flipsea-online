@@ -15,17 +15,17 @@ loadIndex();
 
 // ---------- 함께 쓰는 세계 ----------
 const DECAY_MS = 20000;           // 시세 압력은 실제 20초마다 0.9배로 풀린다
-const W = { mk: {}, dev: {}, disc: {} };
+const W = { mk: {}, dev: {}, disc: {}, inv: {}, nm: {} };   // inv: 항구별 {선장id: 누적 투자 골드}
 let CHAT = [], worldDirty = false, chatDirty = false;
 function mkDecay(m, now) { const dt = now - m.t; if (dt > 0) { const f = Math.pow(0.9, dt / DECAY_MS); m.s *= f; m.b *= f; m.t = now; } return m; }
 function mkPack(m) { return [+m.s.toFixed(3), +m.b.toFixed(3)]; }
 function worldSnapshot() {
   const now = Date.now(), mk = {};
   for (const k in W.mk) { const m = mkDecay(W.mk[k], now); if (m.s + m.b < 0.05) { delete W.mk[k]; continue; } mk[k] = mkPack(m); }
-  return { mk, dev: W.dev, disc: W.disc, now };
+  return { mk, dev: W.dev, disc: W.disc, inv: W.inv, nm: W.nm, now };
 }
 async function loadWorld() {
-  try { const v = await store.kvGet('world'); if (v) { const o = JSON.parse(v); Object.assign(W, { mk: o.mk || {}, dev: o.dev || {}, disc: o.disc || {} }); } } catch (e) { console.error('world load', e.message); }
+  try { const v = await store.kvGet('world'); if (v) { const o = JSON.parse(v); Object.assign(W, { mk: o.mk || {}, dev: o.dev || {}, disc: o.disc || {}, inv: o.inv || {}, nm: o.nm || {} }); } } catch (e) { console.error('world load', e.message); }
   try { const v = await store.kvGet('chat'); if (v) CHAT = JSON.parse(v); } catch (e) {}
 }
 async function saveWorld() {
@@ -116,7 +116,7 @@ function playerList() {
   for (const v of clients.values()) if (v.pos && (!seen.has(v.uid) || seen.get(v.uid).pos.t < v.pos.t)) seen.set(v.uid, v);
   return [...seen.values()].map(v => ({ id: v.uid, nm: v.nm, ...v.pos }));
 }
-const mkChanged = new Set(), devChanged = new Set();
+const mkChanged = new Set(), devChanged = new Set(), invChanged = new Set();
 function onMsg(c, info, raw) {
   let m; try { m = JSON.parse(raw); } catch (e) { return; }
   const now = Date.now(), num = (x, a, b) => typeof x === 'number' && isFinite(x) && x >= a && x <= b;
@@ -133,6 +133,14 @@ function onMsg(c, info, raw) {
     }
   } else if (m.type === 'dev' && Array.isArray(m.d)) {
     for (const x of m.d.slice(0, 50)) { if (!Array.isArray(x) || !Number.isInteger(x[0]) || x[0] < 0 || x[0] > 400 || !num(x[1], 0, 50000)) continue; W.dev[x[0]] = (W.dev[x[0]] || 0) + x[1]; devChanged.add(x[0]); worldDirty = true; }
+  } else if (m.type === 'inv' && Array.isArray(m.d)) {
+    // 선장이 그 항구에 넣은 누적 투자금(절대값). 줄어들지 않고 큰 값만 받는다.
+    for (const x of m.d.slice(0, 200)) {
+      if (!Array.isArray(x) || !Number.isInteger(x[0]) || x[0] < 0 || x[0] > 400 || !num(x[1], 0, 1e11)) continue;
+      const P = W.inv[x[0]] || (W.inv[x[0]] = {}), v = Math.floor(x[1]);
+      if (v > (P[info.uid] || 0)) { P[info.uid] = v; invChanged.add(x[0]); worldDirty = true; }
+    }
+    if (W.nm[info.uid] !== info.nm) { W.nm[info.uid] = info.nm; worldDirty = true; }
   } else if (m.type === 'disc' && Number.isInteger(m.id) && m.id >= 0 && m.id < 1000) {
     if (!W.disc[m.id]) { W.disc[m.id] = { nm: info.nm, t: now }; worldDirty = true; bc({ type: 'disc', id: m.id, nm: info.nm }); }
   }
@@ -141,6 +149,7 @@ function onMsg(c, info, raw) {
 setInterval(() => {
   const now = Date.now();
   if (mkChanged.size) { const mk = {}; for (const k of mkChanged) if (W.mk[k]) mk[k] = mkPack(mkDecay(W.mk[k], now)); mkChanged.clear(); bc({ type: 'mk', now, mk }); }
+  if (invChanged.size) { const inv = {}, nm = {}; for (const p of invChanged) { inv[p] = W.inv[p]; for (const u in W.inv[p]) nm[u] = W.nm[u]; } invChanged.clear(); bc({ type: 'inv', inv, nm }); }
   if (devChanged.size) { const dev = {}; for (const p of devChanged) dev[p] = W.dev[p]; devChanged.clear(); bc({ type: 'dev', dev }); }
 }, 400);
 // 배 위치는 2초마다
