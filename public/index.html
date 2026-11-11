@@ -429,14 +429,36 @@ const SHIPTYPES=[
  {n:'플류트',hp:200,guns:12,sz:'대형',rig:'가로돛',hold:850,spd:.86,crew:55,seats:10,price:28000,d:'선원이 적게 드는 큰 짐배.'},
  {n:'프리깃',hp:220,guns:28,sz:'중형',rig:'가로돛',hold:280,spd:1.02,crew:70,seats:6,price:16000,d:'싸움을 위해 만든 날랜 배. 짐칸은 작다.'},
  {n:'전열함',hp:420,guns:60,sz:'대형',rig:'가로돛',hold:480,spd:.82,crew:120,seats:10,price:46000,d:'대포 60문을 실은 바다의 요새. 느리고 선원이 많이 든다.'},
+ {n:'슬루프',hp:70,guns:10,sz:'소형',rig:'세로돛',hold:160,spd:1.25,crew:20,seats:3,price:9000,d:'돛을 크게 단 날쌘 작은 배. 투자 2단계 항구 조선소에서 판다.',need:2},
+ {n:'스쿠너',hp:120,guns:14,sz:'중형',rig:'세로돛',hold:320,spd:1.45,crew:34,seats:6,price:22000,d:'두 돛대에 세로돛을 단 빠른 중형선. 투자 3단계 항구에서 판다.',need:3},
+ {n:'클리퍼',hp:200,guns:16,sz:'대형',rig:'가로돛',hold:650,spd:1.8,crew:60,seats:10,price:65000,d:'바다에서 가장 빠른 범선. 좁고 긴 선체에 돛을 하늘까지 단다. 투자 4단계 항구에서 판다.',need:4},
+ {n:'증기 클리퍼',hp:260,guns:24,sz:'대형',rig:'증기 겸용',hold:700,spd:2.2,crew:70,seats:10,price:140000,d:'돛과 증기기관을 함께 쓰는 새 시대의 배. 바람이 나빠도 잘 나아간다. 투자 5단계 항구에서 판다.',need:5},
 ];
+// ===== 속도 성장 =====
+function speedHTML(){const n=S.fleet.length,avg=f=>S.fleet.reduce((a,sh,k)=>a+f(sh,k),0)/n;
+  const ship=avg(sh=>SHIPTYPES[sh.t].spd),up=avg((sh,k)=>upMulK(k)),navi=avg((sh,k)=>1+.25*shipRole(k,1)/100),sea=seaMul(),etc=navMul()/sea,eng=boostMax()>0?boostMul():1;
+  const tot=fleetSail(0)*navMul(),l=seaLv(),pct=x=>'×'+x.toFixed(2);
+  const rows=[['🚢 배 종류',pct(ship),'더 빠른 배: 슬루프 → 스쿠너 → 클리퍼 → 증기 클리퍼 (항구 투자 단계가 높아야 팜)'],['🔧 배 개조',pct(up),'조선소에서 돛 개량 (최대 +32%), 구리판 선체 (최대 +14%)'],
+    ['🧭 항해사',pct(navi),'배마다 항해사를 앉히면 빨라집니다 (능력 100이면 +25%)'],['🌊 항해 숙련 '+l+'단계',pct(sea),l<SEA_LV.length-1?`누적 ${Math.round(S.km||0).toLocaleString()}km · 다음 단계까지 ${Math.round(SEA_LV[l+1]-(S.km||0)).toLocaleString()}km`:'최고 단계'],
+    ['📜 특성·유물·비법',pct(etc),'내륙 도시의 돛 비법, 돛 유물 등'],['⚙ 증기 부스터 (G)',eng>1?pct(eng)+' (켤 때)':'없음','증기기관 유물이나 내륙 도시의 선물로 얻습니다']];
+  return `<div class="note"><b>⛵ 함대 최고 속도 ${pct(Math.min(SPCAP,tot))}</b> <small>(첫 배 캐러벨=×1.00 · 순풍에 돛 가득 기준 · 한계 ×${SPCAP})</small>
+    <div style="height:8px;background:#e3d3b0;border-radius:4px;margin:6px 0"><div style="height:100%;width:${Math.min(100,tot/SPCAP*100).toFixed(1)}%;background:#2f5d73;border-radius:4px"></div></div>
+    <table class="mt">${rows.map(r=>`<tr><td><b>${r[0]}</b></td><td class="n">${r[1]}</td><td class="hint">${r[2]}</td></tr>`).join('')}</table></div>`;}
+function addKm(d){const l0=seaLv();S.km=(S.km||0)+d;const l1=seaLv();if(l1>l0){sfx('mission');toast(`⛵ 항해 숙련 ${l1}단계! 바다에 익숙해져 함대가 ${l1*5}% 더 빨라졌습니다.${l1<SEA_LV.length-1?' 다음 단계까지 '+Math.round(SEA_LV[l1+1]-S.km).toLocaleString()+'km':' (최고 단계)'}`,true);}}
+const SPCAP=4.6; // 아무리 빨라도 첫 배(캐러벨)의 약 4배 남짓까지 (싱글 ×16 수준)
+const SEA_LV=[0,4000,15000,40000,90000,180000,350000,600000,1000000]; // 항해 숙련: 누적 항해 거리(km)
+function seaLv(){const k=(S&&S.km)||0;let l=0;while(l<SEA_LV.length-1&&k>=SEA_LV[l+1])l++;return l;}
+const seaMul=()=>1+.05*seaLv();
+const UPG={s:{n:'돛 개량',max:4,per:.08,cost:(T,n)=>Math.round(T.price*.25*(n+1)),need:0,d:'더 크고 가벼운 돛으로 바꾼다'},h:{n:'구리판 선체',max:2,per:.07,cost:(T,n)=>Math.round(T.price*.4*(n+1)),need:3,d:'배 밑에 구리를 덮어 따개비와 물의 저항을 줄인다 (투자 3단계 항구)'}};
+const upLv=(sh,w)=>(sh.up&&sh.up[w])||0;
+const upMulK=k=>{const sh=S.fleet[k];return (1+UPG.s.per*upLv(sh,'s'))*(1+UPG.h.per*upLv(sh,'h'));};
 const SHIPNAMES=['샛별호','바람꽃호','물푸레호','갈매기호','은하호','너울호','돌고래호','미리내호'];
 const FT_SQ=[[0,1],[30,1],[60,.98],[90,.9],[110,.78],[125,.64],[135,.55],[150,.4],[180,.3]];
 const FT_FA=[[0,.82],[30,.9],[60,.97],[90,1],[110,.92],[125,.8],[135,.68],[150,.48],[180,.34]];
-function rigF(rig,rel){const T=rig==='가로돛'?FT_SQ:FT_FA;for(let i=1;i<T.length;i++)if(rel<=T[i][0]){const a=T[i-1],b=T[i],t=(rel-a[0])/(b[0]-a[0]);return a[1]+(b[1]-a[1])*t;}return T[T.length-1][1];}
+function rigF(rig,rel){if(rig==='증기 겸용')return .72+.28*rigF('가로돛',rel);const T=rig==='가로돛'?FT_SQ:FT_FA;for(let i=1;i<T.length;i++)if(rel<=T[i][0]){const a=T[i-1],b=T[i],t=(rel-a[0])/(b[0]-a[0]);return a[1]+(b[1]-a[1])*t;}return T[T.length-1][1];}
 function shipRole(k,r){let v=0;for(const a of S.fleet[k].as)if(a.r===r)v+=a.aux?curSt(a.m,r)*.5:curSt(a.m,r);return Math.min(120,v);}
 const hasCap=k=>k===0||S.fleet[k].as.some(a=>a.r===0&&!a.aux);
-function shipF(k,rel){const T=SHIPTYPES[S.fleet[k].t];return T.spd*rigF(T.rig,rel)*(1+.15*shipRole(k,1)/100)*(hasCap(k)?1:.9)*(.75+.25*Math.min(1,hpK(k)/hpMaxK(k)));}
+function shipF(k,rel){const T=SHIPTYPES[S.fleet[k].t];return T.spd*rigF(T.rig,rel)*upMulK(k)*(1+.25*shipRole(k,1)/100)*(hasCap(k)?1:.9)*(.75+.25*Math.min(1,hpK(k)/hpMaxK(k)));}
 function fleetSail(rel){let t=0;for(let k=0;k<S.fleet.length;k++)t+=shipF(k,rel);return t/S.fleet.length;} // 함대 속도 = 배들의 평균
 const holdT=()=>(typeof inCity!=='undefined'&&inCity&&S.car)?S.car.cap:S.fleet.reduce((a,sh)=>a+SHIPTYPES[sh.t].hold,0);
 const crewMaxT=()=>S.fleet.reduce((a,sh)=>a+SHIPTYPES[sh.t].crew,0);
@@ -446,7 +468,7 @@ const seatsT=()=>S.fleet.reduce((a,sh)=>a+SHIPTYPES[sh.t].seats,0);
 function yardTypes(p){const b=bandOf(PORTS[p].lat),h=hash3(p,9,4),L=[0];
   if(b==='열대'||b==='아열대·건조')L.push(1);
   L.push(2);if(p<13||h<.35)L.push(3);if(b!=='열대'||h>.5)L.push(4);
-  if(h>.55||[0,4,6,14,15,18,19,20,29].includes(p)){L.push(5);L.push(6);}if(S&&(stageOf(p)>=3||h>.7))L.push(7);if(S&&stageOf(p)>=4)L.push(8);return [...new Set(L)];}
+  if(h>.55||[0,4,6,14,15,18,19,20,29].includes(p)){L.push(5);L.push(6);}if(S&&(stageOf(p)>=3||h>.7))L.push(7);if(S&&stageOf(p)>=4)L.push(8);if(S)for(let t=9;t<SHIPTYPES.length;t++)if(stageOf(p)>=SHIPTYPES[t].need)L.push(t);return [...new Set(L)];}
 // ===== 항해자 =====
 const ROLES=['선장','항해사','측량사','회계사','포술장','갑판장','의사','학자'];
 const STATK=['통솔','항해','측량','교역','포술','수리','의술','학식'];
@@ -503,7 +525,7 @@ function roleVal(r){if(FLEET_ROLES.includes(r)){let m=0,ax=0;for(const sh of S.f
   let best=0;for(const sh of S.fleet){let v=0;for(const a of sh.as)if(a.r===r)v+=a.aux?curSt(a.m,r)*.5:curSt(a.m,r);best=Math.max(best,v);}return Math.min(120,best);}
 const eR=r=>roleVal(r)/100;
 function traitOn(t){for(const i of hiredIds())if(MATES[i].tr===t)return true;return false;}
-function navMul(){let m=(traitOn(0)?1.04:1)*(hasRelic('sail')?1.08:1)*(1+.03*perkSum('speed'));return m;for(let k=1;k<S.fleet.length;k++)if(!S.fleet[k].as.some(a=>a.r===0&&!a.aux))m*=.95;return m;}
+function navMul(){let m=(traitOn(0)?1.04:1)*(hasRelic('sail')?1.08:1)*(1+.03*perkSum('speed'))*seaMul();return m;for(let k=1;k<S.fleet.length;k++)if(!S.fleet[k].as.some(a=>a.r===0&&!a.aux))m*=.95;return m;}
 const supplyMul=()=>(traitOn(3)?.9:1)*(traitOn(4)?1.08:1)*(hasRelic('fridge')?.7:1);
 const lossMul=()=>(1-.6*eR(6))*(traitOn(5)?.7:1);
 const tradeBuyMul=()=>1-.08*eR(3), tradeSellMul=()=>(1+.08*eR(3))*(traitOn(1)?1.04:1)*(1+.03*perkSum('sell'));
@@ -656,6 +678,7 @@ function computeNav(){
   let sp=SHIP.base*(window.SAILF||[0,.5,1])[S.sail]*fleetSail(rel)*(.4+.6*Math.min(1.3,w.s))*crewF*(autop&&!hasRelic('chrono')?.9:1)*navMul();
   if(S.sail)sp=Math.max(sp,(window.SAILMIN||[0,30,55])[S.sail]*crewF); // 아무리 나빠도 조금씩은 나아간다
   if(S.engine)sp*=boostMul(); // 부스터: 증기기관이면 2배, 없으면 1.5배
+  sp=Math.min(sp,SHIP.base*SPCAP);
   const c0=currentAt(S.lat,S.lon), cf=(window.CURF||[1,.55,.55])[S.sail], cur=[c0[0]*cf,c0[1]*cf]; // 돛을 펴면 해류 영향이 줄어든다
   nav={sp,ve:hx*sp+cur[0],vn:hy*sp+cur[1],w,cur,rel};
 }
@@ -665,7 +688,7 @@ function showArrive(){const a=$('arrive');if(anchorAt<0){a.style.display='none';
 function moveShip(dt){if(anchorAt>=0){if(S.sail>0||(keys['a']||keys['d']||keys['arrowleft']||keys['arrowright'])){anchorAt=-1;showArrive();}else{computeNav();return;}}
   computeNav();
   const dlat=nav.vn*dt/111.2, dlon=nav.ve*dt/(111.2*Math.max(.15,Math.cos(S.lat*DEG)));
-  const tryMove=(dla,dlo)=>{const nl=Math.max(-88.5,Math.min(88.5,S.lat+dla)),no=wrapLon(S.lon+dlo);if(isLand(nl,no))return false;S.lat=nl;S.lon=no;return true;};
+  const tryMove=(dla,dlo)=>{const nl=Math.max(-88.5,Math.min(88.5,S.lat+dla)),no=wrapLon(S.lon+dlo);if(isLand(nl,no))return false;addKm(Math.hypot(dla*111.2,dlo*111.2*Math.max(.15,Math.cos(S.lat*DEG))));S.lat=nl;S.lon=no;return true;};
   if(tryMove(dlat,dlon))return;
   // 막히면 해안을 따라 미끄러지기: 방향을 조금씩 틀어 본다
   const c=Math.max(.15,Math.cos(S.lat*DEG));
@@ -952,6 +975,7 @@ function fleetHTML(inPortNow){
    <br><b>배마다 필요한 역할</b>: 선장·항해사·갑판장·포술장 (그 배에만 효과). <b>함대 전체 역할</b>: 측량사·회계사·의사·학자 (가장 잘하는 사람의 값 + 어느 배에 있든 보조의 절반이 함대 전체에 적용).
    함대 속도는 배들의 <b>평균</b>입니다. 자리에 앉힌 항해자는 그 역할 능력이 빨리 자라고, 대기 중인 항해자는 천천히 자랍니다.
    <div style="margin-top:6px"><button id="autoas">자동 배치 (기함부터 차례로)</button> <small>🔒 잠근 사람은 자동 배치가 건드리지 않습니다.</small></div></div>
+  ${speedHTML()}
   <div class="eff"><span><b>함대 평균 속도</b> ${Math.round(fleetSail(60)*100)}</span>${FLEET_ROLES.map(i=>`<span title="${ROLE_USE[i]}"><b>${ROLES[i]}</b> ${Math.round(roleVal(i))}</span>`).join('')}</div>`;
   S.fleet.forEach((sh,k)=>{const T=SHIPTYPES[sh.t];
     h+=`<div class="shipc">${shipImg(sh.t,96)}<div class="mh"><b>${sh.name}</b> <small>${T.sz} ${T.n} · ${T.rig} · 짐칸 ${T.hold}톤 · 선원 ${T.crew}명 · 대포 ${T.guns}문 · 선체 ${Math.round(hpK(k))}/${T.hp} · 자리 ${seatsUsed(sh)}/${T.seats}${k===0?' · <b>기함</b> (호연은 자리 수에 들지 않음)':''}</small><small> · 이 배 속도 <b>${Math.round(shipF(k,60)*100)}</b>${hasCap(k)?'':' <b style="color:#a8322a">(선장 없음)</b>'}</small>${k>0?` <button data-flag="${k}">기함으로</button>`:''}${k>1?` <button data-mv="${k}" data-d="-1" title="앞으로">▲</button>`:''}${k>0&&k<S.fleet.length-1?` <button data-mv="${k}" data-d="1" title="뒤로">▼</button>`:''}${k>0?` <small>${k+1}번</small>`:' <small>1번</small>'}</div>
@@ -976,10 +1000,17 @@ function yardHTML(p){const L=yardTypes(p);
    L.map(t=>{const T=SHIPTYPES[t];return `<tr><td>${shipImg(t,78)}<b>${T.n}</b> <small>${T.sz}</small><div class="hint">${T.d}</div></td><td>${T.rig}</td><td class="n">${T.hold}</td><td class="n">${Math.round(T.spd*100)}</td><td class="n">${T.crew}</td><td class="n">${T.seats}</td><td class="n">${T.guns}</td><td class="n">${T.hp}</td><td class="n">${T.price.toLocaleString()}</td>
    <td class="b"><button data-bs="${t}" ${S.gold<T.price||S.fleet.length>=5?'disabled':''}>사기</button></td></tr>`;}).join('')+'</table>';
   h+=`<h4>내 함대</h4><table class="mt">`+S.fleet.map((sh,k)=>{const T=SHIPTYPES[sh.t];return `<tr><td><b>${sh.name}</b> <small>${T.n}</small></td><td>${T.rig}</td><td class="n">짐칸 ${T.hold}</td><td class="n">선원 ${T.crew}</td><td class="b">${k?`<button data-ss="${k}">팔기 (${Math.round(T.price*.5).toLocaleString()})</button>`:'기함'}</td></tr>`;}).join('')+'</table>';
-  h+=`<div class="note">함대 속도는 가장 느린 배에 맞춰집니다. 가로돛은 순풍에, 세로돛은 맞바람에 강합니다. 새 배에는 선원이 없으니 '보급' 탭에서 선원을 채우세요. 선원이 정원의 3분의 2보다 적으면 느려집니다.</div>`;return h;}
+  h+=`<h4>배 개조 <small>(빨라진 만큼 같은 날짜에 더 멀리 갑니다)</small></h4><table class="mt">`+S.fleet.map((sh,k)=>{const T=SHIPTYPES[sh.t];
+    return `<tr><td><b>${sh.name}</b> <small>${T.n} · 지금 속도 ${Math.round(shipF(k,60)*100)}</small></td>`+['s','h'].map(w=>{const U=UPG[w],n=upLv(sh,w),c=U.cost(T,n),lock=stageOf(p)<U.need;
+      return `<td title="${U.d}">${U.n} ${'●'.repeat(n)}${'○'.repeat(U.max-n)}<br>${n>=U.max?'<small>끝까지 개조함</small>':lock?`<small>투자 ${U.need}단계 항구에서</small>`:`<button data-up="${k}" data-w="${w}" ${S.gold<c?'disabled':''}>+${Math.round(U.per*100)}% (${c.toLocaleString()})</button>`}</td>`;}).join('')+'</tr>';}).join('')+'</table>';
+  const nx=SHIPTYPES.map((T,t)=>T.need&&!L.includes(t)?`${T.n}(투자 ${T.need}단계)`:'').filter(x=>x);
+  if(nx.length)h+=`<p class="hint">이 항구에서 투자 단계를 올리면 더 빠른 배를 살 수 있습니다: ${nx.join(' · ')}</p>`;
+  h+=`<div class="note">함대 속도는 배들의 평균입니다. 가로돛은 순풍에, 세로돛은 맞바람에 강합니다. 새 배에는 선원이 없으니 '보급' 탭에서 선원을 채우세요. 선원이 정원의 3분의 2보다 적으면 느려집니다.</div>`;return h;}
 function bindYard(root,redraw){
   root.querySelectorAll('[data-bs]').forEach(b=>b.onclick=()=>{const t=+b.dataset.bs,T=SHIPTYPES[t];if(S.gold<T.price||S.fleet.length>=5)return;S.gold-=T.price;
     const nm=SHIPNAMES.find(n=>!S.fleet.some(f=>f.name===n))||('배 '+(S.fleet.length+1));S.fleet.push({t,name:nm,as:[],hp:T.hp});sfx('ship');toast(`${T.n} '${nm}'을(를) 샀습니다. 선원을 채우고 선장을 앉히세요. 함대 탭에서 기함으로 삼을 수도 있습니다.`,true);checkMissions();save();redraw();});
+  root.querySelectorAll('[data-up]').forEach(b=>b.onclick=()=>{const k=+b.dataset.up,w=b.dataset.w,sh=S.fleet[k],T=SHIPTYPES[sh.t],U=UPG[w],n=upLv(sh,w),c=U.cost(T,n);
+    if(n>=U.max||S.gold<c)return;S.gold-=c;sh.up=Object.assign({s:0,h:0},sh.up);sh.up[w]=n+1;sfx('ship');toast(`${sh.name}: ${U.n} ${n+1}단계. 이 배가 ${Math.round(U.per*100)}% 빨라졌습니다.`,true);save();redraw();});
   root.querySelectorAll('[data-ss]').forEach(b=>b.onclick=()=>{const k=+b.dataset.ss,sh=S.fleet[k],T=SHIPTYPES[sh.t];
     if(cargoT()>holdT()-T.hold){toast('짐이 너무 많아 이 배를 팔 수 없습니다. 짐을 먼저 줄이세요.');return;}
     sh.as.slice().forEach(a=>unassign(a.m));S.fleet.splice(k,1);S.gold+=Math.round(T.price*.5);S.crew=Math.min(S.crew,crewMaxT());toast(`${sh.name}을(를) 팔았습니다.`);save();redraw();});}
@@ -2197,7 +2228,8 @@ function goodIcon(g){if(GI_C[g])return GI_C[g];const G=GOODS[g],m=GI_MAP[G[0]]||
 const gi=(g,sz)=>`<img class="gi" src="${goodIcon(g)}" width="${sz||22}" height="${sz||22}" alt="">`;
 // ---------- 배 ----------
 const SHIPDEF=[{L:62,m:[[.55,'lat',34],[.25,'lat',26]],castle:.6},{L:54,m:[[.5,'lat',38]],castle:.3},{L:74,m:[[.7,'sq',36],[.45,'sq',40],[.2,'lat',26]],castle:.8},{L:76,m:[[.72,'junk',34],[.45,'junk',42],[.18,'junk',28]],castle:1,junk:1},{L:80,m:[[.72,'sq',36],[.45,'sq',42],[.18,'lat',28]],castle:1.2},
- {L:96,m:[[.76,'sq',42],[.5,'sq',48],[.25,'sq',38],[.08,'lat',28]],castle:1.4},{L:94,m:[[.72,'sq',42],[.45,'sq',46],[.18,'lat',30]],castle:1},{L:86,m:[[.72,'sq',44],[.45,'sq',50],[.18,'sq',38]],castle:.6,guns:1},{L:106,m:[[.75,'sq',48],[.48,'sq',54],[.2,'sq',44]],castle:1.2,guns:2}];
+ {L:96,m:[[.76,'sq',42],[.5,'sq',48],[.25,'sq',38],[.08,'lat',28]],castle:1.4},{L:94,m:[[.72,'sq',42],[.45,'sq',46],[.18,'lat',30]],castle:1},{L:86,m:[[.72,'sq',44],[.45,'sq',50],[.18,'sq',38]],castle:.6,guns:1},{L:106,m:[[.75,'sq',48],[.48,'sq',54],[.2,'sq',44]],castle:1.2,guns:2},
+ {L:58,m:[[.5,'lat',46]],castle:.2},{L:74,m:[[.62,'lat',48],[.3,'lat',44]],castle:.3},{L:106,m:[[.76,'sq',58],[.5,'sq',64],[.24,'sq',54]],castle:.3},{L:108,m:[[.8,'sq',50],[.28,'sq',46]],castle:.4,guns:1,funnel:.54}];
 const SH_C={};
 function shipPic(t,pirate){const k=t+(pirate?'p':'');if(SH_C[k])return SH_C[k];const D=SHIPDEF[t]||SHIPDEF[0],T=SHIPTYPES[t],L=D.L,x0=60-L/2,x1=60+L/2,wy=62,hull=pirate?'#2a2220':'#7a4c26',hullD=shade(hull,-.35),sail=pirate?'#3a3434':'#f6eedb',sailD=pirate?'#1d1a1a':'#cbbb98';
   let s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80"><rect width="120" height="80" fill="#e9dcbc"/><path d="M0 ${wy+2} Q15 ${wy-1} 30 ${wy+2} T60 ${wy+2} T90 ${wy+2} T120 ${wy+2} L120 80 L0 80Z" fill="#6f9fb8"/>`;
@@ -2206,6 +2238,7 @@ function shipPic(t,pirate){const k=t+(pirate?'p':'');if(SH_C[k])return SH_C[k];c
   s+=`<path d="M${x0+2} ${wy-3} L${x1-2} ${wy-3}" stroke="${hullD}" stroke-width="1.4"/>`;
   const rows=D.guns||(T.guns>=12?1:0);for(let rw=0;rw<rows;rw++){const y=wy-6+rw*4.2-(rows>1?2:0);const n=Math.round(L/9);for(let i=1;i<n;i++)s+=`<rect x="${x0+i*L/n-1.4}" y="${y-1.2}" width="2.8" height="2.4" fill="#1a120c"/>`;}
   if(D.junk)s+=`<path d="M${x0-4} ${wy-10} L${x0-10} ${wy-14}" stroke="${INK}" stroke-width="1.4"/>`;else s+=`<path d="M${x0-2} ${wy-9} L${x0-16} ${wy-18}" stroke="${INK}" stroke-width="1.3"/>`;
+  if(D.funnel){const fx=x1-D.funnel*L;s+=`<rect x="${fx-3.5}" y="${wy-34}" width="7" height="26" fill="#2b2b2b" stroke="${INK}" stroke-width="1"/><rect x="${fx-3.5}" y="${wy-30}" width="7" height="3" fill="#a8322a"/><circle cx="${fx+4}" cy="${wy-40}" r="4" fill="#9a948a" opacity=".7"/><circle cx="${fx+11}" cy="${wy-46}" r="5.5" fill="#b8b2a8" opacity=".55"/>`;}
   for(const [p,ty,h] of D.m){const mx=x1-p*L,top=wy-8-h;s+=`<path d="M${mx} ${wy-8} L${mx} ${top}" stroke="#4a2e16" stroke-width="1.6"/>`;
     if(ty==='sq'){const nS=h>40?3:2;for(let i=0;i<nS;i++){const y0=top+3+i*(h-6)/nS,y1=y0+(h-6)/nS-2,w=(8+h*.18)*(1-i*.08)*(1+.15*(nS-1-i)*0);s+=`<path d="M${mx-w} ${y0} Q${mx} ${y0+2} ${mx+w} ${y0} L${mx+w-1} ${y1} Q${mx} ${y1+3} ${mx-w+1} ${y1}Z" fill="${sail}" stroke="${sailD}" stroke-width=".9"/>`;}}
     else if(ty==='lat')s+=`<path d="M${mx+2} ${top+2} L${mx-h*.5} ${wy-11} L${mx+h*.25} ${wy-11}Z" fill="${sail}" stroke="${sailD}" stroke-width=".9"/><path d="M${mx+4} ${top} L${mx-h*.55} ${wy-10}" stroke="#4a2e16" stroke-width="1"/>`;
