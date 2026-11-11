@@ -653,10 +653,10 @@ function computeNav(){
   const w=windAt(S.lat,S.lon,S.day), hx=Math.sin(S.hd*DEG), hy=Math.cos(S.hd*DEG);
   const dot=Math.max(-1,Math.min(1,hx*w.u+hy*w.v)), rel=Math.acos(dot)/DEG; // 0=바람을 등짐
   const crewF=Math.min(1,S.crew/crewNeedT())*(S.thirst?0.6:1)*(S.hunger?0.8:1);
-  let sp=SHIP.base*[0,.5,1][S.sail]*fleetSail(rel)*(.4+.6*Math.min(1.3,w.s))*crewF*(autop&&!hasRelic('chrono')?.9:1)*navMul();
-  if(S.sail)sp=Math.max(sp,[0,30,55][S.sail]*crewF); // 아무리 나빠도 조금씩은 나아간다
+  let sp=SHIP.base*(window.SAILF||[0,.5,1])[S.sail]*fleetSail(rel)*(.4+.6*Math.min(1.3,w.s))*crewF*(autop&&!hasRelic('chrono')?.9:1)*navMul();
+  if(S.sail)sp=Math.max(sp,(window.SAILMIN||[0,30,55])[S.sail]*crewF); // 아무리 나빠도 조금씩은 나아간다
   if(S.engine)sp*=boostMul(); // 부스터: 증기기관이면 2배, 없으면 1.5배
-  const c0=currentAt(S.lat,S.lon), cf=S.sail?.55:1, cur=[c0[0]*cf,c0[1]*cf]; // 돛을 펴면 해류 영향이 줄어든다
+  const c0=currentAt(S.lat,S.lon), cf=(window.CURF||[1,.55,.55])[S.sail], cur=[c0[0]*cf,c0[1]*cf]; // 돛을 펴면 해류 영향이 줄어든다
   nav={sp,ve:hx*sp+cur[0],vn:hy*sp+cur[1],w,cur,rel};
 }
 let anchorAt=-1;
@@ -1542,7 +1542,7 @@ addEventListener('keydown',e=>{if($('title').style.display==='flex')return;const
   if(inPort>=0){if(k==='e'||k==='enter'||k==='escape')leavePort();return;}
   if(k==='w'||k==='arrowup'){if(S.sail<2)sfx('sailUp');S.sail=Math.min(2,S.sail+1);e.preventDefault();}
   if(k==='s'||k==='arrowdown'){if(S.sail>0)sfx('sailDown');S.sail=Math.max(0,S.sail-1);e.preventDefault();}
-  if(k===' '){paused=!paused;e.preventDefault();}
+  if(k===' '){if(window.ONLOCK&&ONLOCK()){toast('온라인 모드에서는 세계 시간이 멈추지 않습니다. 배를 세우려면 돛을 내리세요 (S).');}else paused=!paused;e.preventDefault();}
   if('12345'.includes(k)&&k)setSpeed(SPEEDS['12345'.indexOf(k)]);
   if(k==='f'){follow=true;}
   if(k==='v'){layers=(layers+1)%4;}
@@ -2509,7 +2509,7 @@ function setNeed(on){$('title').querySelector('.box').classList.toggle('needlogi
 function loginForm(msg,bad){const el=loginBox();setNeed(true);const sv=onSaved();
   el.innerHTML=`<b>⚓ 선장 이름으로 들어가기</b> <small class="hint">처음이면 새로 만들어집니다</small>
    <div class="row"><input id="onName" maxlength="12" placeholder="선장 이름 (2~12자)" value="${esc(sv&&sv.nm||'')}" autocomplete="username"><input id="onPin" type="password" inputmode="numeric" maxlength="8" placeholder="비밀번호 (숫자 4~8자리)" autocomplete="current-password"></div>
-   <div class="row"><button class="main" id="onGo">들어가기</button><button id="onSolo">서버 없이 혼자 하기</button></div><div class="msg ${bad?'bad':''}" id="onMsg">${msg||'같은 이름과 비밀번호를 넣으면 PC와 휴대폰 어디서든 이어서 할 수 있습니다.'}</div>`;
+   <div class="row"><button class="main" id="onGo">🌐 온라인 모드로 들어가기</button><button id="onSolo">🧭 싱글 모드 (혼자 · 배율 자유)</button></div><div class="msg ${bad?'bad':''}" id="onMsg">${msg||'🌐 온라인: 모든 선장이 같은 속도(하루 2.5초)로 항해하고 서로의 배가 보입니다. 같은 이름·비밀번호로 PC와 휴대폰에서 이어집니다.<br>🧭 싱글: 혼자 하며 시간 배율(×1~×16)과 멈춤을 마음대로 씁니다. 이 기기에만 저장됩니다.'}</div>`;
   ['onName','onPin'].forEach(i=>{const x=$(i);x.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter')doLogin(false);});x.addEventListener('keyup',e=>e.stopPropagation());});
   $('onGo').onclick=()=>doLogin(false);$('onSolo').onclick=goSolo;}
 async function doLogin(create){const name=$('onName').value.trim(),pin=$('onPin').value.trim(),m=$('onMsg');
@@ -2524,7 +2524,7 @@ async function doLogin(create){const name=$('onName').value.trim(),pin=$('onPin'
     else if(e.code==='locked')m.textContent=`비밀번호를 여러 번 틀려 잠겼습니다. ${e.wait}초 뒤에 다시 해 주세요.`;
     else if(e.code==='timeout'||e.code==='network')m.textContent='서버에 닿지 못했습니다. 잠에서 깨는 중일 수 있으니 잠시 뒤 다시 눌러 주세요.';
     else m.textContent='들어가지 못했습니다 ('+e.code+').';}}
-function goSolo(){ON.live=false;window.KEYP='';CLOUD.st='none';setNeed(false);loginBox().innerHTML=`<b>🧭 서버 없이 혼자 하기</b> <small class="hint">이 기기에만 저장됩니다</small> <button id="onBack">온라인으로 들어가기</button>`;$('onBack').onclick=()=>{loginForm();};cloudUI();}
+function goSolo(){ON.live=false;window.KEYP='';CLOUD.st='none';setNeed(false);loginBox().innerHTML=`<b>🧭 싱글 모드</b> <small class="hint">혼자 · 배율 자유 · 이 기기에만 저장</small> <button id="onBack">🌐 온라인 모드로</button>`;$('onBack').onclick=()=>{loginForm();};cloudUI();}
 function onLogout(){try{localStorage.removeItem(ONK);}catch(e){}ON.tok='';ON.live=false;if(ON.ws){try{ON.ws.close();}catch(e){}}window.KEYP='';CLOUD.st='wait';CLOUD.metas={};CLOUD.meta=null;loginForm('다른 선장 이름으로 들어가세요.');cloudUI();}
 async function onReady(note){ON.live=true;window.KEYP='on'+ON.id+'_';setNeed(false);
   loginBox().innerHTML=`<span class="who">⚓ ${esc(ON.nm)} 선장</span> <small class="hint">으로 접속했습니다</small> <button id="onOut">다른 선장으로</button>${note?`<div class="msg">${esc(note)}</div>`:''}`;$('onOut').onclick=onLogout;
@@ -2535,11 +2535,11 @@ async function onReady(note){ON.live=true;window.KEYP='on'+ON.id+'_';setNeed(fal
 // 서버 깨우기 → 저장된 로그인 확인
 async function onBoot(){CLOUD.st='wait';const el=loginBox();setNeed(true);const t0=Date.now();
   const tick=()=>{if(!$('onWake'))return;$('onWake').textContent=Math.round((Date.now()-t0)/1000)+'초';};
-  el.innerHTML=`<b>⚓ 서버에 연결하는 중…</b> <span id="onWake">0초</span><div class="hint">서버가 쉬고 있었다면 깨어나는 데 1분쯤 걸립니다.</div><div class="row"><button id="onSolo">기다리지 않고 혼자 하기</button></div>`;$('onSolo').onclick=goSolo;
+  el.innerHTML=`<b>⚓ 서버에 연결하는 중…</b> <span id="onWake">0초</span><div class="hint">서버가 쉬고 있었다면 깨어나는 데 1분쯤 걸립니다.</div><div class="row"><button id="onSolo">기다리지 않고 싱글 모드로</button></div>`;$('onSolo').onclick=goSolo;
   const iv=setInterval(tick,1000);let ok=false;
   for(let i=0;i<12&&!ok;i++){try{const h=await onApi('GET','/healthz',null,10000);ok=!!h.ok;}catch(e){await new Promise(r=>setTimeout(r,2000));}if(!$('onWake'))break;}
   clearInterval(iv);if(!$('onWake'))return;
-  if(!ok){loginForm('서버가 응답하지 않습니다. 잠시 뒤 새로 고침 하거나 혼자 하기를 고르세요.',true);return;}
+  if(!ok){loginForm('서버가 응답하지 않습니다. 잠시 뒤 새로 고침 하거나 싱글 모드를 고르세요.',true);return;}
   const sv=onSaved();if(sv&&sv.tok){ON.tok=sv.tok;try{const me=await onApi('GET','/api/me');ON.nm=me.name;ON.id=me.id;onReady('');return;}catch(e){ON.tok='';}}
   loginForm();}
 cloudInit=onBoot;
@@ -2651,6 +2651,28 @@ contChoice=function(){if(!ON.live)return contChoice0();contChoice0();const pk=$(
     bc.onclick=async()=>{bc.disabled=true;bc.textContent='서버에서 불러오는 중…';try{const raw=await cloudLoad();localStorage.setItem(skey(),raw);try{localStorage.setItem(skey()+'_m',JSON.stringify({t:C.t,day:C.day,gold:C.gold}));}catch(e){}Snd.init();start(true);}
       catch(e){bc.disabled=false;bc.textContent='서버 저장을 불러오지 못했습니다 ('+((e&&e.code)||'오류')+') · 다시 누르기';}};}
   else pk.innerHTML='';};
+
+// ---------- 온라인 모드: 모두 같은 속도로 흐르는 시간 ----------
+const OSPD=4; // 하루 = 2.5초 (싱글 ×4)
+window.ONLOCK=()=>ON.live;
+function onlineMode(on){if(on){window.SAILF=[0,.4,1];window.SAILMIN=[0,18,55];window.CURF=[.12,.45,.55];tspeed=OSPD;}else{delete window.SAILF;delete window.SAILMIN;delete window.CURF;tspeed=1;}spKey='';}
+const setSpeed0=setSpeed;setSpeed=function(v){if(!ON.live)return setSpeed0(v);tspeed=OSPD;paused=false;spKey='';renderSpeed();toast('온라인 모드는 세계 시간이 ×4로 고정입니다. 배의 속도는 돛(W/S)으로 조절하세요.');};
+const stepSpeed0=stepSpeed;stepSpeed=function(d){if(!ON.live)return stepSpeed0(d);};
+const slowDown0=slowDown;slowDown=function(w){if(!ON.live)return slowDown0(w);};
+const renderSpeed0=renderSpeed;
+renderSpeed=function(){if(!ON.live)return renderSpeed0();const el=$('speed');if(!el||!S)return;if(inPort<0&&!B)tspeed=OSPD;
+  const k=['on',S.sail,MOB,paused].join();if(k===spKey)return;spKey=k;el.classList.remove('flash');
+  el.innerHTML=`${paused?'<button data-sl="0" title="계속">▶ 계속</button>':''}<span class="olock">🌐 세계 시간 ×${OSPD}</span><button data-sl="-1" title="돛 내리기 (S)">돛 ▼</button><span class="olock">${['⚓ 멈춤','반 돛','가득'][S.sail]||''}</span><button data-sl="1" title="돛 올리기 (W)">돛 ▲</button>`;};
+(()=>{const st=document.createElement('style');st.textContent=`#speed .olock{padding:0 8px;font-size:13px;white-space:nowrap;align-self:center}#speed [data-sl]{min-width:56px}`;document.head.appendChild(st);
+  document.addEventListener('pointerdown',e=>{const b=e.target.closest&&e.target.closest('#speed [data-sl]');if(!b||!S||!ON.live)return;e.preventDefault();e.stopPropagation();const d=+b.dataset.sl;if(!d){paused=false;}
+    if(d>0&&S.sail<2){S.sail++;sfx('sailUp');}else if(d<0&&S.sail>0){S.sail--;sfx('sailDown');}spKey='';renderSpeed();},true);})();
+const onReady0=onReady;onReady=async function(note){onlineMode(true);return onReady0(note);};
+const goSolo0=goSolo;goSolo=function(){onlineMode(false);return goSolo0();};
+const onLogout0=onLogout;onLogout=function(){onlineMode(false);return onLogout0();};
+function onHelp(on){document.querySelectorAll('td').forEach(td=>{const t=td.nextElementSibling;if(!t)return;
+  if(td.textContent==='1~5 · 휠'){t.dataset.o=t.dataset.o||t.textContent;t.textContent=on?'온라인 모드: 세계 시간 ×4 고정 (배 속도는 돛으로)':t.dataset.o;}
+  if(td.textContent==='Space'&&/멈춤/.test(t.textContent)){t.dataset.o=t.dataset.o||t.textContent;t.textContent=on?'온라인 모드: 멈추지 않음 (돛을 내리면 배가 섭니다)':t.dataset.o;}});}
+{const om0=onlineMode;onlineMode=function(on){om0(on);try{onHelp(on);}catch(e){}};}
 
 </script>
 </body></html>
