@@ -1,0 +1,9 @@
+{
+  "name": "flipsea-online",
+  "version": "1.0.0",
+  "description": "뒤집힌 바다 온라인 서버",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" },
+  "dependencies": { "pg": "^8.11.3", "ws": "^8.16.0" }
+}
