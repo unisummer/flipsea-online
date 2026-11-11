@@ -2700,7 +2700,7 @@ const stepSpeed0=stepSpeed;stepSpeed=function(d){if(!ON.live)return stepSpeed0(d
 const slowDown0=slowDown;slowDown=function(w){if(!ON.live)return slowDown0(w);};
 const renderSpeed0=renderSpeed;
 renderSpeed=function(){if(!ON.live)return renderSpeed0();const el=$('speed');if(!el||!S)return;if(inPort<0&&!B)tspeed=OSPD;
-  const stuck=paused&&inPort<0&&!B&&!infoOpen&&!encOpen&&!storyOpen&&!carEvOpen;const k=['on',S.sail,MOB,stuck].join();if(k===spKey)return;spKey=k;el.classList.remove('flash');
+  const stuck=paused&&inPort<0&&!B&&!infoOpen&&!encOpen&&!storyOpen&&!carEvOpen&&!ON.duelOpen;const k=['on',S.sail,MOB,stuck].join();if(k===spKey)return;spKey=k;el.classList.remove('flash');
   el.innerHTML=`${stuck?'<button data-sl="0" title="계속">▶ 계속</button>':''}<span class="olock">🌐 세계 시간 ×${OSPD}</span><button data-sl="-1" title="돛 내리기 (S)">돛 ▼</button><span class="olock">${['⚓ 멈춤','반 돛','가득'][S.sail]||''}</span><button data-sl="1" title="돛 올리기 (W)">돛 ▲</button>`;};
 (()=>{const st=document.createElement('style');st.textContent=`#speed .olock{padding:0 8px;font-size:13px;white-space:nowrap;align-self:center}#speed [data-sl]{min-width:56px}`;document.head.appendChild(st);
   document.addEventListener('pointerdown',e=>{const b=e.target.closest&&e.target.closest('#speed [data-sl]');if(!b||!S||!ON.live)return;e.preventDefault();e.stopPropagation();const d=+b.dataset.sl;if(!d){paused=false;}
@@ -2747,6 +2747,110 @@ function lordHTML(){const lords={},mine=[];for(const p in ON.W.inv){const I=ivIn
   <b>👑 영주 순위</b>${R.length?`<table class="mt"><tr><th>#</th><th>선장</th><th class="n">다스리는 도시</th></tr>${R.map(([n,ps],i)=>`<tr${n===ON.nm?' style="background:#efe2c4"':''}><td>${i+1}</td><td>${esc(n)}<br><small class="hint">${ps.slice(0,4).map(p=>PORTS[p]?PORTS[p].name:'').join(', ')}${ps.length>4?' 외':''}</small></td><td class="n">${ps.length}</td></tr>`).join('')}</table>`:'<p class="hint">아직 영주가 없습니다.</p>'}
   <b>나의 작위</b>${mine.length?`<table class="mt"><tr><th>도시</th><th>작위</th><th class="n">몫</th></tr>${mine.map(([p,x])=>`<tr><td>${PORTS[p]?PORTS[p].name:p}</td><td>${x.t[1]} ${x.t[2]}</td><td class="n">${(x.sh*100).toFixed(1)}%</td></tr>`).join('')}</table>`:`<p class="hint">아직 작위가 없습니다. 항구의 투자 탭에서 ${IV_MIN.toLocaleString()}골드 이상 투자해 보세요.</p>`}`;}
 {const om1=onlineMode;onlineMode=function(on){om1(on);STAGES.forEach((s,i)=>s[1]=on?IV_STAGE[i]:STAGE0[i]);if(on&&S)invSync(true);};}
+
+// ---------- 선장 결투 ----------
+// 가까운 선장에게 신청 → 상대가 수락하면 서버가 승부를 계산한다. 배는 가라앉지 않고, 건 골드만 오간다.
+const DUEL_KM=600, BETS=[0,100,500,1000,5000,10000];
+ON.dq=[];ON.duelOpen=false;
+function kmTo(o){const D=Math.PI/180,a=S,dLat=(o.lat-a.lat)*D,dLon=(o.lon-a.lon)*D,h=Math.sin(dLat/2)**2+Math.cos(a.lat*D)*Math.cos(o.lat*D)*Math.sin(dLon/2)**2;return 2*6371*Math.asin(Math.min(1,Math.sqrt(h)));}
+const duelOn=()=>ON.live&&!(ON.W.cfg&&ON.W.cfg.duel===false);
+function duelWhyNot(o){if(!duelOn())return '결투 꺼짐';if(!S)return '';if(S.car)return '내륙에서는 불가';if(inPort>=0)return '항구 밖으로 나가야 함';if(B)return '해전 중';
+  if(o.port>=0)return '상대가 항구에 있음';if(o.bat)return '상대가 해전 중';const d=kmTo(o);if(d>DUEL_KM)return `${Math.round(d).toLocaleString()}km · ${DUEL_KM}km 안으로`;return '';}
+function duelSnap(){return {ships:S.fleet.map((sh,k)=>({t:sh.t,n:sh.name,hp:Math.round(hpK(k)),mx:hpMaxK(k),g:SHIPTYPES[sh.t].guns})),crew:S.crew,need:crewNeedT(),
+  gun:S.fleet.reduce((a,sh,k)=>a+shipRole(k,4),0)/S.fleet.length,spd:+(fleetSail(60)*navMul()).toFixed(3),gold:Math.floor(S.gold)};}
+const drRec=id=>(ON.W.dr&&ON.W.dr[id])||{w:0,l:0,net:0,r:1000};
+(()=>{const st=document.createElement('style');st.textContent=`
+#duelbox{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:rgba(20,12,4,.55)}#duelbox.on{display:flex}
+#duelbox .dc{width:min(560px,94vw);max-height:90vh;overflow:auto;background:#f6ecd4;border:3px solid #8a6a44;border-radius:14px;padding:16px 18px;box-shadow:0 10px 40px rgba(0,0,0,.5);font-size:15px}
+#duelbox h3{margin:0 0 8px;font-size:20px}#duelbox .bets{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}#duelbox .bets button.on{background:#2f5d73;color:#fff;border-color:#2f5d73}
+#duelbox .sides{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:start;margin:10px 0}#duelbox .vs{font-size:26px;font-weight:bold;align-self:center;color:#a8322a}
+#duelbox .side b{font-size:16px}#duelbox .sh{display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px}#duelbox .sh img{width:54px;height:36px;border-radius:4px}
+#duelbox .bar{height:8px;background:#d9c7a3;border-radius:4px;overflow:hidden;flex:1;min-width:50px}#duelbox .bar i{display:block;height:100%;background:#2e8b57;transition:width .45s}
+#duelbox .log{min-height:44px;background:#efe2c4;border-radius:8px;padding:6px 10px;font-size:13px;margin:8px 0}#duelbox .res{font-size:22px;font-weight:bold;text-align:center;margin:8px 0}
+#duelbox .btns{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px}#duelbox .cd{color:#a8322a;font-weight:bold}
+.pl .dbtn{margin-left:6px;padding:3px 8px;font-size:12px}.pl .dno{font-size:11px;color:#8a7458}`;document.head.appendChild(st);
+  const d=document.createElement('div');d.id='duelbox';document.body.appendChild(d);})();
+let duelTimer=null;
+function duelClose(){$('duelbox').className='';$('duelbox').innerHTML='';ON.duelOpen=false;if(duelTimer){clearInterval(duelTimer);duelTimer=null;}if(paused&&inPort<0&&!infoOpen&&!encOpen&&!storyOpen)paused=false;spKey='';}
+function duelShow(h,pause){const d=$('duelbox');d.innerHTML=`<div class="dc">${h}</div>`;d.className='on';ON.duelOpen=true;if(pause)paused=true;return d;}
+function countdown(ms,el,done){const end=Date.now()+ms;if(duelTimer)clearInterval(duelTimer);const tick=()=>{const s=Math.max(0,Math.ceil((end-Date.now())/1000));const e=$(el);if(e)e.textContent=s+'초';if(s<=0){clearInterval(duelTimer);duelTimer=null;done&&done();}};tick();duelTimer=setInterval(tick,250);}
+const fleetLine=L=>L.map(s=>`<div class="sh">${shipImg(s[0]??s.t,54)}<span>${esc(s[1]??s.n)} <small class="hint">${SHIPTYPES[s[0]??s.t]?SHIPTYPES[s[0]??s.t].n:''} · 대포 ${s[4]??s.g} · 선체 ${s[2]??s.hp}/${s[3]??s.mx}</small></span></div>`).join('');
+
+// 신청하기
+function duelAsk(id){const o=ON.players.find(x=>x.id===id);if(!o||!S)return;const why=duelWhyNot(o);if(why){toast('결투할 수 없습니다: '+why);return;}
+  let bet=0;const R=drRec(id),M=drRec(ON.id);
+  const draw=()=>{duelShow(`<h3>⚔ ${esc(o.nm)} 선장에게 결투 신청</h3>
+    <div class="hint">상대 함대 ${o.ships}척 · 결투 ${R.w}승 ${R.l}패 · 점수 ${Math.round(R.r)} &nbsp;|&nbsp; 나: ${M.w}승 ${M.l}패 · 점수 ${Math.round(M.r)}</div>
+    <p>내기 골드를 고르세요. <b>이긴 쪽이 건 만큼 가져갑니다.</b> 진 쪽도 배는 잃지 않고 선체만 상합니다.</p>
+    <div class="bets">${BETS.map(v=>`<button data-bet="${v}" class="${v===bet?'on':''}" ${v>S.gold?'disabled':''}>${v?v.toLocaleString()+'골드':'명예만 (0)'}</button>`).join('')}<input id="dbet" type="number" min="0" max="${Math.floor(S.gold)}" placeholder="직접 입력" style="width:110px"></div>
+    <div class="hint">가진 골드 ${Math.floor(S.gold).toLocaleString()} · 상대가 25초 안에 수락해야 시작합니다. 빠른 배, 대포, 포술사, 선원이 많을수록 유리합니다.</div>
+    <div class="btns"><button id="dno">그만두기</button><button class="main" id="dgo">⚔ 신청 보내기 (${bet.toLocaleString()}골드)</button></div>`,false);
+    $('duelbox').querySelectorAll('[data-bet]').forEach(b=>b.onclick=()=>{bet=+b.dataset.bet;draw();});
+    $('dbet').oninput=e=>{bet=Math.max(0,Math.min(Math.floor(S.gold),Math.floor(+e.target.value||0)));$('dgo').textContent=`⚔ 신청 보내기 (${bet.toLocaleString()}골드)`;};
+    $('dno').onclick=duelClose;
+    $('dgo').onclick=()=>{if(bet>S.gold){toast('가진 골드보다 많이 걸 수 없습니다.');return;}if(!wsSend({type:'dask',to:id,bet,snap:duelSnap()})){toast('서버와 연결이 끊겨 보내지 못했습니다.');return;}duelClose();};};
+  draw();}
+// 받은 신청
+function duelReq(m){if(!S||S.car||inPort>=0||B){wsSend({type:'dans',id:m.id,ok:false});return;}
+  sfx('mission');const R=m.rec;
+  duelShow(`<h3>⚔ ${esc(m.nm)} 선장이 결투를 신청했습니다!</h3>
+   <div class="hint">상대 기록 ${R[0]}승 ${R[1]}패 · 점수 ${R[2]}</div>
+   <p class="res" style="font-size:18px">내기: ${m.bet?m.bet.toLocaleString()+'골드':'명예만 (골드 없음)'}</p>
+   <div class="sides"><div class="side"><b>${esc(m.nm)}</b>${fleetLine(m.ships)}</div><div class="vs">VS</div><div class="side"><b>나 (${esc(ON.nm)})</b>${fleetLine(S.fleet.map((sh,k)=>[sh.t,sh.name,Math.round(hpK(k)),hpMaxK(k),SHIPTYPES[sh.t].guns]))}</div></div>
+   ${m.bet>S.gold?`<p class="cd">가진 골드(${Math.floor(S.gold).toLocaleString()})가 내기보다 적어 받을 수 없습니다.</p>`:''}
+   <div class="hint">진 쪽도 배는 잃지 않고 선체만 상합니다. 남은 시간 <span class="cd" id="dcd"></span></div>
+   <div class="btns"><button id="dno">거절</button><button class="main" id="dok" ${m.bet>S.gold?'disabled':''}>⚔ 수락</button></div>`,true);
+  const ans=ok=>{wsSend(ok?{type:'dans',id:m.id,ok:true,snap:duelSnap()}:{type:'dans',id:m.id,ok:false});duelClose();if(ok)toast('결투를 받아들였습니다. 포문을 엽니다!');};
+  $('dno').onclick=()=>ans(false);$('dok').onclick=()=>ans(true);ON.dreqId=m.id;countdown(m.ms||25000,'dcd',()=>{if(ON.dreqId===m.id)duelClose();});}
+// 결과 보기
+function duelResult(m){if(!S){ON.dq.push(m);return;}
+  const me=m.a.id===ON.id?'a':'b',op=me==='a'?'b':'a',won=m.win===me,mine=m[me],his=m[op];
+  if(S.dlog&&S.dlog[m.id]){wsSend({type:'dack',id:m.id});return;}
+  // 결과를 먼저 저장에 반영 (창을 닫아도 남도록)
+  const fin=me==='a'?m.ha:m.hb;S.fleet.forEach((sh,k)=>{const s=mine.ships[k];if(s&&s.t===sh.t&&fin[k]!=null)sh.hp=Math.min(hpK(k),fin[k]);});
+  const g=won?m.bet:-Math.min(m.bet,Math.floor(S.gold));S.gold+=g;S.fame=Math.max(0,(S.fame||0)+(won?5:-1));
+  S.dlog=S.dlog||{};S.dlog[m.id]=1;const ks=Object.keys(S.dlog);if(ks.length>50)delete S.dlog[ks[0]];save();wsSend({type:'dack',id:m.id});
+  // 해전 장면
+  const hp0={a:m.a.ships.map(s=>s.hp),b:m.b.ships.map(s=>s.hp)};
+  const sideH=(w,X)=>`<div class="side"><b>${w===me?'나 · ':''}${esc(X.nm)}</b>${X.ships.map((s,i)=>`<div class="sh">${shipImg(s.t,54)}<span style="flex:1">${esc(s.n)}<div class="bar"><i id="dh${w}${i}" style="width:${(hp0[w][i]/s.mx*100).toFixed(0)}%"></i></div></span></div>`).join('')}</div>`;
+  duelShow(`<h3>⚔ 결투 — ${esc(m.a.nm)} 대 ${esc(m.b.nm)}</h3><div class="hint">내기 ${m.bet?m.bet.toLocaleString()+'골드':'명예만'}</div>
+    <div class="sides">${sideH('a',m.a)}<div class="vs">VS</div>${sideH('b',m.b)}</div><div class="log" id="dlog">포문을 엽니다…</div><div id="dend"></div>`,true);
+  let i=0;sfx('cannon');
+  const step=()=>{if(!$('dlog'))return;if(i>=m.rounds.length){
+      const R=drRec(ON.id);sfx(won?'win':'lose');
+      $('dend').innerHTML=`<div class="res" style="color:${won?'#2e7d4f':'#a8322a'}">${won?'🏆 승리!':'패배…'} ${m.bet?(won?'+':'−')+Math.abs(g).toLocaleString()+'골드':''}</div>
+       <div class="hint" style="text-align:center">${won?`${esc(his.nm)} 선장이 항복했습니다. 명성 +5`:`${esc(his.nm)} 선장에게 졌습니다. 배는 무사하지만 선체가 상했습니다. 항구 조선소에서 고치세요.`} · 결투 점수 ${won?'+':'−'}${m.dr}</div>
+       <div class="btns"><button class="main" id="dx">닫기</button></div>`;$('dx').onclick=duelClose;return;}
+    const r=m.rounds[i++];r.ha.forEach((h,k)=>{const e=$('dha'+k);if(e)e.style.width=(h/m.a.ships[k].mx*100).toFixed(0)+'%';});r.hb.forEach((h,k)=>{const e=$('dhb'+k);if(e)e.style.width=(h/m.b.ships[k].mx*100).toFixed(0)+'%';});
+    $('dlog').innerHTML=`<b>${i}번째 포격</b><br>`+r.ev.map(([w,to,d])=>{const X=m[w],Y=m[w==='a'?'b':'a'];return `${esc(X.nm)}의 포격 → ${to>=0?esc(Y.ships[to].n):'빗나감'} ${d?'<b>−'+d+'</b>':'(빗나감)'}`;}).join('<br>');
+    sfx('cannon');setTimeout(step,750);};
+  setTimeout(step,700);}
+setInterval(()=>{if(S&&ON.dq.length&&!ON.duelOpen)duelResult(ON.dq.shift());},1000);
+function duelHTML(){const me=drRec(ON.id),L=Object.keys(ON.W.dr||{}).map(u=>({id:+u,nm:(ON.W.nm||{})[u]||'?',...ON.W.dr[u]})).filter(x=>x.w+x.l>0).sort((a,b)=>b.r-a.r).slice(0,20);
+  const near=S?ON.players.filter(o=>o.id!==ON.id).map(o=>({o,why:duelWhyNot(o),d:kmTo(o)})).sort((a,b)=>a.d-b.d).slice(0,6):[];
+  return `${duelOn()?'':'<p class="cd">지금은 선생님이 결투를 꺼 두었습니다.</p>'}
+  <div class="grid"><b>나의 결투</b><span>${me.w}승 ${me.l}패 · 점수 ${Math.round(me.r)} · 내기 ${me.net>=0?'+':''}${(me.net||0).toLocaleString()}골드</span></div>
+  ${near.length?'<b>가까운 선장</b>'+near.map(x=>`<div class="pl"><span><b>${esc(x.o.nm)}</b><br><small class="hint">${Math.round(x.d).toLocaleString()}km · 배 ${x.o.ships}척</small></span>${x.why?`<span class="dno">${x.why}</span>`:`<button class="dbtn" data-duel="${x.o.id}">⚔ 결투</button>`}</div>`).join(''):''}
+  <b>⚔ 결투 순위</b>${L.length?`<table class="mt"><tr><th>#</th><th>선장</th><th class="n">점수</th><th class="n">승·패</th><th class="n">내기 수익</th></tr>${L.map((x,i)=>`<tr${x.id===ON.id?' style="background:#efe2c4"':''}><td>${i+1}</td><td>${esc(x.nm)}</td><td class="n">${Math.round(x.r)}</td><td class="n">${x.w}·${x.l}</td><td class="n">${x.net>=0?'+':''}${(x.net||0).toLocaleString()}</td></tr>`).join('')}</table>`:'<p class="hint">아직 결투한 선장이 없습니다.</p>'}
+  <p class="hint">둘 다 바다에 있고 ${DUEL_KM}km 안에 있으면 신청할 수 있습니다. 상대가 수락해야 싸웁니다. 진 쪽도 배는 잃지 않습니다. 점수는 강한 상대를 이길수록 많이 오릅니다 (처음 1000점).</p>`;}
+// 접속 중 목록과 결투 탭에 결투 버튼
+{const pUI=panelUI;panelUI=function(){pUI();const p=$('onpanel');if(!p||!ON.open)return;
+  const tb=p.querySelector('.tabs');if(tb&&!tb.querySelector('[data-ot="duel"]')){const b=document.createElement('button');b.dataset.ot='duel';b.textContent='⚔ 결투';if(ON.tab==='duel')b.className='on';b.onclick=()=>{ON.tab='duel';panelUI();};tb.insertBefore(b,tb.lastElementChild);}
+  if(ON.tab==='duel'){$('onBody').innerHTML=duelHTML();tb.querySelectorAll('[data-ot]').forEach(b=>b.classList.toggle('on',b.dataset.ot==='duel'));}
+  if(ON.tab==='who'&&S&&duelOn())p.querySelectorAll('.pl[data-pl]').forEach(d=>{const id=+d.dataset.pl;if(id===ON.id)return;const o=ON.players.find(x=>x.id===id);if(!o)return;const why=duelWhyNot(o);
+    const s=document.createElement('span');s.innerHTML=why?`<span class="dno">${why}</span>`:`<button class="dbtn" data-duel="${id}">⚔ 결투</button>`;d.lastElementChild.appendChild(s);});};}
+document.addEventListener('pointerdown',e=>{const b=e.target.closest&&e.target.closest('[data-duel]');if(!b)return;e.preventDefault();e.stopPropagation();duelAsk(+b.dataset.duel);},true);
+// 서버 메시지
+{const w0=onWs;onWs=function(m){
+  if(m.type==='init'){ON.W.dr=(m.world&&m.world.dr)||{};ON.W.cfg=(m.world&&m.world.cfg)||{duel:true};}
+  if(m.type==='dreq')return duelReq(m);
+  if(m.type==='dwait'){toast('결투 신청을 보냈습니다. 상대의 답을 기다립니다…');return;}
+  if(m.type==='dfail'){toast(m.text,true);return;}
+  if(m.type==='dgone'){if(ON.dreqId===m.id)duelClose();return;}
+  if(m.type==='dres'){if(ON.duelOpen&&ON.dreqId)duelClose();return duelResult(m);}
+  if(m.type==='dr'){Object.assign(ON.W.dr||(ON.W.dr={}),m.dr);Object.assign(ON.W.nm,m.nm||{});if(ON.open&&ON.tab==='duel')panelUI();return;}
+  if(m.type==='cfg'){ON.W.cfg=m.cfg;if(ON.open)panelUI();return;}
+  return w0(m);};}
 
 </script>
 </body></html>

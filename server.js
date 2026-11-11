@@ -2,6 +2,7 @@
 const http = require('http'), fs = require('fs'), path = require('path'), zlib = require('zlib'), crypto = require('crypto');
 const { attach } = require('./ws-lite');
 const { makeStore } = require('./store');
+const { makeDuel } = require('./duel');
 
 const PORT = +process.env.PORT || 10000;
 const store = makeStore();
@@ -16,17 +17,17 @@ loadIndex();
 
 // ---------- 함께 쓰는 세계 ----------
 const DECAY_MS = 20000;           // 시세 압력은 실제 20초마다 0.9배로 풀린다
-const W = { mk: {}, dev: {}, disc: {}, inv: {}, nm: {} };   // inv: 항구별 {선장id: 누적 투자 골드}
+const W = { mk: {}, dev: {}, disc: {}, inv: {}, nm: {}, dr: {}, cfg: { duel: true }, dpend: {} };   // dr: 결투 기록, cfg: 선생님 설정   // inv: 항구별 {선장id: 누적 투자 골드}
 let CHAT = [], worldDirty = false, chatDirty = false;
 function mkDecay(m, now) { const dt = now - m.t; if (dt > 0) { const f = Math.pow(0.9, dt / DECAY_MS); m.s *= f; m.b *= f; m.t = now; } return m; }
 function mkPack(m) { return [+m.s.toFixed(3), +m.b.toFixed(3)]; }
 function worldSnapshot() {
   const now = Date.now(), mk = {};
   for (const k in W.mk) { const m = mkDecay(W.mk[k], now); if (m.s + m.b < 0.05) { delete W.mk[k]; continue; } mk[k] = mkPack(m); }
-  return { mk, dev: W.dev, disc: W.disc, inv: W.inv, nm: W.nm, now };
+  return { mk, dev: W.dev, disc: W.disc, inv: W.inv, nm: W.nm, dr: W.dr, cfg: W.cfg, now };
 }
 async function loadWorld() {
-  try { const v = await store.kvGet('world'); if (v) { const o = JSON.parse(v); Object.assign(W, { mk: o.mk || {}, dev: o.dev || {}, disc: o.disc || {}, inv: o.inv || {}, nm: o.nm || {} }); } } catch (e) { console.error('world load', e.message); }
+  try { const v = await store.kvGet('world'); if (v) { const o = JSON.parse(v); Object.assign(W, { mk: o.mk || {}, dev: o.dev || {}, disc: o.disc || {}, inv: o.inv || {}, nm: o.nm || {}, dr: o.dr || {}, cfg: Object.assign({ duel: true }, o.cfg), dpend: o.dpend || {} }); } } catch (e) { console.error('world load', e.message); }
   try { const v = await store.kvGet('chat'); if (v) CHAT = JSON.parse(v); } catch (e) {}
 }
 async function saveWorld() {
@@ -105,10 +106,11 @@ async function admin(req, res, act) {
   const b = await body(req, 4096), k = Buffer.from(String(b.key || '')), K = Buffer.from(KEY);
   if (k.length !== K.length || !crypto.timingSafeEqual(k, K)) { if (++adminFail.n >= 5) adminFail = { n: 0, until: Date.now() + 10 * 60000 }; return send(res, 401, { err: 'key' }); }
   adminFail.n = 0;
+  if (act === 'duel') { if (typeof b.on === 'boolean') { W.cfg.duel = b.on; worldDirty = true; bc({ type: 'cfg', cfg: W.cfg }); bc({ type: 'sys', text: b.on ? '⚔ 선생님이 결투를 켰습니다.' : '선생님이 결투를 껐습니다.' }); } return send(res, 200, { duel: W.cfg.duel }); }
   if (act === 'users') {
     const metas = {}; for (const r of await store.metasAll()) { let m; try { m = JSON.parse(r.data); } catch (e) { continue; } const o = metas[r.uid]; if (!o || (m.t || 0) > (o.t || 0)) metas[r.uid] = m; }
     const on = new Set([...clients.values()].map(v => v.uid));
-    return send(res, 200, { list: (await store.usersAll()).map(u => { const m = metas[u.id] || {}; return { id: u.id, name: u.name, created: u.created, last: u.last, day: m.day || 0, gold: m.gold || 0, asset: m.asset || 0, online: on.has(u.id) }; }) });
+    return send(res, 200, { duel: W.cfg.duel, list: (await store.usersAll()).map(u => { const m = metas[u.id] || {}; return { id: u.id, name: u.name, created: u.created, last: u.last, day: m.day || 0, gold: m.gold || 0, asset: m.asset || 0, online: on.has(u.id) }; }) });
   }
   const id = Number(b.id); if (!Number.isInteger(id) || !(await store.userById(id))) return send(res, 404, { err: 'no_user' });
   if (act === 'pin') {
@@ -120,7 +122,7 @@ async function admin(req, res, act) {
   if (act === 'delete') {
     kick(id); await store.deleteUser(id);
     for (const p in W.inv) if (W.inv[p][id]) { delete W.inv[p][id]; invChanged.add(+p); worldDirty = true; }
-    delete W.nm[id]; return send(res, 200, { ok: true });
+    delete W.nm[id]; DUEL.forget(id); return send(res, 200, { ok: true });
   }
   send(res, 404, { err: 'not_found' });
 }
@@ -148,6 +150,8 @@ const server = http.createServer(async (req, res) => {
 
 // ---------- 실시간 ----------
 const clients = new Map();   // conn -> {uid, nm, pos, chatT}
+function sendTo(uid, obj) { const s = JSON.stringify(obj); for (const [c, v] of clients) if (v.uid === uid) c.send(s); }
+const DUEL = makeDuel({ W, clients, bc: (o) => bc(o), sendTo, dirty: () => { worldDirty = true; } });
 function bc(obj, except) { const s = JSON.stringify(obj); for (const c of clients.keys()) if (c !== except) c.send(s); }
 function playerList() {
   const seen = new Map();
@@ -161,6 +165,8 @@ function onMsg(c, info, raw) {
   if (m.type === 'pos') {
     if (!num(m.lat, -90, 90) || !num(m.lon, -400, 400)) return;
     info.pos = { lat: m.lat, lon: m.lon, hd: num(m.hd, -720, 720) ? m.hd : 0, port: Number.isInteger(m.port) ? m.port : -1, ships: Number.isInteger(m.ships) ? m.ships : 1, fl: String(m.fl || '').slice(0, 20), day: num(m.day, 0, 1e7) ? Math.floor(m.day) : 0, bat: !!m.bat, t: now };
+  } else if (m.type === 'dask' || m.type === 'dans' || m.type === 'dack') {
+    DUEL.onMsg(info, m);
   } else if (m.type === 'chat') {
     const text = String(m.text || '').replace(/\s+/g, ' ').trim().slice(0, 200); if (!text || now - (info.chatT || 0) < 700) return; info.chatT = now;
     const msg = { nm: info.nm, text, t: now, where: String(m.where || '').slice(0, 30) }; CHAT.push(msg); if (CHAT.length > 80) CHAT = CHAT.slice(-60); chatDirty = true; bc({ type: 'chat', m: msg });
@@ -217,6 +223,8 @@ attach(server, '/ws', async (c, url) => {
   c.onmessage = raw => onMsg(c, info, raw);
   c.onclose = () => { clients.delete(c); if (![...clients.values()].some(v => v.uid === uid)) bc({ type: 'sys', text: `${info.nm} 선장이 떠났습니다.` }); };
   c.send(JSON.stringify({ type: 'init', you: { id: uid, nm: info.nm }, world: worldSnapshot(), chat: CHAT.slice(-40), players: playerList() }));
+  if (W.nm[uid] !== info.nm) { W.nm[uid] = info.nm; worldDirty = true; }
+  DUEL.onJoin(info);
   if (!already) bc({ type: 'sys', text: `${info.nm} 선장이 바다에 나왔습니다.` }, c);
 });
 

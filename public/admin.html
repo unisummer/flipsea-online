@@ -23,6 +23,7 @@ th{color:var(--sub);font-weight:600}td.n{text-align:right;font-variant-numeric:t
   <div id="msg" class="sub">관리자 비밀번호는 Render 대시보드 → 이 서비스 → Environment 에서 ADMIN_KEY 로 정합니다. 5번 틀리면 10분 동안 잠깁니다.</div>
 </div>
 <div class="card" id="box" hidden>
+  <div class="row" style="justify-content:space-between;margin-bottom:10px"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="duel" style="width:20px;height:20px"> <b>⚔ 선장끼리 결투 허용</b></label><small class="sub" id="duelSt"></small></div>
   <div class="row" style="justify-content:space-between"><b id="cnt"></b><input id="q" placeholder="이름 찾기" style="width:160px"></div>
   <div class="wrap"><table><thead><tr><th>#</th><th>선장</th><th class="n hide-s">날짜</th><th class="n hide-s">자산</th><th class="hide-s">마지막 저장</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>
 </div>
@@ -43,7 +44,8 @@ function draw(){const q=$('q').value.trim().toLowerCase();const S=L.filter(u=>!q
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const u=L.find(x=>x.id==b.dataset.del);const t=prompt(`'${u.name}' 선장과 저장된 항해, 투자 기록을 모두 지웁니다. 되돌릴 수 없습니다.\n지우려면 선장 이름을 그대로 입력하세요.`,'');if(t===null)return;
     if(t.trim()!==u.name){say('이름이 달라 지우지 않았습니다.',true);return;}
     try{await call('delete',{id:u.id});say(`'${u.name}' 선장을 지웠습니다. 이제 그 이름을 다른 학생이 쓸 수 있습니다.`);load();}catch(e){say(e.message,true);}});}
-async function load(){try{const j=await call('users');L=j.list;$('box').hidden=false;draw();}catch(e){say(e.message,true);}}
+async function load(){try{const j=await call('users');L=j.list;$('duel').checked=!!j.duel;$('duelSt').textContent=j.duel?'켜짐 · 학생들이 서로 결투하고 골드를 걸 수 있습니다':'꺼짐 · 결투 신청 버튼이 사라집니다';$('box').hidden=false;draw();}catch(e){say(e.message,true);}}
 $('go').onclick=()=>{say('불러오는 중…');load().then(()=>{if(!$('msg').classList.contains('err'))say('목록을 불러왔습니다.');});};
+$('duel').onchange=async()=>{const on=$('duel').checked;try{const j=await call('duel',{on});$('duelSt').textContent=j.duel?'켜짐 · 학생들이 서로 결투하고 골드를 걸 수 있습니다':'꺼짐 · 결투 신청 버튼이 사라집니다';say(j.duel?'결투를 켰습니다. 접속 중인 학생들에게 바로 알려집니다.':'결투를 껐습니다.');}catch(e){$('duel').checked=!on;say(e.message,true);}};
 $('key').onkeydown=e=>{if(e.key==='Enter')$('go').click();};$('q').oninput=draw;
 </script></body></html>
