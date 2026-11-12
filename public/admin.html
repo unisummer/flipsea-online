@@ -46,6 +46,7 @@ h2{font-size:17px;margin:0 0 8px}.evl{display:flex;justify-content:space-between
   <div class="sub">온라인 바다 전체에 적용됩니다. 학생들이 해적 때문에 장사를 못 하면 낮추고, 긴장감이 필요하면 올리세요. (10%~200%, 처음 100%)</div>
   <div style="margin-top:8px"><b>빈도</b> <span id="pfV"></span><input id="pf" type="range" min="10" max="200" step="10" style="width:100%"><div class="sub">해적이 나타나는 정도와 한꺼번에 돌아다니는 무리 수</div></div>
   <div style="margin-top:8px"><b>세기</b> <span id="ppV"></span><input id="pp" type="range" min="10" max="200" step="10" style="width:100%"><div class="sub">해적 배의 선체·대포·선원</div></div>
+  <div style="margin-top:8px"><b>배 속도</b> <span id="psV"></span><input id="ps" type="range" min="10" max="200" step="10" style="width:100%"><div class="sub">바다에서 쫓아오거나 달아나는 빠르기와 해전에서의 빠르기. 학생들이 해적을 못 피하면 낮추세요</div></div>
   <div class="row" style="margin-top:6px"><button id="pirOk" class="main">적용</button><button id="pirReset">100%로</button><span id="pirSt" class="sub"></span></div>
 </div>
 <div class="card" id="rsbox" hidden>
@@ -83,10 +84,10 @@ $('evT').innerHTML=Object.entries(EVT).map(([k,v])=>`<option value="${k}">${v[0]
 $('evS').innerHTML='<option value="-1">온 바다</option>'+REG.map((r,i)=>`<option value="${i}">${r}</option>`).join('');
 const evDesc=()=>{const v=EVT[$('evT').value];$('evDesc').textContent=v[1];$('evM').value=v[2];};$('evT').onchange=evDesc;evDesc();
 $('auT').innerHTML=Object.entries(EVT).map(([k,v])=>`<label><input type="checkbox" value="${k}" checked> ${v[0]}</label>`).join('');
-function drawPir(st){if(document.activeElement&&/pf|pp/.test(document.activeElement.id))return;$('pf').value=Math.round((st.pf??1)*100);$('pp').value=Math.round((st.pp??1)*100);$('pfV').textContent=$('pf').value+'%';$('ppV').textContent=$('pp').value+'%';$('pirSt').textContent=`지금: 빈도 ${Math.round((st.pf??1)*100)}% · 세기 ${Math.round((st.pp??1)*100)}%`;}
-$('pf').oninput=()=>$('pfV').textContent=$('pf').value+'%';$('pp').oninput=()=>$('ppV').textContent=$('pp').value+'%';
-$('pirOk').onclick=async()=>{try{const r=await call('pirate',{pf:+$('pf').value/100,pp:+$('pp').value/100});say(`해적을 바꿨습니다: 빈도 ${Math.round(r.pf*100)}% · 세기 ${Math.round(r.pp*100)}%. 접속 중인 학생에게 바로 알려집니다.`);refresh();}catch(e){say(e.message,true);}};
-$('pirReset').onclick=()=>{$('pf').value=100;$('pp').value=100;$('pirOk').click();};
+function drawPir(st){if(document.activeElement&&/pf|pp/.test(document.activeElement.id))return;$('pf').value=Math.round((st.pf??1)*100);$('pp').value=Math.round((st.pp??1)*100);$('ps').value=Math.round((st.ps??1)*100);$('pfV').textContent=$('pf').value+'%';$('ppV').textContent=$('pp').value+'%';$('psV').textContent=$('ps').value+'%';$('pirSt').textContent=`지금: 빈도 ${Math.round((st.pf??1)*100)}% · 세기 ${Math.round((st.pp??1)*100)}% · 속도 ${Math.round((st.ps??1)*100)}%`;}
+$('pf').oninput=()=>$('pfV').textContent=$('pf').value+'%';$('pp').oninput=()=>$('ppV').textContent=$('pp').value+'%';$('ps').oninput=()=>$('psV').textContent=$('ps').value+'%';
+$('pirOk').onclick=async()=>{try{const r=await call('pirate',{pf:+$('pf').value/100,pp:+$('pp').value/100,ps:+$('ps').value/100});say(`해적을 바꿨습니다: 빈도 ${Math.round(r.pf*100)}% · 세기 ${Math.round(r.pp*100)}% · 속도 ${Math.round(r.ps*100)}%. 접속 중인 학생에게 바로 알려집니다.`);refresh();}catch(e){say(e.message,true);}};
+$('pirReset').onclick=()=>{$('pf').value=100;$('pp').value=100;$('ps').value=100;$('pirOk').click();};
 function drawEv(st){drawPir(st);$('igOn').checked=st.ig!==false;$('igFair').checked=!!st.igFair;const now=Date.now();$('evList').innerHTML=(st.ev||[]).length?st.ev.map(e=>`<div class="evl"><span class="${e.type==='raid'||e.type==='storm'?'badc':'good'}"><b>${EVT[e.type][0]}</b> · ${e.scope<0?'온 바다':REG[e.scope]} · ${e.mag}% · 남은 ${Math.max(0,Math.ceil((e.end-now)/60000))}분${e.by==='auto'?' · 세계 시계':''}</span><button data-eend="${e.id}">끝내기</button></div>`).join(''):'<div class="sub">진행 중인 이벤트가 없습니다.</div>';
   document.querySelectorAll('[data-eend]').forEach(b=>b.onclick=async()=>{try{await call('event_end',{id:+b.dataset.eend});refresh();}catch(e){say(e.message,true);}});
   const A=st.auto||{};$('auOn').checked=!!A.on;$('auE').value=String(A.every||10);$('auD').value=String(A.dur||5);document.querySelectorAll('#auT input').forEach(c=>c.checked=!A.types||A.types.includes(c.value));

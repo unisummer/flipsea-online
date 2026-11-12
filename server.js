@@ -109,7 +109,7 @@ async function admin(req, res, act) {
   const b = await body(req, 4096), k = Buffer.from(String(b.key || '')), K = Buffer.from(KEY);
   if (k.length !== K.length || !crypto.timingSafeEqual(k, K)) { if (++adminFail.n >= 5) adminFail = { n: 0, until: Date.now() + 10 * 60000 }; return send(res, 401, { err: 'key' }); }
   adminFail.n = 0;
-  if (act === 'state') return send(res, 200, { duel: W.cfg.duel, ig: W.cfg.ig !== false, igFair: !!W.cfg.igFair, pf: W.cfg.pf ?? 1, pp: W.cfg.pp ?? 1, ev: W.ev, auto: W.auto, season: W.season });
+  if (act === 'state') return send(res, 200, { duel: W.cfg.duel, ig: W.cfg.ig !== false, igFair: !!W.cfg.igFair, pf: W.cfg.pf ?? 1, pp: W.cfg.pp ?? 1, ps: W.cfg.ps ?? 1, ev: W.ev, auto: W.auto, season: W.season });
   if (act === 'event') { const r = EV.start(String(b.type), Number(b.scope), b.mag, b.mins, 'teacher'); return send(res, r.err ? 400 : 200, r); }
   if (act === 'event_end') { EV.end(Number(b.id)); return send(res, 200, { ok: true, ev: W.ev }); }
   if (act === 'auto') { return send(res, 200, { auto: EV.setAuto(b) }); }
@@ -130,8 +130,9 @@ async function admin(req, res, act) {
     const cl = v => Math.max(.1, Math.min(2, Math.round((+v) * 10) / 10));
     if (b.pf != null && isFinite(+b.pf)) W.cfg.pf = cl(b.pf);
     if (b.pp != null && isFinite(+b.pp)) W.cfg.pp = cl(b.pp);
+    if (b.ps != null && isFinite(+b.ps)) W.cfg.ps = cl(b.ps);
     worldDirty = true; bc({ type: 'cfg', cfg: W.cfg });
-    return send(res, 200, { pf: W.cfg.pf ?? 1, pp: W.cfg.pp ?? 1 });
+    return send(res, 200, { pf: W.cfg.pf ?? 1, pp: W.cfg.pp ?? 1, ps: W.cfg.ps ?? 1 });
   }
   if (act === 'ig') { if (typeof b.on === 'boolean') W.cfg.ig = b.on; if (typeof b.fair === 'boolean') W.cfg.igFair = b.fair; worldDirty = true; bc({ type: 'cfg', cfg: W.cfg }); return send(res, 200, { ig: W.cfg.ig, fair: !!W.cfg.igFair }); }
   if (act === 'duel') { if (typeof b.on === 'boolean') { W.cfg.duel = b.on; worldDirty = true; bc({ type: 'cfg', cfg: W.cfg }); bc({ type: 'sys', text: b.on ? '⚔ 선생님이 결투를 켰습니다.' : '선생님이 결투를 껐습니다.' }); } return send(res, 200, { duel: W.cfg.duel }); }

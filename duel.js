@@ -167,7 +167,7 @@ function makeDuel({ W, clients, bc, sendTo, dirty }) {
     const w = IGC.igOver(M.A, M.B, M.r);
     const st = { A: { hp: M.A.hp, ki: M.A.ki, stag: M.A.stag, leg: M.A.leg }, B: { hp: M.B.hp, ki: M.B.ki, stag: M.B.stag, leg: M.B.leg } };
     for (const u of [M.a, M.b]) sendTo(u, { type: 'igr', id: M.id, r: M.r, res, st, over: w || null });
-    if (w) igEnd(M, w); else setTimeout(() => { if (matches.has(M.id)) { igRoundStart(M); for (const u of [M.a, M.b]) sendTo(u, { type: 'ign', id: M.id, r: M.r, ms: IG_MS }); } }, 1600);
+    if (w) igEnd(M, w); else setTimeout(() => { if (matches.has(M.id)) { igRoundStart(M); for (const u of [M.a, M.b]) sendTo(u, { type: 'ign', id: M.id, r: M.r, ms: IG_MS }); } }, 2700); // 화면에서 칼싸움 장면이 끝날 시간
   }
   function igEnd(M, w, why) {
     matches.delete(M.id); clearTimeout(M.tm);
