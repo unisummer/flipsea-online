@@ -25,10 +25,10 @@ function mkPack(m) { return [+m.s.toFixed(3), +m.b.toFixed(3)]; }
 function worldSnapshot() {
   const now = Date.now(), mk = {};
   for (const k in W.mk) { const m = mkDecay(W.mk[k], now); if (m.s + m.b < 0.05) { delete W.mk[k]; continue; } mk[k] = mkPack(m); }
-  return { mk, dev: W.dev, disc: W.disc, inv: W.inv, nm: W.nm, dr: W.dr, cfg: W.cfg, ev: W.ev, season: W.season, now };
+  return { mk, dev: W.dev, disc: W.disc, inv: W.inv, nm: W.nm, dr: W.dr, ig: W.ig, cfg: W.cfg, ev: W.ev, season: W.season, now };
 }
 async function loadWorld() {
-  try { const v = await store.kvGet('world'); if (v) { const o = JSON.parse(v); Object.assign(W, { mk: o.mk || {}, dev: o.dev || {}, disc: o.disc || {}, inv: o.inv || {}, nm: o.nm || {}, dr: o.dr || {}, cfg: Object.assign({ duel: true }, o.cfg), dpend: o.dpend || {}, ev: o.ev || [], auto: o.auto || null, season: o.season || 1 }); } } catch (e) { console.error('world load', e.message); }
+  try { const v = await store.kvGet('world'); if (v) { const o = JSON.parse(v); Object.assign(W, { mk: o.mk || {}, dev: o.dev || {}, disc: o.disc || {}, inv: o.inv || {}, nm: o.nm || {}, dr: o.dr || {}, ig: o.ig || {}, cfg: Object.assign({ duel: true, ig: true }, o.cfg), dpend: o.dpend || {}, ev: o.ev || [], auto: o.auto || null, season: o.season || 1 }); } } catch (e) { console.error('world load', e.message); }
   try { const v = await store.kvGet('chat'); if (v) CHAT = JSON.parse(v); } catch (e) {}
 }
 async function saveWorld() {
@@ -109,7 +109,7 @@ async function admin(req, res, act) {
   const b = await body(req, 4096), k = Buffer.from(String(b.key || '')), K = Buffer.from(KEY);
   if (k.length !== K.length || !crypto.timingSafeEqual(k, K)) { if (++adminFail.n >= 5) adminFail = { n: 0, until: Date.now() + 10 * 60000 }; return send(res, 401, { err: 'key' }); }
   adminFail.n = 0;
-  if (act === 'state') return send(res, 200, { duel: W.cfg.duel, pf: W.cfg.pf ?? 1, pp: W.cfg.pp ?? 1, ev: W.ev, auto: W.auto, season: W.season });
+  if (act === 'state') return send(res, 200, { duel: W.cfg.duel, ig: W.cfg.ig !== false, igFair: !!W.cfg.igFair, pf: W.cfg.pf ?? 1, pp: W.cfg.pp ?? 1, ev: W.ev, auto: W.auto, season: W.season });
   if (act === 'event') { const r = EV.start(String(b.type), Number(b.scope), b.mag, b.mins, 'teacher'); return send(res, r.err ? 400 : 200, r); }
   if (act === 'event_end') { EV.end(Number(b.id)); return send(res, 200, { ok: true, ev: W.ev }); }
   if (act === 'auto') { return send(res, 200, { auto: EV.setAuto(b) }); }
@@ -121,7 +121,7 @@ async function admin(req, res, act) {
     bc({ type: 'reset', season: W.season, all });
     for (const c of [...clients.keys()]) { try { c.close(); } catch (e) {} }
     await store.wipe(all);
-    Object.assign(W, { mk: {}, dev: {}, disc: {}, inv: {}, nm: {}, dr: {}, dpend: {} }); EV.clear();
+    Object.assign(W, { mk: {}, dev: {}, disc: {}, inv: {}, nm: {}, dr: {}, ig: {}, dpend: {} }); EV.clear();
     CHAT = []; chatDirty = true; worldDirty = true; fails.clear(); await saveWorld();
     console.log(`새 시즌 ${W.season} 시작 (계정 ${all ? '삭제' : '유지'})`);
     return send(res, 200, { ok: true, season: W.season });
@@ -133,6 +133,7 @@ async function admin(req, res, act) {
     worldDirty = true; bc({ type: 'cfg', cfg: W.cfg });
     return send(res, 200, { pf: W.cfg.pf ?? 1, pp: W.cfg.pp ?? 1 });
   }
+  if (act === 'ig') { if (typeof b.on === 'boolean') W.cfg.ig = b.on; if (typeof b.fair === 'boolean') W.cfg.igFair = b.fair; worldDirty = true; bc({ type: 'cfg', cfg: W.cfg }); return send(res, 200, { ig: W.cfg.ig, fair: !!W.cfg.igFair }); }
   if (act === 'duel') { if (typeof b.on === 'boolean') { W.cfg.duel = b.on; worldDirty = true; bc({ type: 'cfg', cfg: W.cfg }); bc({ type: 'sys', text: b.on ? '⚔ 선생님이 결투를 켰습니다.' : '선생님이 결투를 껐습니다.' }); } return send(res, 200, { duel: W.cfg.duel }); }
   if (act === 'users') {
     const metas = {}; for (const r of await store.metasAll()) { let m; try { m = JSON.parse(r.data); } catch (e) { continue; } const o = metas[r.uid]; if (!o || (m.t || 0) > (o.t || 0)) metas[r.uid] = m; }
@@ -193,7 +194,7 @@ function onMsg(c, info, raw) {
   if (m.type === 'pos') {
     if (!num(m.lat, -90, 90) || !num(m.lon, -400, 400)) return;
     info.pos = { lat: m.lat, lon: m.lon, hd: num(m.hd, -720, 720) ? m.hd : 0, port: Number.isInteger(m.port) ? m.port : -1, ships: Number.isInteger(m.ships) ? m.ships : 1, fl: String(m.fl || '').slice(0, 20), day: num(m.day, 0, 1e7) ? Math.floor(m.day) : 0, bat: !!m.bat, asset: num(m.asset, 0, 1e13) ? Math.round(m.asset) : 0, t: now };
-  } else if (m.type === 'dask' || m.type === 'dans' || m.type === 'dack') {
+  } else if (m.type === 'dask' || m.type === 'dans' || m.type === 'dack' || m.type === 'igc') {
     DUEL.onMsg(info, m);
   } else if (m.type === 'chat') {
     const text = String(m.text || '').replace(/\s+/g, ' ').trim().slice(0, 200); if (!text || now - (info.chatT || 0) < 700) return; info.chatT = now;

@@ -207,6 +207,7 @@ body.mob.battle #bctl{display:block}
 <tr><td>V</td><td>바람·해류 화살표 바꾸기</td></tr>
 <tr><td>I</td><td>상품 정보 창</td></tr>
 <tr><td>T</td><td>함대와 항해자</td></tr>
+<tr><td>B</td><td>소지품·장비 (무기·방어구·항해도구)</td></tr>
 <tr><td>R</td><td>자동 항로: 항구 경유 / 최단</td></tr>
 <tr><td>오른쪽 클릭</td><td>직접 몰 목표 찍기 (조타반에 추천 침로)</td></tr>
 <tr><td>Q</td><td>발견물 조사</td></tr>
@@ -217,6 +218,7 @@ body.mob.battle #bctl{display:block}
 <tr><td>E / R</td><td>사슬탄 (돛) / 화염탄 (불)</td></tr>
 <tr><td>F · Space</td><td>수리 · 호연의 호령</td></tr>
 <tr><td>B</td><td>접현 (붙어서 나포)</td></tr>
+<tr><td>T</td><td>일기토 (적 기함 옆에서 선장끼리)</td></tr>
 <tr><td>1 2 3</td><td>함대 명령: 대열·집중·자유</td></tr>
 </table>
 <div class="note">직접 몰면 자동 항해보다 빠릅니다. 바람을 옆이나 비스듬히 뒤에서 받으면 가장 빠르고, 맞바람은 지그재그로 거슬러 가는 편이 낫습니다.</div>
@@ -529,7 +531,7 @@ const eR=r=>roleVal(r)/100;
 function traitOn(t){for(const i of hiredIds())if(MATES[i].tr===t)return true;return false;}
 function navMul(){let m=(traitOn(0)?1.04:1)*(hasRelic('sail')?1.08:1)*(1+.03*perkSum('speed'))*seaMul();return m;for(let k=1;k<S.fleet.length;k++)if(!S.fleet[k].as.some(a=>a.r===0&&!a.aux))m*=.95;return m;}
 const supplyMul=()=>(traitOn(3)?.9:1)*(traitOn(4)?1.08:1)*(hasRelic('fridge')?.7:1);
-const lossMul=()=>(1-.6*eR(6))*(traitOn(5)?.7:1);
+const lossMul=()=>(1-.6*eR(6))*(traitOn(5)?.7:1)*(typeof toolPct==='function'?1-toolPct('med'):1);
 const tradeBuyMul=()=>1-.08*eR(3), tradeSellMul=()=>(1+.08*eR(3))*(traitOn(1)?1.04:1)*(1+.03*perkSum('sell'));
 const revealR=()=>3+1.5*eR(2)+(traitOn(2)?.6:0)+(hasRelic('scope')?1.5:0);
 const mateCap=()=>seatsT()+1+6+2*S.fleet.length;
@@ -1256,8 +1258,8 @@ const CITY_PERK=[['boost','비단길 낙타 몰이법'],['water','사막 물주�
 const cityIdx=id=>CITIES.findIndex(c=>c.id===id);
 function perkLv(i){const id=CITIES[i].id;if(!S.cf.includes(id))return 0;let big=false;for(const k in (S.links||{})){const [p,c]=k.split('_').map(Number);if(c===id&&S.links[k].lv>=3)big=true;}return big?2:1;}
 function perkSum(type){let t=0;for(let i=0;i<CITIES.length;i++)if(CITY_PERK[i][0]===type)t+=perkLv(i);return t;}
-const waterMul=()=>Math.max(.35,Math.pow(.85,perkSum('water')));
-const foodMul=()=>Math.max(.35,Math.pow(.85,perkSum('food')));
+const waterMul=()=>Math.max(.35,Math.pow(.85,perkSum('water'))*(typeof toolPct==='function'?1-toolPct('water'):1));
+const foodMul=()=>Math.max(.35,Math.pow(.85,perkSum('food'))*(typeof toolPct==='function'?1-toolPct('food'):1));
 function perkHTML(id){const i=cityIdx(id);if(i<0)return '';const [t,n]=CITY_PERK[i],lv=perkLv(i);
   return `<div class="tipbox"><b>이 도시의 선물: ${n}</b> — ${PERK_DEF[t][0]}${lv?` <b style="color:#3b7a3b">✔ 받음${lv>1?' (큰길로 두 배)':''}</b>`:''}<br><small>처음 닿으면 함대가 영구히 받습니다. 이 도시까지 큰길을 놓으면 효과가 두 배가 됩니다.</small></div>`;}
 const linkKey=(p,c)=>p+'_'+c;
@@ -1706,7 +1708,7 @@ function pirDaily(){if(!S.pir)S.pir=[];if(S.car||inPort>=0)return;
   bossHomes().forEach((h,i)=>{if(S.bd[i]||S.pir.some(p=>p.boss===i))return;if(gcDist(S.lat,S.lon,h[0],h[1])<1100)spawnPir(BOSS[i].lv,BOSS[i].ships.slice(),i,h);});}
 function nearHarbor(lat,lon,km){return SEAPORTS.some(q=>Math.abs(q.lat-lat)<2&&gcDist(lat,lon,q.lat,q.lon)<km);}
 function pirTick(days){if(!S.pir||!S.pir.length||encOpen||B)return;const mp=myPower();
-  for(const p of S.pir){const km=gcDist(S.lat,S.lon,p.lat,p.lon),pp=fleetPower(p.ships,p.lv),calm=p.calm>S.day,chaseR=p.boss!=null?420:330;
+  for(const p of S.pir){const km=gcDist(S.lat,S.lon,p.lat,p.lon),pp=fleetPower(p.ships,p.lv),calm=p.calm>S.day,chaseR=(p.boss!=null?420:330)*(typeof toolPct==='function'?1-toolPct('luck'):1);
     let want,spd=110;
     if(!calm&&km<chaseR&&pp>=mp*.55){want=gcBear(p.lat,p.lon,S.lat,S.lon);spd=200+p.lv*10;p.mode='chase';}
     else if(km<chaseR&&mp>pp*1.8&&p.boss==null){want=gcBear(S.lat,S.lon,p.lat,p.lon);spd=170;p.mode='flee';}
@@ -1809,7 +1811,7 @@ function board(){const F=B.flag;if(F.boardCd>0){toast(`선원들이 숨을 고�
   if(!o){toast('붙을 적선이 가까이 없습니다. 적선 바로 옆까지 다가가세요.');return;}const r=boardOdds(F,o);
   if(Math.random()<r.p){F.crew=Math.max(1,Math.round(F.crew-r.them*.25*Math.random()-1));o.out='captured';o.v*=.3;B.res.cap.push(o);flt(o,'나포!','#ffd36a');bsfx('board');crewXp(0,0,3);}
   else{F.crew=Math.max(1,Math.round(F.crew-r.us*.18));o.crew=Math.max(1,Math.round(o.crew-r.them*.12));F.boardCd=15;flt(F,'접현 실패, 물러난다','#ff9a8a');bsfx('hit');}}
-function skill(){if(B.skillCd>0){toast(`호령은 ${Math.ceil(B.skillCd)}초 뒤에 다시 쓸 수 있습니다.`);return;}B.buff=8+curSt(HY,0)/20;B.skillCd=50;
+function skill(){if(B.skillCd>0){toast(`호령은 ${Math.ceil(B.skillCd)}초 뒤에 다시 쓸 수 있습니다.`);return;}B.buff=8+curSt(HY,0)/20;B.skillCd=50*(typeof toolPct==='function'?1-toolPct('horn'):1);
   for(const s of B.ships)if(s.side===0&&!s.out){s.rl['-1']=0;s.rl['1']=0;}flt(B.flag,'호연의 호령! 장전을 서둘러라!','#ffe08a');bsfx('horn');}
 function playerFire(kind){const F=B.flag;
   if(kind==='n'){const a=volley(F,-1,'n'),b=volley(F,1,'n');if(a||b)return;
@@ -1972,7 +1974,7 @@ function drawBattleUI(){const F=B.flag,p=B.p;
       ctx.fillStyle='#d8c7a3';ctx.fillRect(x0+10,y+14,90,3);ctx.fillStyle='#3f78a8';ctx.fillRect(x0+10,y+14,90*s.sailHp/100,3);ctx.font='10px serif';ctx.fillStyle='#6b5338';ctx.fillText(`선원 ${s.crew}${s.fire>0?' · 🔥':''}`,x0+108,y+18);});};
   list(0,MOB?6:12);list(1,VW-LW-(MOB?6:12));if(MOB){if(B.pause){ctx.fillStyle='rgba(20,14,8,.45)';ctx.fillRect(0,0,VW,VH);ctx.fillStyle='#f3e8cf';ctx.font='bold 26px serif';ctx.textAlign='center';ctx.fillText('잠깐 멈춤',VW/2,VH/2);ctx.textAlign='left';}return;}
   // 아래: 기술
-  const sk=[['Q','포격',F.rl['-1']>0&&F.rl['1']>0?Math.min(F.rl['-1'],F.rl['1'])/reloadTime(F):0],['E','사슬탄',F.chainCd/10],['R','화염탄',F.fireCd/14],['F','수리',F.repCd/25],['Space','호령',B.skillCd/50],['B','접현',F.boardCd/15]];
+  const sk=[['Q','포격',F.rl['-1']>0&&F.rl['1']>0?Math.min(F.rl['-1'],F.rl['1'])/reloadTime(F):0],['E','사슬탄',F.chainCd/10],['R','화염탄',F.fireCd/14],['F','수리',F.repCd/25],['Space','호령',B.skillCd/50],['B','접현',F.boardCd/15],['T','일기토',B.igDone?1:0]];
   const bw=74,gap=8,tw=sk.length*bw+(sk.length-1)*gap,x0=VW/2-tw/2,y0=VH-112;ctx.fillStyle='rgba(36,26,18,.55)';rr(x0-12,y0-30,tw+24,98,12);ctx.fill();
   const bt=boardTarget();
   sk.forEach((a,i)=>{const x=x0+i*(bw+gap);ctx.fillStyle='rgba(243,232,207,.95)';rr(x,y0,bw,58,8);ctx.fill();if(a[2]>0){ctx.fillStyle='rgba(59,42,26,.45)';rr(x,y0+58*(1-a[2]),bw,58*a[2],8);ctx.fill();}
@@ -2408,7 +2410,7 @@ function buildMobile(){
   mk('mdock',[['hud','⛵','상태'],['near','⚓','항구'],['mis','📜','과제'],['log','🧭','일지'],['fleet','👥','함대'],['info','📦','상품'],['menu','☰','메뉴']].map(d=>`<button data-d="${d[0]}"><b>${d[1]}</b><span>${d[2]}</span></button>`).join(''));
   mk('bctl',`<div class="bl"><button data-hold="a">◀</button><button data-hold="d">▶</button><button data-k="w">돛▲</button><button data-k="s">돛▼</button></div>
    <div class="bo"><button data-k="1">1 대열</button><button data-k="2">2 집중</button><button data-k="3">3 자유</button><button data-k="p">⏸</button></div>
-   <div class="br">${[['q','포격'],['e','사슬탄'],['r','화염탄'],['f','수리'],[' ','호령'],['b','접현']].map(a=>`<button data-k="${a[0]}" data-cd="${a[0]}"><i></i><span>${a[1]}</span></button>`).join('')}</div>`);
+   <div class="br">${[['q','포격'],['e','사슬탄'],['r','화염탄'],['f','수리'],[' ','호령'],['b','접현'],['t','일기토']].map(a=>`<button data-k="${a[0]}" data-cd="${a[0]}"><i></i><span>${a[1]}</span></button>`).join('')}</div>`);
   // 누르고 있는 키 (키 돌리기)
   document.addEventListener('pointerdown',e=>{const h=e.target.closest('[data-hold]');if(h){e.preventDefault();const k=h.dataset.hold;keys[k]=true;h.classList.add('on');
       const up=()=>{keys[k]=false;h.classList.remove('on');removeEventListener('pointerup',up);removeEventListener('pointercancel',up);};addEventListener('pointerup',up);addEventListener('pointercancel',up);return;}
@@ -2712,7 +2714,7 @@ setInterval(()=>{try{if(S&&!MOB&&uiShown('opts'))optsDraw();}catch(e){}},1500);
 (()=>{const st=document.createElement('style');st.textContent=`#opts{right:290px;top:260px;width:300px;padding:10px 14px;font-size:13px}#opts h3{margin:0 0 6px}
 .optr{margin:8px 0}.optr input[type=range]{width:100%}.optv{float:right;font-weight:700;color:#2f5d73}`;document.head.appendChild(st);})();
 
-// ===== 투자의 쓸모: 조선소 투자 → 특별 주문 배, 시장 투자 → 명품 상품 =====
+// ===== 투자의 쓸모: 공업 투자 → 특별 주문 배, 시장 투자 → 명품 상품 =====
 // 등급은 그 항구에 넣은 '투자 골드'로만 오른다 (거래로는 오르지 않음).
 const IVLV=[0,3000,10000,30000,70000,150000];
 const lvOf=v=>{let l=0;for(let i=1;i<IVLV.length;i++)if((v||0)>=IVLV[i])l=i;return l;};
@@ -2731,7 +2733,7 @@ const SMOD=[
   {k:'guns',a:['중무장한',.20,.35],b:['요새 같은',.40,.60],t:'대포'},
   {k:'crew',a:['손이 덜 가는',-.15,-.25],b:['자동 돛줄의',-.30,-.40],t:'필요 선원'},
 ];
-const YARD_PERK=['','개조비 −15%','개조비 −15% · 새 배 값 −5%','✨ 특별 주문 열림 (수식어 1개)','특별 주문: 수식어 1~2개, 희귀 수식어가 더 자주','특별 주문: 수식어 2~3개, 전설의 배가 나올 수 있음 · 한 달에 2척'];
+const YARD_PERK=['','개조비 −15%','개조비 −15% · 새 배 값 −5%','✨ 특별 주문 열림 (배·도구점 물건, 수식어 1개)','특별 주문: 수식어 1~2개, 희귀 수식어가 더 자주 · 물건 한 달 3개','특별 주문: 수식어 2~3개, 전설의 배·물건이 나올 수 있음 · 배 한 달 2척, 물건 4개'];
 const spWin=()=>Math.floor(S.day/30);
 const spLeft=p=>{const n=yardLv(p)>=5?2:1,u=(S.ysp&&S.ysp[p]&&S.ysp[p].w===spWin())?S.ysp[p].n:0;return Math.max(0,n-u);};
 const spPrice=t=>Math.round(SHIPTYPES[t].price*1.6);
@@ -2744,19 +2746,19 @@ function rollShip(lv){const r=Math.random,cnt=lv>=5?(r()<.4?3:2):lv>=4?(r()<.4?2
 let yardReveal=null;
 const modTxt=x=>x.mods.map(m=>`${SMOD.find(s=>s.k===m[0]).t} ${m[2]>0?'+':''}${m[2]}%`).join(' · ')+(x.leg?' · 전설 +10%':'');
 {const yh0=yardHTML;yardHTML=function(p){let h=yh0(p);const lv=yardLv(p),v=(S.yinv&&S.yinv[p])||0,L=yardTypes(p),left=spLeft(p);
-  const top=`<div class="note" style="border-left:4px solid #b07a2e"><b>🏗 조선소 투자 ${lv}등급</b> <small>(이 항구 조선소에 넣은 돈 ${v.toLocaleString()}골드 · ${nextTxt(v)})</small>${lvBar(v)}
+  const top=`<div class="note" style="border-left:4px solid #b07a2e"><b>🏗 공업 투자 ${lv}등급</b> <small>(이 항구 공업(조선소·대장간)에 넣은 돈 ${v.toLocaleString()}골드 · ${nextTxt(v)})</small>${lvBar(v)}
     <div class="hint">${YARD_PERK.slice(1).map((t,i)=>`<span style="${lv>=i+1?'color:#2e7d4f;font-weight:700':''}">${i+1}등급: ${t}</span>`).join('<br>')}</div>
     <div class="btns" style="margin-top:6px">${[1000,5000,20000,50000].map(a=>`<button data-yinv="${a}" ${S.gold<a?'disabled':''}>${a.toLocaleString()} 투자</button>`).join('')}</div></div>`;
   let sp='';
   if(lv>=3){sp=`<h4>✨ 특별 주문 <small>(${left?`이번 달 ${left}척 남음`:`이번 달 입고분이 다 팔렸습니다 · ${30-Math.floor(S.day)%30}일 뒤 새로 들어옴`})</small></h4>
     ${left?`<p class="hint">${lv>=5?'조선소장이 웃으며 말합니다. <b>"오늘은 특별한 배가 들어왔군!"</b> ':''}배 이름 앞에 수식어가 붙은, 능력이 무작위로 더 좋은 배를 만듭니다. 원래 배가 좋을수록 보정도 큽니다. 무엇이 나올지는 받아 봐야 압니다.</p>
     <table class="mt">${L.map(t=>{const T=SHIPTYPES[t],c=spPrice(t);return `<tr><td>${shipImg(t,60)} <b>✨ ${T.n}</b> <small>기본: 빠르기 ${Math.round(T.spd*100)} · 짐칸 ${T.hold} · 대포 ${T.guns} · 선체 ${T.hp}</small></td><td class="n">${c.toLocaleString()}</td><td class="b"><button class="main" data-sp="${t}" ${S.gold<c||S.fleet.length>=5?'disabled':''}>특별 주문</button></td></tr>`;}).join('')}</table>`:''}`;}
-  else sp=`<p class="hint">✨ 조선소 투자 3등급이 되면 <b>특별 주문</b>으로 '날렵한 갤리온', '튼튼한 클리퍼'처럼 능력이 무작위로 더 좋은 배를 살 수 있습니다.</p>`;
+  else sp=`<p class="hint">✨ 공업 투자 3등급이 되면 <b>특별 주문</b>으로 '날렵한 갤리온', '튼튼한 클리퍼'처럼 능력이 무작위로 더 좋은 배를 살 수 있습니다.</p>`;
   const rv=yardReveal&&yardReveal.p===p?`<div class="note" style="background:#fff3cf;border:2px solid #e0a21a"><b style="font-size:16px">🎉 새 배: ${yardReveal.name} — ${yardReveal.full}</b><br>${modTxt(yardReveal.x)}<br><small class="hint">함대 탭과 「내 함대」에서 확인하세요. 팔 때도 보정만큼 비싸게 팔립니다.</small></div>`:'';
   return rv+top+h.replace('<h4>내 함대</h4>',sp+'<h4>내 함대</h4>');};}
 {const by0=bindYard;bindYard=function(root,redraw){by0(root,redraw);
   root.querySelectorAll('[data-yinv]').forEach(b=>b.onclick=()=>{const v=+b.dataset.yinv,p=inPort;if(S.gold<v)return;const l0=yardLv(p);S.gold-=v;S.yinv=S.yinv||{};S.yinv[p]=(S.yinv[p]||0)+v;S.fame=(S.fame||0)+Math.round(v/200);S.st.invest=(S.st.invest||0)+v;
-    const l1=yardLv(p);sfx(l1>l0?'mission':'coin');toast(l1>l0?`🏗 ${PORTS[p].name} 조선소 ${l1}등급! ${YARD_PERK[l1]}`:`${PORTS[p].name} 조선소에 ${v.toLocaleString()}골드를 투자했습니다.`,l1>l0);save();redraw();});
+    const l1=yardLv(p);sfx(l1>l0?'mission':'coin');toast(l1>l0?`🏗 ${PORTS[p].name} 공업 ${l1}등급! ${YARD_PERK[l1]}`:`${PORTS[p].name} 공업(조선소·대장간)에 ${v.toLocaleString()}골드를 투자했습니다.`,l1>l0);save();redraw();});
   root.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{const t=+b.dataset.sp,p=inPort,c=spPrice(t),T=SHIPTYPES[t];if(S.gold<c||S.fleet.length>=5||!spLeft(p)||yardLv(p)<3)return;
     S.gold-=c;const x=rollShip(yardLv(p));S.ysp=S.ysp||{};const w=spWin();if(!S.ysp[p]||S.ysp[p].w!==w)S.ysp[p]={w,n:0};S.ysp[p].n++;
     const nm=SHIPNAMES.find(n=>!S.fleet.some(f=>f.name===n))||('배 '+(S.fleet.length+1));const sh={t,name:nm,as:[],x};sh.hp=ST(sh).hp;S.fleet.push(sh);
@@ -2795,7 +2797,356 @@ function luxHTML(p){const lv=mktLv(p),O=luxOffers(p),mine=S.lux||[];let h='';
 {const ih0=investHTML;investHTML=function(p){const h=ih0(p),v=(S.inv&&S.inv[p])||0,lv=mktLv(p),yv=(S.yinv&&S.yinv[p])||0;
   const M=['','등급 표시만','✨ 명품 상품 1종 (상급)','명품 2종 (상급·명품)','명품 2종, 황실 진상이 나올 수 있음','명품 3종, 전설의 상품이 나올 수 있음'];
   return `<div class="note" style="border-left:4px solid #2f5d73"><b>💰 시장 투자 ${lv}등급</b> <small>(${v.toLocaleString()}골드 · ${nextTxt(v)})</small>${lvBar(v)}<div class="hint">${M.slice(1).map((t,i)=>`<span style="${lv>=i+1?'color:#2e7d4f;font-weight:700':''}">${i+1}등급: ${t}</span>`).join('<br>')}</div>
-    <div class="hint" style="margin-top:4px">거래로 오르는 <b>발전 단계</b>와 따로, 투자 등급은 <b>투자한 골드로만</b> 오릅니다. 조선소 투자(${yv.toLocaleString()}골드 · ${yardLv(p)}등급)는 조선소 탭에서 합니다.</div></div>`+h;};}
+    <div class="hint" style="margin-top:4px">거래로 오르는 <b>발전 단계</b>와 따로, 투자 등급은 <b>투자한 골드로만</b> 오릅니다. 공업 투자(${yv.toLocaleString()}골드 · ${yardLv(p)}등급)는 조선소 탭에서 합니다.</div></div>`+h;};}
+
+// ===== 아이템: 무기 · 방어구 · 항해도구 / 도구점 / 소지품 / 장비 (주인공) =====
+// 문화권은 항구의 '원래 지구 위치'(위도 −lat, 경도 300−lon)로 정한다.
+const CUL={ea:'동아시아',jp:'일본 열도',sea:'동남아',sa:'남아시아',me:'중동',eu:'유럽',af:'아프리카',am:'아메리카',oc:'태평양·오세아니아',po:'극지'};
+function culOf(p){const P=PORTS[p];let la=-P.lat,lo=300-P.lon;while(lo>180)lo-=360;while(lo<-180)lo+=360;
+  if(Math.abs(la)>=60)return 'po';
+  if(lo>=129.6&&lo<=146&&la>=30&&la<=46)return 'jp';
+  if(lo>=100&&lo<=145&&la>=20&&la<=55)return 'ea';
+  if(lo>=92&&lo<=141&&la>=-11&&la<20)return 'sea';
+  if(lo>=60&&lo<92&&la>=0&&la<=37)return 'sa';
+  if(lo>=25&&lo<60&&la>=10&&la<=42)return 'me';
+  if(la>=35&&la<=72&&lo>=-35&&lo<45)return 'eu';
+  if(la>=-36&&la<35&&lo>=-20&&lo<52)return 'af';
+  if(lo>=52&&lo<100&&la<0)return 'sa';
+  if(lo>=110&&lo<=160&&la<=-9)return 'oc';
+  if((lo>=130||lo<=-125)&&la>-50&&la<35)return 'oc';
+  if(lo<=-100&&la<0)return 'oc';
+  return 'am';}
+const WT={cut:['베기','🪓'],thr:['찌르기','🗡'],bash:['치기','🔨']};
+// 무기: [id, 이름, 종류, 공격, 빠르기(대치 보정 -1~+1), 값, 등급, 문화권, 설명]
+const WEAPONS=[
+ ['dagger','단검','thr',4,1,300,1,'*','어디서나 파는 작은 칼. 가볍고 빠르다'],['club','몽둥이','bash',5,0,200,1,'*','배에 굴러다니던 참나무 몽둥이'],['hatchet','선원 손도끼','cut',6,0,450,1,'*','밧줄 끊는 도끼. 급할 땐 무기'],
+ ['hwando','환도','cut',12,0,2400,2,'ea','조선 수군의 허리칼'],['woldo','월도','cut',18,-1,5200,3,'ea','반달 모양 날의 긴 칼. 무겁지만 크게 벤다'],['jangchang','장창','thr',14,0,3000,2,'ea','길이로 먼저 닿는 긴 창'],['cheolpyeon','철편','bash',13,0,2600,2,'ea','쇠 마디를 엮은 채찍 몽둥이'],['saingeom','사인검','cut',24,0,12000,4,'ea','범의 해에 벼린다는 귀한 칼'],
+ ['wakizashi','와키자시','cut',10,1,2000,2,'jp','짧고 날렵한 칼'],['katana','일본도','cut',20,0,7000,3,'jp','잘 벼린 휜 칼. 베기의 명수'],['yari','야리','thr',15,0,3600,2,'jp','곧은 날의 창'],['kanabo','가나보','bash',18,-1,4200,3,'jp','쇠못 박힌 몽둥이'],
+ ['kris','크리스','thr',11,1,2200,2,'sea','물결 모양 날의 단검'],['parang','파랑','cut',13,0,2600,2,'sea','정글을 헤치는 넓은 칼'],['kampilan','캄필란','cut',19,-1,6000,3,'sea','두 갈래 끝의 큰 칼'],
+ ['talwar','탈와르','cut',15,0,3600,2,'sa','휜 칼날의 기병도'],['katar','카타르','thr',14,1,3400,2,'sa','주먹으로 쥐고 찌르는 칼'],['urumi','우루미','cut',22,-1,9000,4,'sa','휘어지는 쇠띠 칼. 다루기 어렵다'],
+ ['shamshir','샴시르','cut',16,0,4200,3,'me','초승달처럼 휜 칼'],['jambiya','잠비야','thr',9,1,1600,2,'me','허리에 차는 휜 단검'],['mace_me','철퇴','bash',15,0,3200,2,'me','둥근 쇠머리 몽둥이'],['damascus','다마스쿠스 검','cut',25,0,14000,4,'me','물결무늬 강철의 명검'],
+ ['rapier','레이피어','thr',17,1,5200,3,'eu','가늘고 긴 찌르기 칼'],['cutlass','커틀러스','cut',12,0,2200,2,'eu','뱃사람의 짧은 칼'],['mace','메이스','bash',16,0,3400,2,'eu','갑옷째 두드리는 쇠몽둥이'],['longsword','롱소드','cut',18,0,6000,3,'eu','두 손으로 쓰는 곧은 칼'],['flamberge','플랑베르주','cut',24,-1,13000,4,'eu','불꽃처럼 물결진 큰 칼'],['estoc','에스톡','thr',22,0,11000,4,'eu','갑옷 틈을 찌르는 송곳 칼'],
+ ['assegai','아세가이','thr',13,1,2400,2,'af','가볍게 던지고 찌르는 창'],['knobkerrie','노브케리','bash',12,0,1800,2,'af','둥근 머리의 나무 곤봉'],['takoba','타코바','cut',16,0,4400,3,'af','사막 상인의 곧은 칼'],
+ ['macuahuitl','마쿠아우이틀','cut',18,0,5200,3,'am','흑요석 날을 박은 나무 칼'],['warclub','전투곤봉','bash',14,0,2400,2,'am','단단한 나무를 깎은 곤봉'],['tomahawk','토마호크','cut',14,1,3000,2,'am','가볍게 휘두르는 손도끼'],['bayonet','총검 머스킷','thr',18,-1,6400,3,'am','총 끝에 꽂은 긴 칼'],['obsidian','흑요석 창','thr',22,0,11000,4,'am','유리처럼 날카로운 돌날 창'],
+ ['sharktooth','상어이빨 칼','cut',12,1,2600,2,'oc','상어 이빨을 줄지어 박은 칼'],['mere','메레','bash',13,1,2600,2,'oc','넓적한 돌 곤봉. 짧고 빠르다'],['taiaha','타이아하','bash',17,0,5000,3,'oc','창 같기도 몽둥이 같기도 한 긴 나무 무기'],
+ ['harpoon','작살','thr',15,0,3200,2,'po','고래잡이의 쇠작살'],['iceaxe','얼음 도끼','cut',13,0,2800,2,'po','얼음을 깨고 사람도 겨누는 도끼'],['ulu','울루','cut',10,1,1800,2,'po','반달 모양 손칼'],
+].map(a=>({id:a[0],n:a[1],k:'w',wt:a[2],atk:a[3],q:a[4],price:a[5],tier:a[6],cul:a[7],d:a[8]}));
+// 방어구: [id, 이름, 방어, 저항{베기,찌르기,치기}, 무게(0~2: 대치에 불리), 값, 등급, 문화권, 설명]
+const ARMORS=[
+ ['coat','두꺼운 외투',2,{},0,300,1,'*','바닷바람을 막는 외투'],['vest','가죽 조끼',4,{bash:.1},0,900,1,'*','질긴 소가죽 조끼'],
+ ['swaeja','쇄자갑',8,{cut:.25},0,3200,2,'ea','쇠고리를 엮은 갑옷'],['dujeong','두정갑',12,{thr:.15,bash:.15},1,7000,3,'ea','안에 철판을 대고 못을 박은 갑옷'],
+ ['bamboo','대나무 갑옷',6,{bash:.2},0,2000,2,'jp','대쪽을 엮어 가볍다'],['oyoroi','오요로이',14,{cut:.2},1,9000,4,'jp','장수의 큰 갑옷'],
+ ['rattan','등나무 갑옷',6,{cut:.15},0,1800,2,'sea','등나무 줄기를 엮었다'],
+ ['quilted','누빔 갑옷',7,{bash:.25},0,2400,2,'sa','솜을 겹겹이 누볐다'],['chainplate','사슬판 갑옷',12,{cut:.2,thr:.1},1,7600,3,'sa','사슬에 쇠판을 덧댔다'],
+ ['chain','사슬 갑옷',9,{cut:.25},0,3600,2,'me','촘촘한 쇠사슬 옷'],['mirror','거울 갑옷',13,{cut:.15,thr:.15},1,9500,4,'me','둥근 쇠판을 가슴에 단 갑옷'],
+ ['buff','버프 코트',5,{cut:.1},0,1600,2,'eu','두꺼운 무두질 가죽 코트'],['cuirass','흉갑',11,{thr:.25},1,5200,3,'eu','가슴을 덮는 쇠판'],['plate','판금 갑옷',18,{thr:.25,cut:.15},2,16000,4,'eu','온몸을 덮는 철판. 무겁다'],
+ ['hideshield','가죽 방패',6,{thr:.15},0,1400,2,'af','쇠가죽을 펴서 만든 방패'],
+ ['cotton','솜 갑옷',7,{bash:.25},0,2000,2,'am','소금물에 절인 솜을 누볐다'],['buffalo','들소 가죽옷',9,{bash:.15,cut:.1},0,3400,3,'am','두꺼운 들소 가죽'],
+ ['coir','야자 섬유 갑옷',7,{thr:.2},0,2200,2,'oc','코코넛 섬유를 촘촘히 엮었다'],
+ ['fur','털가죽 옷',6,{cut:.1,bash:.1},0,2400,2,'po','추위도 칼도 막는 두꺼운 털옷'],['walrus','바다코끼리 가죽 갑옷',11,{cut:.15,thr:.15},1,6800,3,'po','손가락 두께의 질긴 가죽'],
+].map(a=>({id:a[0],n:a[1],k:'a',def:a[2],res:a[3],hv:a[4],price:a[5],tier:a[6],cul:a[7],d:a[8]}));
+// 항해도구 효과: 수치 nav(항해) sur(측량) acc(회계) gun(포술) bos(갑판) / 퍼센트 spd 속도 buy 사는값↓ sell 파는값↑ water 물↓ food 식량↓ med 선원 손실↓ rep 바다 수리↑ horn 호령 대기↓ luck 해적 추격↓
+const TOOLS=[
+ ['scope_s','작은 망원경',{sur:8},1500,1,'*','멀리 있는 항구와 발견물이 조금 더 잘 보인다'],['rattrap','쥐덫',{food:.06},600,1,'*','곡식 자루를 지키는 쥐덫'],['needle','돛 바늘과 실',{rep:.25},900,1,'*','찢어진 돛을 바다에서 꿰맨다'],['cat','배고양이',{food:.10},1200,1,'*','쥐를 잡는 든든한 선원'],
+ ['ledger','회계 장부',{acc:10},2000,2,'*','값을 적어 두면 흥정이 는다'],
+ ['jinamcheol','지남철 나침반',{nav:8,luck:.05},3000,2,'ea','물에 띄운 쇠바늘이 남쪽을 가리킨다'],['cheonmun','천문도',{sur:12},6000,3,'ea','별자리를 새긴 큰 하늘 지도'],['ginseng','인삼 약상자',{med:.25},4000,2,'ea','기력을 되살리는 약재'],
+ ['shogi','정밀 측량도',{sur:10,nav:5},4800,3,'jp','해안선을 한 치씩 잰 그림'],
+ ['spicebox','향신료 약상자',{med:.3,food:.05},4500,3,'sa','상하지 않게 하고 몸을 덥히는 약재'],['monsoon','몬순 일지',{spd:.03},3600,2,'sea','계절풍이 언제 바뀌는지 적은 책'],
+ ['astrolabe','아스트롤라베',{nav:12},5000,3,'me','별의 높이로 위도를 잰다'],['scale','상인의 저울',{buy:.03,sell:.03},6000,3,'me','정직한 저울은 손해를 막는다'],['still','증류기',{water:.15},5500,3,'me','바닷물을 끓여 마실 물을 얻는다'],
+ ['sextant','육분의',{nav:15},7000,3,'eu','해와 수평선의 각을 재는 기구'],['chrono','크로노미터',{spd:.05},12000,4,'eu','흔들려도 정확한 바다 시계'],['scope','망원경',{sur:15},4200,2,'eu','먼 돛을 먼저 본다'],
+ ['horn','확성 나팔',{horn:.3},2600,2,'eu','해전에서 호령이 멀리 퍼진다'],['repkit','수리 도구함',{rep:.5},3800,2,'eu','톱·끌·송진이 든 상자'],['gunbook','포술 교범',{gun:10},3000,2,'eu','포 각도와 화약량 표'],
+ ['startstaff','별자리 지팡이',{nav:6,sur:6},2400,2,'af','눈금으로 별 높이를 잰다'],['charm','행운의 부적',{luck:.15},3000,2,'af','해적이 덜 쫓아온다는 부적'],
+ ['knotcord','해류 매듭줄',{spd:.03},3600,2,'am','매듭으로 해류를 기억하는 줄'],['resin','송진 통',{rep:.4},2600,2,'am','배 틈을 메우는 끈끈한 송진'],
+ ['stickchart','막대 해도',{spd:.04,nav:4},5200,3,'oc','야자 막대와 조개로 물결을 그린 섬사람의 해도'],['shell','소라 나팔',{horn:.2,luck:.05},2000,2,'oc','소리가 바다 멀리 울린다'],
+ ['snowgoggle','눈 안경',{sur:8},1800,2,'po','눈부심을 막아 멀리 본다'],['oillamp','고래기름 등잔',{med:.15,food:.05},2800,2,'po','긴 밤을 버티게 하는 등잔과 기름'],
+].map(a=>({id:a[0],n:a[1],k:'t',fx:a[2],price:a[3],tier:a[4],cul:a[5],d:a[6]}));
+// 지역 해도: 그 바다 지역 항구에서 판다, 그 지역에서 속도 +8%
+const REG_ALL=REGIONS.flat();
+const CHARTS=REG_ALL.map((r,i)=>({id:'chart'+i,n:r+' 해도',k:'t',fx:{reg:i,rs:.08},price:2500,tier:2,cul:'reg'+i,d:`${r}에서 배 속도 +8%. 물길과 암초를 그린 지도`}));
+const ITEMS=[...WEAPONS,...ARMORS,...TOOLS,...CHARTS];const IT={};ITEMS.forEach(x=>IT[x.id]=x);
+const FXN={nav:['항해',''],sur:['측량',''],acc:['회계',''],gun:['포술',''],bos:['갑판',''],spd:['함대 속도','%'],buy:['사는 값 −','%'],sell:['파는 값 +','%'],water:['물 소비 −','%'],food:['식량 소비 −','%'],med:['선원 손실 −','%'],rep:['바다 수리 +','%'],horn:['호령 대기 −','%'],luck:['해적 추격 −','%']};
+const FX_ROLE={nav:1,sur:2,acc:3,gun:4,bos:5};
+
+// ---------- 아이템 한 개 (특별 물건은 수식어 x) ----------
+const itB=it=>IT[it.b];
+function itName(it){const b=itB(it);return (it.x?it.x.nm+' ':'')+b.n;}
+const itAtk=it=>Math.round(itB(it).atk*((it.x&&it.x.atk)||1));
+const itQ=it=>Math.max(-1,Math.min(2,itB(it).q+((it.x&&it.x.q)||0)));
+const itTB=it=>1.3+((it.x&&it.x.tb)||0); // 자기 종류로 공격할 때 배수
+const itDef=it=>Math.round(itB(it).def*((it.x&&it.x.def)||1));
+const itHv=it=>Math.max(0,itB(it).hv-((it.x&&it.x.hv)||0));
+const itRes=(it,t)=>Math.min(.6,((itB(it).res||{})[t]||0)+((it.x&&it.x.res)||0));
+const itFxMul=it=>(it.x&&it.x.fx)||1;
+const itVal=it=>Math.round(itB(it).price*((it.x&&it.x.val)||1));
+function itDesc(it){const b=itB(it);
+  if(b.k==='w')return `${WT[b.wt][1]} ${WT[b.wt][0]} · 공격 ${itAtk(it)}${itQ(it)>0?' · 빠름':itQ(it)<0?' · 느림':''}${it.x&&it.x.tb?` · ${WT[b.wt][0]} 보너스 ×${itTB(it).toFixed(2)}`:''}${it.x&&it.x.blk?` · 막혀도 피해 +${Math.round(it.x.blk*100)}%p`:''}`;
+  if(b.k==='a'){const r=['cut','thr','bash'].filter(t=>itRes(it,t)>0).map(t=>`${WT[t][0]} −${Math.round(itRes(it,t)*100)}%`).join(' · ');return `방어 ${itDef(it)}${r?' · '+r:''}${itHv(it)?` · 무거움${itHv(it)>1?'(매우)':''}`:''}${it.x&&it.x.hp?` · 체력 +${it.x.hp}`:''}`;}
+  return fxTxt(b.fx,itFxMul(it));}
+function fxTxt(fx,m=1){return Object.entries(fx).filter(([k])=>k!=='reg'&&k!=='rs').map(([k,v])=>FX_ROLE[k]?`${FXN[k][0]} +${Math.round(v*m)}`:`${FXN[k][0].replace(/ [+−]$/,'')}${/[+−]$/.test(FXN[k][0])?' '+FXN[k][0].slice(-1):' +'}${Math.round(v*m*100)}%`).join(' · ')+(fx.reg!=null?`${REG_ALL[fx.reg]}에서 속도 +${Math.round(fx.rs*m*100)}%`:'');}
+const KIND_N={w:'무기',a:'방어구',t:'항해도구'};
+// ---------- 소지품 · 장비 ----------
+const INV_MAX=30;
+function gearInit(){if(!S)return;if(!S.inv2)S.inv2=[];if(!S.eq)S.eq={w:null,a:null,t:[null,null,null]};if(!S.hs)S.hs={mu:22,hp:28,dam:20,xp:0,lv:1};S.itN=S.itN||1;}
+const eqItems=()=>{gearInit();return [S.eq.w,S.eq.a,...S.eq.t].filter(Boolean).map(id=>S.inv2.find(i=>i.id===id)).filter(Boolean);};
+const eqTools=()=>{gearInit();return S.eq.t.filter(Boolean).map(id=>S.inv2.find(i=>i.id===id)).filter(Boolean);};
+const isEq=id=>{gearInit();return S.eq.w===id||S.eq.a===id||S.eq.t.includes(id);};
+function toolSum(){const o={};for(const it of eqTools()){const b=itB(it),m=itFxMul(it);for(const[k,v]of Object.entries(b.fx)){if(k==='reg'||k==='rs')continue;o[k]=(o[k]||0)+v*m;}}return o;}
+function toolPct(k){if(!S)return 0;const caps={spd:.15,buy:.08,sell:.08,water:.35,food:.35,med:.6,rep:1.5,horn:.6,luck:.4};return Math.min(caps[k]||.5,toolSum()[k]||0);}
+function toolReg(){if(!S)return 0;const r=regionOf(S.lat,S.lon);let m=0;for(const it of eqTools()){const b=itB(it);if(b.fx.reg===r)m=Math.max(m,b.fx.rs*itFxMul(it));}return m;}
+// 효과 연결
+{const sr0=shipRole;shipRole=function(k,r){const v=sr0(k,r);if(!S||!S.eq)return v;const s=toolSum();for(const[f,rr]of Object.entries(FX_ROLE))if(rr===r&&s[f])return Math.min(130,v+Math.round(s[f]));return v;};}
+{const nm0=navMul;navMul=function(){return nm0()*(1+toolPct('spd')+toolReg());};}
+{const bb0=buyBase;buyBase=function(p,g){return bb0(p,g)*(1-toolPct('buy'));};}
+{const sp0=sellPrice;sellPrice=function(p,g){const v=sp0(p,g),m=toolPct('sell');return m?Math.round(v*(1+m)):v;};}
+{const dt0=dailyTick;dailyTick=function(){const r=dt0.apply(this,arguments);try{const m=toolPct('rep');if(m&&S&&inPort<0)S.fleet.forEach((sh,k)=>{const M=hpMaxK(k),h=hpK(k);if(h<M*.7)sh.hp=Math.min(M*.7,h+M*.006*m);});}catch(e){}return r;};}
+
+// ---------- 도구점 ----------
+const shopRng=p=>srng(p*31337+17);
+function shopList(p){const c=culOf(p),bd=baseDev(p),r=shopRng(p),reg=regionOf(PORTS[p].lat,PORTS[p].lon);
+  const big=SEAPORTS.filter(q=>culOf(q.id)===c).sort((a,b)=>baseDev(b.id)-baseDev(a.id)).slice(0,2).map(q=>q.id);
+  const L=[];for(const it of ITEMS){const ok=it.cul==='*'||it.cul===c||it.cul==='reg'+reg;if(!ok){r();continue;}const x=r();
+    if(it.tier<=2&&(it.cul!=='*'||x<.75))L.push(it.id);else if(it.tier===3&&(bd>=110||x<.45||big.includes(p)))L.push(it.id);else if(it.tier===4&&big.includes(p))L.push(it.id);}
+  return L;}
+const IMOD={
+ w:[{k:'atk',a:['날카로운',.15,.30],b:['명장의',.35,.50]},{k:'q',a:['가벼운',1,1],b:['바람 같은',1,1]},{k:'tb',a:['균형 잡힌',.10,.15],b:['달인의',.20,.30]},{k:'blk',a:['묵직한',.08,.12],b:['피에 굶주린',.15,.22]}],
+ a:[{k:'def',a:['튼튼한',.20,.35],b:['철벽의',.40,.60]},{k:'hv',a:['유연한',1,1],b:['깃털 같은',2,2]},{k:'res',a:['질긴',.08,.12],b:['불굴의',.15,.20]},{k:'hp',a:['따뜻한',6,10],b:['축복받은',12,20]}],
+ t:[{k:'fx',a:['정밀한',.25,.40],b:['장인의',.50,.70]}]};
+function rollItem(kind,lv){const r=Math.random,cnt=kind==='t'?1:lv>=5?(r()<.4?3:2):lv>=4?(r()<.4?2:1):1,rare=lv>=5?.35:lv>=4?.2:.1;
+  const pool=IMOD[kind].slice().sort(()=>r()-.5).slice(0,cnt);const x={mods:[]};let val=1;
+  for(const m of pool){const R=r()<rare?m.b:m.a,v=R[1]+(R[2]-R[1])*r();
+    if(m.k==='q'||m.k==='hv'||m.k==='hp'){x[m.k]=Math.round(v);}else if(m.k==='atk'||m.k==='def'||m.k==='fx'){x[m.k]=+(1+v).toFixed(3);}else x[m.k]=+v.toFixed(3);
+    x.mods.push([m.k,R[0]]);val+=(m.k==='q'||m.k==='hv')?.35:m.k==='hp'?v/40:v*1.2;}
+  let nm=x.mods.map(m=>m[1]).join('·');if(lv>=5&&r()<.06){nm='전설의 '+nm;if(kind==='w')x.atk=+((x.atk||1)*1.15).toFixed(3);else if(kind==='a')x.def=+((x.def||1)*1.15).toFixed(3);else x.fx=+((x.fx||1)*1.3).toFixed(3);x.leg=1;val+=.5;}
+  x.nm=nm;x.val=+val.toFixed(2);return x;}
+const isWin=()=>Math.floor(S.day/30);
+const isLeft=p=>{const n=yardLv(p)>=5?4:yardLv(p)>=4?3:2,u=(S.isp&&S.isp[p]&&S.isp[p].w===isWin())?S.isp[p].n:0;return Math.max(0,n-u);};
+function addItem(b,x){gearInit();if(S.inv2.length>=INV_MAX){toast(`소지품이 가득 찼습니다 (${INV_MAX}개). 필요 없는 물건을 파세요.`);return null;}const it={id:S.itN++,b};if(x)it.x=x;S.inv2.push(it);return it;}
+let shopReveal=null;
+function shopHTML(p){gearInit();const L=shopList(p),c=culOf(p),lv=yardLv(p),left=isLeft(p),inv=S.inv2;
+  const kinds=[['w','⚔ 무기'],['a','🛡 방어구'],['t','🧭 항해도구']];
+  let h=`<p>도구점 주인이 반깁니다. "${CUL[c]} 물건이라면 우리 가게가 제일이지요."</p>
+   <div class="note" style="border-left:4px solid #b07a2e"><b>🏗 공업 투자 ${lv}등급</b> <small>(조선소 탭에서 투자)</small> · ${lv>=3?`<b>✨ 특별 주문</b> 이번 달 ${left}개 남음 — 수식어가 붙은, 능력이 무작위로 더 좋은 물건 (값 1.6배)`:'3등급이 되면 수식어가 붙은 ✨ 특별한 물건을 주문할 수 있습니다'}</div>`;
+  if(shopReveal&&shopReveal.p===p)h+=`<div class="note" style="background:#fff3cf;border:2px solid #e0a21a"><b style="font-size:15px">🎉 ${shopReveal.name}</b><br>${shopReveal.desc}</div>`;
+  for(const[k,kn]of kinds){const its=L.map(id=>IT[id]).filter(x=>x.k===k).sort((a,b)=>a.price-b.price);if(!its.length)continue;
+    h+=`<h4>${kn}</h4><table class="mt">${its.map(b=>{const fake={b:b.id};return `<tr><td><b>${b.n}</b>${b.cul!=='*'&&!/^reg/.test(b.cul)?` <small class="hint">${CUL[b.cul]}</small>`:''}<div class="hint">${itDesc(fake)} — ${b.d}</div></td><td class="n">${b.price.toLocaleString()}</td>
+      <td class="b"><button data-ib="${b.id}" ${S.gold<b.price?'disabled':''}>사기</button>${lv>=3&&left?`<button class="main" data-isp="${b.id}" ${S.gold<Math.round(b.price*1.6)?'disabled':''} title="값 ${Math.round(b.price*1.6).toLocaleString()}">✨ 특별</button>`:''}</td></tr>`;}).join('')}</table>`;}
+  h+=`<h4>내 소지품 <small>(${inv.length}/${INV_MAX} · 파는 값은 절반)</small></h4>`+(inv.length?`<table class="mt">${inv.map(it=>`<tr><td><b>${itName(it)}</b> <small class="hint">${KIND_N[itB(it).k]}${isEq(it.id)?' · 장착 중':''}</small><div class="hint">${itDesc(it)}</div></td><td class="b">${isEq(it.id)?'<small>장착 중</small>':`<button data-isell="${it.id}">팔기 (${Math.round(itVal(it)*.5).toLocaleString()})</button>`}</td></tr>`).join('')}</table>`:'<p class="hint">아직 아무것도 없습니다.</p>')+
+   `<p class="hint">장착은 <b>소지품·장비 창</b>(${MOB?'메뉴':'<kbd>B</kbd>'})에서 합니다. 무기·방어구는 일기토에서, 항해도구는 함대 전체 능력에 쓰입니다.</p><button data-igear="1">🎒 소지품·장비 창 열기</button>`;
+  return h;}
+function bindShop(root,redraw){
+  root.querySelectorAll('[data-ib]').forEach(b=>b.onclick=()=>{const B0=IT[b.dataset.ib];if(S.gold<B0.price)return;const it=addItem(B0.id);if(!it)return;S.gold-=B0.price;sfx('coin');toast(`${B0.n}을(를) 샀습니다. 소지품·장비 창에서 장착하세요.`);save();redraw();});
+  root.querySelectorAll('[data-isp]').forEach(b=>b.onclick=()=>{const B0=IT[b.dataset.isp],p=inPort,c=Math.round(B0.price*1.6);if(S.gold<c||!isLeft(p)||yardLv(p)<3)return;
+    const x=rollItem(B0.k,yardLv(p)),it=addItem(B0.id,x);if(!it)return;S.gold-=c;S.isp=S.isp||{};const w=isWin();if(!S.isp[p]||S.isp[p].w!==w)S.isp[p]={w,n:0};S.isp[p].n++;
+    shopReveal={p,name:itName(it),desc:itDesc(it)};sfx(x.leg?'relic':'found');toast(`✨ ${itName(it)}! ${itDesc(it)}`,true);save();redraw();});
+  root.querySelectorAll('[data-isell]').forEach(b=>b.onclick=()=>{const id=+b.dataset.isell,i=S.inv2.findIndex(x=>x.id===id);if(i<0||isEq(id))return;const it=S.inv2[i];S.gold+=Math.round(itVal(it)*.5);S.inv2.splice(i,1);sfx('coin');toast(`${itName(it)}을(를) 팔았습니다.`);save();redraw();});
+  root.querySelectorAll('[data-igear]').forEach(b=>b.onclick=()=>openGear());}
+// 항구 탭에 도구점 넣기
+{const dp0=drawPort;drawPort=function(){const r=dp0.apply(this,arguments);try{if(inPort<0)return r;const tb=document.querySelector('#portbox .tabs');if(tb&&!tb.querySelector('[data-tab="shop"]')){const b=document.createElement('button');b.dataset.tab='shop';b.textContent='도구점';if(portTab==='shop')b.className='on';const ref=tb.querySelector('[data-tab="guild"]')||tb.querySelector('[data-tab="invest"]');tb.insertBefore(b,ref);b.onclick=()=>{portTab='shop';drawPort();};}
+  if(portTab==='shop'){tb.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('on',x.dataset.tab==='shop'));const body=document.querySelector('#portbox .pbody');if(body){body.innerHTML=shopHTML(inPort);bindShop(body,()=>drawPort());}}}catch(e){console.error(e);}return r;};}
+
+// ---------- 소지품·장비 창 ----------
+const HS_N={mu:'무예',hp:'체력',dam:'담력'};
+function gearHTML(){gearInit();const E=S.eq,get=id=>id?S.inv2.find(i=>i.id===id):null,w=get(E.w),a=get(E.a),hs=S.hs,ts=toolSum();
+  const slot=(lbl,it,key,i)=>`<div class="gslot"><div class="hint">${lbl}</div>${it?`<b>${itName(it)}</b><div class="hint">${itDesc(it)}</div><button data-gun="${key}" ${i!=null?`data-gi="${i}"`:''}>벗기</button>`:'<div class="hint">(비어 있음)</div>'}</div>`;
+  const tot=Object.keys(ts).length?Object.entries(ts).map(([k,v])=>FX_ROLE[k]?`${FXN[k][0]} +${Math.round(v)}`:`${FXN[k][0]}${/[+−]$/.test(FXN[k][0])?'':' +'}${Math.round(toolPct(k)*100)}%`).join(' · '):'없음';
+  return `<div class="gtop"><div class="gport"><img src="${portrait(HY)}" width="96" height="96" style="border-radius:8px;object-fit:cover" alt=""><div><b style="font-size:17px">${MATES[HY].name}</b><div class="hint">일기토 ${hs.lv}레벨 · 경험 ${hs.xp}/${30*hs.lv}${hs.inj&&hs.inj>S.day?` · <b style="color:#a8322a">부상 ${Math.ceil(hs.inj-S.day)}일</b>`:""}</div>
+    ${['mu','hp','dam'].map(k=>`<div class="gst"><span>${HS_N[k]}</span><div class="bar"><i style="width:${Math.min(100,hs[k])}%"></i></div><b>${hs[k]}</b></div>`).join('')}</div></div>
+   <div class="gslots">${slot('⚔ 무기',w,'w')}${slot('🛡 방어구',a,'a')}${E.t.map((id,i)=>slot('🧭 항해도구 '+(i+1),get(id),'t',i)).join('')}</div></div>
+   <div class="note"><b>항해도구 효과 합계 (함대 전체)</b>: ${tot}</div>
+   <h4>소지품 <small>(${S.inv2.length}/${INV_MAX})</small></h4>${S.inv2.length?`<table class="mt">${S.inv2.map(it=>{const b=itB(it);return `<tr><td><b>${itName(it)}</b> <small class="hint">${KIND_N[b.k]}</small><div class="hint">${itDesc(it)}</div></td><td class="b">${isEq(it.id)?'<small>장착 중</small>':`<button class="main" data-geq="${it.id}">장착</button>`}</td></tr>`;}).join('')}</table>`:'<p class="hint">소지품이 없습니다. 항구의 <b>도구점</b>에서 무기, 방어구, 항해도구를 살 수 있습니다.</p>'}
+   <p class="hint">무기와 방어구는 일기토에서 쓰입니다. 항해도구는 3개까지 달 수 있고 함대 전체에 효과가 납니다. 같은 도구를 두 개 달아도 효과는 한 번만 납니다.</p>`;}
+function equip(id){gearInit();const it=S.inv2.find(i=>i.id===id);if(!it)return;const b=itB(it);
+  if(b.k==='w')S.eq.w=id;else if(b.k==='a')S.eq.a=id;else{if(eqTools().some(t=>t.b===it.b)){toast('같은 도구는 하나만 효과가 있습니다.');return;}const i=S.eq.t.indexOf(null);if(i<0){toast('항해도구 칸 3개가 가득 찼습니다. 하나를 먼저 벗기세요.');return;}S.eq.t[i]=id;}
+  sfx('coin');toast(`${itName(it)} 장착`);save();}
+function openGear(){if(!S)return;gearInit();const draw=()=>{$('infobox').innerHTML=`<div class="phead"><h2>🎒 소지품과 장비</h2><button class="main" id="ix">닫기 (B)</button></div><div class="pbody">${gearHTML()}</div>`;
+    $('ix').onclick=()=>{closeInfo();if(inPort<0)paused=false;if(inPort>=0)drawPort();};
+    $('infobox').querySelectorAll('[data-geq]').forEach(b=>b.onclick=()=>{equip(+b.dataset.geq);draw();});
+    $('infobox').querySelectorAll('[data-gun]').forEach(b=>b.onclick=()=>{const k=b.dataset.gun;if(k==='t')S.eq.t[+b.dataset.gi]=null;else S.eq[k]=null;save();draw();});};
+  draw();$('info').style.display='flex';infoOpen=true;paused=true;}
+addEventListener('keydown',e=>{if(!S||$('title').style.display==='flex'||B||storyOpen||encOpen)return;if(e.target&&/INPUT|TEXTAREA/.test(e.target.tagName))return;if(e.ctrlKey||e.metaKey||e.altKey)return;
+  if(e.key.toLowerCase()!=='b')return;e.preventDefault();e.stopImmediatePropagation();if(infoOpen){closeInfo();if(inPort<0)paused=false;else drawPort();}else openGear();},true);
+(()=>{const st=document.createElement('style');st.textContent=`.gtop{display:grid;grid-template-columns:260px 1fr;gap:14px}.gport{display:flex;gap:10px;align-items:flex-start}.gport img,.gport svg{border-radius:8px}
+.gst{display:grid;grid-template-columns:36px 1fr 28px;gap:6px;align-items:center;font-size:13px;margin:3px 0}.gst .bar{height:8px}
+.gslots{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}.gslot{border:1px solid #d9c7a3;border-radius:8px;padding:6px 8px;background:#fbf4e3;font-size:13px;min-height:74px}
+@media (max-width:700px){.gtop{grid-template-columns:1fr}}`;document.head.appendChild(st);})();
+// 휴대폰 메뉴에 소지품 버튼
+{const dm=drawMenu;drawMenu=function(){const r=dm.apply(this,arguments);const b=$('mmBody');if(b&&S){const d=document.createElement('div');d.innerHTML='<button style="width:100%;margin:6px 0" id="mmGear">🎒 소지품·장비</button>';b.insertBefore(d,b.children[1]||null);$('mmGear').onclick=()=>{closeSheet&&closeSheet();openGear();};}return r;};}
+
+// ===== 일기토 규칙 (게임과 서버가 같이 쓴다) =====
+// 매 판: 방어 1개(상·중·하) + 공격 1개(높이 × 베기·찌르기·치기). 비기: 연격(공격 2) · 철벽(방어 2) · 필살(피해 2배)
+const IGR={
+  H:['상단','중단','하단'],
+  T:{cut:{n:'베기',ic:'🪓',m:1.2},thr:{n:'찌르기',ic:'🗡',m:.9},bash:{n:'치기',ic:'🔨',m:1.0}},
+  BEATS:{thr:'cut',cut:'bash',bash:'thr'}, // 대치에서 먼저 닿는 쪽: 찌르기 > 베기 > 치기 > 찌르기
+  SK:{combo:{n:'연격',cost:2},wall:{n:'철벽',cost:2},kill:{n:'필살',cost:3}},
+  MAXR:10,
+};
+// 싸우는 사람: {nm, hp, hpMax, atk, wt, tb, q, def, res:{cut,thr,bash}, hv, dam, blk, ki, stag, leg}
+function igCheck(F,c){ // 고른 수가 규칙에 맞는지 고쳐서 돌려준다
+  const sk=IGR.SK[c&&c.sk]&&F.ki>=IGR.SK[c.sk].cost?c.sk:'';
+  const H=x=>[0,1,2].includes(x);let g=(c&&Array.isArray(c.g)?c.g:[]).filter(H);let a=(c&&Array.isArray(c.a)?c.a:[]).filter(x=>x&&H(x.h)&&IGR.T[x.t]);
+  if(F.leg)a=a.filter(x=>x.h!==0);
+  g=[...new Set(g)].slice(0,sk==='wall'?2:1);if(!g.length)g=[1];
+  const seen=new Set();a=a.filter(x=>!seen.has(x.h)&&seen.add(x.h)).slice(0,sk==='combo'?2:1);if(!a.length)a=[{h:F.leg?1:1,t:F.wt||'thr'}];
+  return {g,a:a.map(x=>({h:x.h,t:x.t})),sk:(sk==='wall'&&g.length<2)||(sk==='combo'&&a.length<2)?'':sk};}
+function igDmg(X,Y,t,rnd,kill){
+  const match=t===X.wt?X.tb:.9;let d=X.atk*IGR.T[t].m*match;
+  d=(d*(1-((Y.res||{})[t]||0))-Y.def*.35)*.7;d=Math.max(1,d)*(.9+.2*rnd());
+  if(Y.stag)d*=1.15;if(Y.hp<Y.hpMax*.3)d*=1-Math.min(.25,Y.dam/400);if(kill)d*=2;return d;}
+function igRound(A,B,ca,cb,rnd){
+  rnd=rnd||Math.random;ca=igCheck(A,ca);cb=igCheck(B,cb);const ev=[];
+  for(const [F,c] of [[A,ca],[B,cb]])if(c.sk)F.ki-=IGR.SK[c.sk].cost;
+  const nx={A:{stag:0,leg:0},B:{stag:0,leg:0}},dmgA=[],dmgB=[]; // dmgA: A가 받는 피해
+  const atA=ca.a.map(x=>({...x,kill:ca.sk==='kill'})),atB=cb.a.map(x=>({...x,kill:cb.sk==='kill'}));
+  const usedB=new Set();
+  // 1) 대치: 공격 높이가 같으면 칼끼리 부딪힌다
+  for(const a of atA){const j=atB.findIndex((b,i)=>!usedB.has(i)&&b.h===a.h);if(j<0)continue;const b=atB[j];usedB.add(j);a.used=1;b.used=1;
+    let win=0;if(a.t===b.t){const s=(A.q-A.hv)-(B.q-B.hv);win=s>0?1:s<0?-1:0;}else win=IGR.BEATS[a.t]===b.t?1:IGR.BEATS[b.t]===a.t?-1:0;
+    const dA=igDmg(B,A,b.t,rnd,b.kill),dB=igDmg(A,B,a.t,rnd,a.kill);
+    if(win===0){dmgA.push(dA*.35);dmgB.push(dB*.35);ev.push({k:'clash',h:a.h,ta:a.t,tb:b.t,w:0});}
+    else if(win>0){dmgA.push(dA*.2);dmgB.push(dB*.6);A.ki++;ev.push({k:'clash',h:a.h,ta:a.t,tb:b.t,w:1});}
+    else{dmgA.push(dA*.6);dmgB.push(dB*.2);B.ki++;ev.push({k:'clash',h:a.h,ta:a.t,tb:b.t,w:-1});}}
+  // 2) 막힘 / 3) 유효
+  const hit=(X,Y,a,cY,arr,who,nY)=>{if(a.used)return;
+    if(cY.g.includes(a.h)){let f=a.kill?.5:a.t==='cut'?.2:a.t==='bash'?.3:0;f+=X.blk||0;if(f>0)arr.push(igDmg(X,Y,a.t,rnd,false)*f);
+      if(a.t==='bash'&&!a.kill){Y.ki--;nY.stag=1;}else Y.ki++;ev.push({k:'block',by:who,h:a.h,t:a.t,f:Math.round(f*100)});}
+    else{arr.push(igDmg(X,Y,a.t,rnd,a.kill)*(a.h===0?1.2:a.h===2?.8:1));Y.ki+=a.h===0?-1:1;if(a.h===2)nY.leg=1;ev.push({k:'hit',by:who,h:a.h,t:a.t,kill:!!a.kill});}};
+  for(const a of atA)hit(A,B,a,cb,dmgB,'A',nx.B);
+  for(const b of atB)hit(B,A,b,ca,dmgA,'B',nx.A);
+  const tA=Math.round(dmgA.reduce((s,x)=>s+x,0)),tB=Math.round(dmgB.reduce((s,x)=>s+x,0));
+  A.hp=Math.max(0,A.hp-tA);B.hp=Math.max(0,B.hp-tB);
+  for(const [F,n] of [[A,nx.A],[B,nx.B]]){F.ki=Math.max(0,Math.min(3,F.ki));F.stag=n.stag;F.leg=n.leg;}
+  return {ca,cb,ev,dA:tA,dB:tB};}
+function igOver(A,B,r,rnd){rnd=rnd||Math.random;const cmp=()=>{const a=A.hp/A.hpMax,b=B.hp/B.hpMax;return a===b?(rnd()<.5?'A':'B'):a>b?'A':'B';};
+  if(A.hp<=0&&B.hp<=0)return rnd()<.5?'A':'B';if(A.hp<=0)return 'B';if(B.hp<=0)return 'A';if(r>=IGR.MAXR)return cmp();return null;}
+// 담력으로 상대 수를 엿보기: 상대가 고른 것 중 하나를 사실대로 알려 준다
+function igHint(me,foe,cFoe,rnd){rnd=rnd||Math.random;const p=Math.max(.05,Math.min(.6,.15+(me.dam-foe.dam)/150));if(rnd()>p)return null;
+  if(rnd()<.6){const a=cFoe.a[0];return {k:'a',h:a.h,txt:`상대 시선이 ${a.h===0?'위로':a.h===2?'아래로':'몸통으로'} 향한다… (${IGR.H[a.h]} 공격 기미)`};}
+  const g=cFoe.g[0];return {k:'g',h:g,txt:`상대가 ${IGR.H[g]}을 감싸는 자세다… (${IGR.H[g]} 막기 기미)`};}
+// 공정 모드: 능력과 장비를 모두 같게
+function igFair(F){return Object.assign(F,{hpMax:120,hp:120,atk:20,wt:F.wt,tb:1.3,q:0,def:4,res:{},hv:0,dam:50,blk:0});}
+// 받은 값 다듬기 (서버에서 클라이언트 값 검사)
+function igClean(f){const c=(v,a,b,d)=>typeof v==='number'&&isFinite(v)?Math.max(a,Math.min(b,v)):d;f=f||{};
+  return {nm:String(f.nm||'?').slice(0,16),hpMax:c(f.hpMax,40,240,90),hp:c(f.hpMax,40,240,90),atk:c(f.atk,4,70,15),wt:IGR.T[f.wt]?f.wt:'bash',tb:c(f.tb,1,1.6,1),q:c(f.q,-1,2,0),
+    def:c(f.def,0,30,0),res:{cut:c(f.res&&f.res.cut,0,.6,0),thr:c(f.res&&f.res.thr,0,.6,0),bash:c(f.res&&f.res.bash,0,.6,0)},hv:c(f.hv,0,2,0),dam:c(f.dam,0,100,20),blk:c(f.blk,0,.25,0),ki:0,stag:0,leg:0,
+    wn:String(f.wn||'').slice(0,24),an:String(f.an||'').slice(0,24)};}
+if(typeof module!=='undefined')module.exports={IGR,igCheck,igRound,igOver,igHint,igFair,igClean,igDmg};
+
+// ===== 일기토 화면과 해적전 연결 =====
+// 주인공 능력: 무예(mu) 체력(hp) 담력(dam). 약하게 시작해 크게 자란다.
+function heroFighter(fair){gearInit();const hs=S.hs,w=S.eq.w&&S.inv2.find(i=>i.id===S.eq.w),a=S.eq.a&&S.inv2.find(i=>i.id===S.eq.a);
+  const F={nm:MATES[HY].name,hpMax:Math.round(60+hs.hp*1.2+((a&&a.x&&a.x.hp)||0)),atk:6+hs.mu*.25+(w?itAtk(w):3),wt:w?itB(w).wt:'bash',tb:w?itTB(w):1,q:w?itQ(w):0,
+    def:a?itDef(a):0,res:a?{cut:itRes(a,'cut'),thr:itRes(a,'thr'),bash:itRes(a,'bash')}:{},hv:a?itHv(a):0,dam:hs.dam,blk:(w&&w.x&&w.x.blk)||0,ki:0,stag:0,leg:0,
+    wn:w?itName(w):'맨주먹',an:a?itName(a):'평상복',pt:portrait(HY)};F.hp=F.hpMax;if(fair)igFair(F);return F;}
+const PIR_PERS=['용감함','신중함','욕심 많음','교활함'];
+function pirateFighter(p,o){const lv=p.lv||1,boss=p.boss!=null,c=culOf(nearestPortId(p.lat,p.lon)),r=Math.random;
+  const mu=15+lv*11+(boss?12:0),hp=20+lv*10+(boss?15:0),dam=15+lv*9+(boss?10:0);
+  const tierMax=Math.min(4,1+Math.ceil(lv/1.5)),ws=WEAPONS.filter(w=>(w.cul===c||w.cul==='*')&&w.tier<=tierMax).sort((a,b)=>b.tier-a.tier),w=ws[Math.floor(r()*Math.min(3,ws.length))]||WEAPONS[0];
+  const as=ARMORS.filter(x=>(x.cul===c||x.cul==='*')&&x.tier<=tierMax-1),a=lv>=2&&r()<.6?as[Math.floor(r()*as.length)]:null;
+  const F={nm:boss?p.name:(o&&o.name)||p.name+' 선장',hpMax:Math.round(60+hp*1.2),atk:6+mu*.25+w.atk,wt:w.wt,tb:1.3,q:w.q,def:a?a.def:0,res:a?a.res:{},hv:a?a.hv:0,dam,blk:0,ki:0,stag:0,leg:0,
+    wn:w.n,an:a?a.n:'해적 옷',pers:boss?PIR_PERS[p.boss%4]:PIR_PERS[Math.floor(r()*4)],boss,pt:boss?bossPortrait(p.boss):null};F.hp=F.hpMax;return F;}
+function nearestPortId(lat,lon){let b=0,bd=1e9;for(const q of SEAPORTS){const d=gcDist(lat,lon,q.lat,q.lon);if(d<bd){bd=d;b=q.id;}}return b;}
+// 해적이 고르는 수: 성격 + 내 버릇 읽기
+function igAI(me,foe,hist){const r=Math.random,TT=['cut','thr','bash'],pick=w=>{const s=w.reduce((a,b)=>a+b,0);let x=r()*s;for(let i=0;i<w.length;i++){x-=w[i];if(x<0)return i;}return w.length-1;};
+  let sk='';if(me.ki>=3&&r()<(me.pers==='욕심 많음'?.75:.45))sk='kill';else if(me.ki>=2&&r()<.35)sk=me.hp<me.hpMax*.4||me.pers==='신중함'?'wall':'combo';
+  const L=hist.slice(-3),fa=[0,0,0],fg=[0,0,0];L.forEach(h=>{h.a.forEach(x=>fa[x.h]++);h.g.forEach(g=>fg[g]++);});
+  const gw=[1,1.2,1].map((v,i)=>v+fa[i]*(me.pers==='교활함'?1.2:.8)+(me.pers==='신중함'&&i===1?.8:0));
+  const aw=[1+(me.pers==='용감함'?.8:0),1.2,1].map((v,i)=>Math.max(.15,v-fg[i]*.45));if(me.leg)aw[0]=0;
+  const g=[pick(gw)];if(sk==='wall'){let g2=pick(gw);if(g2===g[0])g2=(g[0]+1)%3;g.push(g2);}
+  const t=()=>r()<.65?me.wt:TT[Math.floor(r()*3)];const a=[{h:pick(aw),t:t()}];if(sk==='combo'){let h2=pick(aw);if(h2===a[0].h)h2=(a[0].h+(me.leg?1:2))%3;if(me.leg&&h2===0)h2=2;a.push({h:h2,t:t()});}
+  if(me.boss&&r()<.2){a[0].h=(a[0].h+1)%3;if(me.leg&&a[0].h===0)a[0].h=1;} // 두목은 가끔 버릇을 깬다
+  return igCheck(me,{g,a,sk});}
+
+// ---------- 일기토 화면 ----------
+const igEsc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const igBat=t=>{t=String(t);const c=t.charCodeAt(t.length-1);return c>=0xAC00&&c<=0xD7A3?(c-0xAC00)%28!==0:/[013678]$/.test(t);};
+const J=(t,a,b)=>t+(igBat(t)?a:b); // 조사 맞추기: J(이름,'이','가')
+let IG=null; // {A(나),B(상대),r,hist,ch,timer,done,onEnd,mode:'pve'|'pvp',hint}
+const IG_T=12;
+(()=>{const st=document.createElement('style');st.textContent=`
+#igbox{position:fixed;inset:0;z-index:46;display:none;align-items:center;justify-content:center;background:rgba(18,10,4,.72)}#igbox.on{display:flex}
+#igbox .ic{width:min(760px,96vw);max-height:96vh;overflow:auto;background:#f6ecd4;border:3px solid #6b4a2a;border-radius:14px;padding:12px 16px;box-shadow:0 12px 40px rgba(0,0,0,.6)}
+#igbox .ih{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center}#igbox .vs{font:bold 22px serif;color:#a8322a}
+#igbox .fp{display:flex;gap:8px;align-items:center}#igbox .fp.r{flex-direction:row-reverse;text-align:right}#igbox .fp img{width:70px;height:70px;border-radius:8px;object-fit:cover;background:#ddd}
+#igbox .hpb{height:10px;background:#d9c7a3;border-radius:5px;overflow:hidden;margin:3px 0}#igbox .hpb i{display:block;height:100%;background:#2e8b57;transition:width .5s}
+#igbox .ki{letter-spacing:2px;color:#c47a12}#igbox .stt{font-size:11.5px;color:#a8322a}#igbox .gear{font-size:11.5px;color:#7a5f40}
+#igbox .board{display:grid;grid-template-columns:120px 1fr;gap:10px;margin-top:10px}#igbox .col h5,#igbox .grid3 h5{margin:0 0 4px;font-size:13px}
+#igbox .gb{display:block;width:100%;margin:3px 0;padding:8px 4px}#igbox .grid3{display:grid;grid-template-columns:64px repeat(3,1fr);gap:4px;align-items:center}
+#igbox .grid3 button{padding:8px 2px;font-size:13px}#igbox button.sel{background:#2f5d73;color:#fff;border-color:#2f5d73}#igbox button.wt{box-shadow:inset 0 -3px 0 #e0a21a}
+#igbox .sks{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}#igbox .go{margin-top:8px;display:flex;gap:8px;align-items:center;justify-content:space-between}
+#igbox .tm{font:bold 18px monospace;color:#a8322a}#igbox .hint2{background:#e9f0f6;border-left:4px solid #2f5d73;padding:4px 8px;border-radius:6px;font-size:13px;margin-top:6px}
+#igbox .log{background:#efe2c4;border-radius:8px;padding:6px 10px;font-size:13px;margin-top:8px;min-height:40px}#igbox .hist{font-size:11.5px;color:#7a5f40;margin-top:6px;max-height:70px;overflow:auto}
+#igbox .res{font:bold 24px serif;text-align:center;margin:8px 0}
+body.battle #tut{display:none!important}
+@media (max-width:600px){#igbox .board{grid-template-columns:1fr}#igbox .col{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}#igbox .col h5{grid-column:1/-1}#igbox .fp img{width:48px;height:48px}}`;document.head.appendChild(st);
+  const d=document.createElement('div');d.id='igbox';document.body.appendChild(d);})();
+const kiTxt=n=>'◆'.repeat(n)+'◇'.repeat(3-n);
+const igSide=(F,r)=>`<div class="fp ${r?'r':''}">${F.pt?`<img src="${F.pt}" alt="">`:'<div style="width:70px;height:70px;border-radius:8px;background:#5a4128;display:flex;align-items:center;justify-content:center;font-size:34px">☠</div>'}<div style="flex:1;min-width:0"><b>${igEsc(F.nm)}</b>
+  <div class="hpb"><i style="width:${Math.max(0,F.hp/F.hpMax*100).toFixed(0)}%"></i></div><small>체력 ${Math.round(F.hp)}/${F.hpMax}</small> · <span class="ki" title="기세">${kiTxt(F.ki)}</span>
+  <div class="stt">${F.stag?'흔들림(받는 피해↑) ':''}${F.leg?'다리 부상(상단 공격 불가)':''}</div><div class="gear">${WT[F.wt]?WT[F.wt][1]:''} ${igEsc(F.wn||'')} · ${igEsc(F.an||'')}</div></div></div>`;
+function igDraw(){if(!IG)return;const A=IG.A,Bf=IG.B,c=IG.ch,el=$('igbox');
+  const sel=(cond)=>cond?'sel':'';const ga=c.sk==='wall'?2:1,aa=c.sk==='combo'?2:1;
+  let h=`<div class="ic"><div style="display:flex;justify-content:space-between"><b>⚔ 일기토 ${IG.title?'· '+igEsc(IG.title):''}</b><small class="hint">${IG.r+1} / ${IGR.MAXR}판</small></div>
+   <div class="ih">${igSide(A,0)}<div class="vs">VS</div>${igSide(Bf,1)}</div>`;
+  if(IG.done){h+=IG.endHTML||'';}
+  else if(IG.wait){h+=`<div class="log">${IG.log||''}</div><p class="hint" style="text-align:center">${IG.wait}</p>`;}
+  else{h+=`<div class="board"><div class="col"><h5>🛡 방어 ${ga}개</h5>${[0,1,2].map(i=>`<button class="gb ${sel(c.g.includes(i))}" data-ig="${i}">${IGR.H[i]} 막기</button>`).join('')}</div>
+     <div><div class="grid3"><span></span>${['cut','thr','bash'].map(t=>`<h5 style="text-align:center">${IGR.T[t].ic} ${IGR.T[t].n}</h5>`).join('')}
+      ${[0,1,2].map(hh=>`<b style="font-size:13px">${IGR.H[hh]}</b>`+['cut','thr','bash'].map(t=>`<button class="${sel(c.a.some(x=>x.h===hh&&x.t===t))} ${t===A.wt?'wt':''}" data-ia="${hh}" data-it="${t}" ${A.leg&&hh===0?'disabled':''}>${IGR.H[hh][0]} ${IGR.T[t].n}</button>`).join('')).join('')}</div>
+      <div class="sks">${Object.entries(IGR.SK).map(([k,v])=>`<button class="${sel(c.sk===k)}" data-isk="${k}" ${A.ki<v.cost?'disabled':''}>${k==='combo'?'⚔':k==='wall'?'🧱':'🔥'} ${v.n} (기세 ${v.cost})</button>`).join('')}</div></div></div>
+     ${IG.hint?`<div class="hint2">👁 ${IG.hint.txt}</div>`:''}
+     <div class="go"><span class="hint">방어 ${ga}개 + 공격 ${aa}개를 고르세요. 노란 줄은 내 무기 종류(×${A.tb.toFixed(2)})</span><span class="tm" id="igTm"></span><button class="main" id="igGo" ${c.g.length===ga&&c.a.length===aa?'':'disabled'}>확정 ⏎</button></div>
+     ${IG.log?`<div class="log">${IG.log}</div>`:''}`;}
+  h+=`<div class="hist">${IG.hist.slice().reverse().map((x,i)=>`${IG.hist.length-i}판: 나 [${x.g.map(g=>IGR.H[g][0]+'막').join(',')} / ${x.a.map(a=>IGR.H[a.h][0]+IGR.T[a.t].n).join(',')}${x.sk?' '+IGR.SK[x.sk].n:''}] · 상대 [${x.og.map(g=>IGR.H[g][0]+'막').join(',')} / ${x.oa.map(a=>IGR.H[a.h][0]+IGR.T[a.t].n).join(',')}${x.osk?' '+IGR.SK[x.osk].n:''}]`).join('<br>')}</div></div>`;
+  el.innerHTML=h;el.className='on';
+  el.querySelectorAll('[data-ig]').forEach(b=>b.onclick=()=>{const i=+b.dataset.ig;if(c.g.includes(i))c.g=c.g.filter(x=>x!==i);else{c.g.push(i);if(c.g.length>ga)c.g.shift();}igDraw();});
+  el.querySelectorAll('[data-ia]').forEach(b=>b.onclick=()=>{const hh=+b.dataset.ia,t=b.dataset.it;const ex=c.a.findIndex(x=>x.h===hh&&x.t===t);if(ex>=0)c.a.splice(ex,1);else{c.a=c.a.filter(x=>x.h!==hh);c.a.push({h:hh,t});if(c.a.length>aa)c.a.shift();}igDraw();});
+  el.querySelectorAll('[data-isk]').forEach(b=>b.onclick=()=>{const k=b.dataset.isk;c.sk=c.sk===k?'':k;if(c.sk!=='wall')c.g=c.g.slice(0,1);if(c.sk!=='combo')c.a=c.a.slice(0,1);igDraw();});
+  const go=$('igGo');if(go)go.onclick=()=>igSubmit();const x=$('igX');if(x)x.onclick=()=>igClose();}
+function igTick(){if(!IG||IG.done||IG.wait)return;const e=$('igTm'),left=Math.max(0,Math.ceil((IG.deadline-Date.now())/1000));if(e)e.textContent=left+'초';if(left<=0)igSubmit(true);}
+setInterval(igTick,250);
+addEventListener('keydown',e=>{if(!IG)return;e.stopImmediatePropagation();if(e.key==='Enter'&&!IG.done&&!IG.wait){const b=$('igGo');if(b&&!b.disabled)igSubmit();}else if((e.key==='Enter'||e.key==='Escape')&&IG.done)igClose();},true);
+function igNewRound(){IG.ch={g:[],a:[],sk:''};IG.deadline=Date.now()+IG_T*1000;IG.wait=null;
+  if(IG.mode==='pve'){IG.next=igAI(IG.B,IG.A,IG.hist);IG.hint=igHint(IG.A,IG.B,IG.next);}igDraw();}
+function evTxt(ev,A,Bf){return ev.map(e=>{const nm=w=>w==='A'?A.nm:Bf.nm,on=w=>w==='A'?Bf.nm:A.nm;
+  if(e.k==='clash')return `⚔ ${IGR.H[e.h]}에서 칼이 부딪혔다! (${IGR.T[e.ta].n} 대 ${IGR.T[e.tb].n}) ${e.w>0?J(A.nm,'이','가')+' 먼저 닿았다':e.w<0?J(Bf.nm,'이','가')+' 먼저 닿았다':'팽팽하다'}`;
+  if(e.k==='block')return `🛡 ${J(on(e.by),'이','가')} ${nm(e.by)}의 ${IGR.H[e.h]} ${J(IGR.T[e.t].n,'을','를')} 막았다${e.t==='thr'?' — 흘려내 기세를 얻는다':e.t==='bash'?' — 하지만 크게 흔들렸다':e.f?' — 밀려서 조금 다쳤다':''}`;
+  return `💥 ${nm(e.by)}의 ${IGR.H[e.h]} ${IGR.T[e.t].n}${e.kill?' 필살!':''} 명중!${e.h===0?' 휘청인다':e.h===2?' 다리를 다쳤다':''}`;}).join('<br>');}
+function igSubmit(auto){if(!IG||IG.done||IG.wait)return;const c=IG.ch;if(auto&&(!c.g.length||!c.a.length)){if(!c.g.length)c.g=[1];if(!c.a.length)c.a=[{h:IG.A.leg?1:1,t:IG.A.wt}];}
+  if(IG.mode==='pvp'){IG.wait='상대의 수를 기다립니다…';igDraw();IG.send(igCheck(IG.A,c));return;}
+  const r=igRound(IG.A,IG.B,c,IG.next);igApply(r);}
+function igApply(r,swap){const A=IG.A,Bf=IG.B;const ca=swap?r.cb:r.ca,cb=swap?r.ca:r.cb;
+  IG.hist.push({g:ca.g,a:ca.a,sk:ca.sk,og:cb.g,oa:cb.a,osk:cb.sk});IG.r++;
+  const ev=swap?r.ev.map(e=>e.k==='clash'?{...e,w:-e.w,ta:e.tb,tb:e.ta}:{...e,by:e.by==='A'?'B':'A'}):r.ev;
+  IG.log=`<b>${IG.r}판</b> — 나: ${ca.a.map(a=>IGR.H[a.h]+' '+IGR.T[a.t].n).join('·')}${ca.sk?' ['+IGR.SK[ca.sk].n+']':''} / 상대: ${cb.a.map(a=>IGR.H[a.h]+' '+IGR.T[a.t].n).join('·')}${cb.sk?' ['+IGR.SK[cb.sk].n+']':''}<br>${evTxt(ev,A,Bf)}<br><small>내가 받은 피해 ${swap?r.dB:r.dA} · 상대가 받은 피해 ${swap?r.dA:r.dB}</small>`;
+  sfx((swap?r.dB:r.dA)>(swap?r.dA:r.dB)?'hit':'cannon');
+  const w=IG.mode==='pve'?igOver(A,Bf,IG.r):null;if(w)return igFinish(w==='A');IG.wait='다음 판…';igDraw();setTimeout(()=>{if(IG&&!IG.done&&IG.mode==='pve')igNewRound();},1100);}
+function igFinish(won,extra){IG.done=1;sfx(won?'win':'lose');const r=IG.onEnd?IG.onEnd(won):'';
+  IG.endHTML=`<div class="log">${IG.log||''}</div><div class="res" style="color:${won?'#2e7d4f':'#a8322a'}">${won?'🏆 일기토 승리!':'쓰러졌다… 일기토 패배'}</div><div class="hint" style="text-align:center">${r||''}${extra||''}</div><div class="go" style="justify-content:center"><button class="main" id="igX">확인 ⏎</button></div>`;igDraw();}
+function igClose(){$('igbox').className='';$('igbox').innerHTML='';const cb=IG&&IG.after;IG=null;if(cb)cb();}
+function igStart(o){IG=Object.assign({r:0,hist:[],log:'',mode:'pve'},o);igNewRound();}
+// ---------- 성장과 부상 ----------
+const HS_XP=lv=>30*lv;
+function hsGain(xp){gearInit();const hs=S.hs;hs.xp+=xp;let up=[];while(hs.xp>=HS_XP(hs.lv)&&hs.lv<30){hs.xp-=HS_XP(hs.lv);hs.lv++;for(const k of ['mu','hp','dam']){const g=3+Math.floor(Math.random()*4);hs[k]=Math.min(100,hs[k]+g);}up.push(hs.lv);}
+  return up.length?` · <b>${MATES[HY].name} 일기토 ${hs.lv}레벨!</b> 무예 ${hs.mu} · 체력 ${hs.hp} · 담력 ${hs.dam}`:` · 경험 +${xp}`;}
+const injured=()=>S&&S.hs&&S.hs.inj&&S.hs.inj>S.day;
+// ---------- 해전에서: T키 / 접현 전 / 두목의 도전 ----------
+function igFromBattle(){if(!B||B.end)return;gearInit();if(B.igDone){toast('이번 해전에서는 이미 일기토를 했습니다.');return;}
+  if(injured()){toast(`${J(MATES[HY].name,'이','가')} 다쳐서 일기토를 할 수 없습니다 (${Math.ceil(S.hs.inj-S.day)}일 더 쉬어야 함).`);return;}
+  const o=boardTarget();if(!o){toast('일기토: 적선 바로 옆까지 다가가세요. 선장끼리 마주 봐야 합니다.');return;}
+  const p=B.p,me=heroFighter(),foe=pirateFighter(p,o);B.pause=true;B.igDone=1;
+  igStart({A:me,B:foe,title:o.name,onEnd:won=>{let t;
+      if(won){o.out='captured';o.v*=.3;B.res.cap.push(o);flt(o,'선장이 쓰러졌다! 항복!','#ffd36a');for(const s of B.ships)if(s.side===1&&!s.out)s.crew=Math.round(s.crew*.85);S.fame=(S.fame||0)+20+(p.lv||1)*10;
+        if(p.boss!=null&&o.boss){S.gold+=BOSS[p.boss].b;t=`두목을 일기토로 꺾었습니다! 추가 현상금 ${BOSS[p.boss].b.toLocaleString()}골드`;}else t=`${J(o.name,'이','가')} 항복했습니다. 적 선원들의 사기가 꺾였습니다`;t+=hsGain(15+(p.lv||1)*8);S.st.igWin=(S.st.igWin||0)+1;}
+      else{const F=B.flag;F.crew=Math.max(1,Math.round(F.crew*.85));F.boardCd=30;S.hs.inj=S.day+5;t=`우리 선원들의 사기가 떨어졌습니다 (선원 −15%, 30초 동안 접현 불가). ${J(MATES[HY].name,'은','는')} 5일 동안 일기토를 할 수 없습니다`+hsGain(6);}
+      save();return t;},after:()=>{if(B){B.pause=false;}}});}
+{const bk0=battleKey;battleKey=function(k,e){if(IG)return;if(B&&!B.end&&!B.pause&&k==='t'){igFromBattle();return;}return bk0.apply(this,arguments);};}
+{const bd0=board;board=function(){if(B&&!B.igDone&&!B.igAsk&&!injured()&&boardTarget()){B.igAsk=1;B.pause=true;
+    const d=document.createElement('div');d.id='igask';d.style.cssText='position:fixed;inset:0;z-index:45;display:flex;align-items:center;justify-content:center;background:rgba(18,10,4,.5)';
+    d.innerHTML=`<div style="background:#f6ecd4;border:3px solid #6b4a2a;border-radius:14px;padding:16px 20px;max-width:380px;text-align:center"><b style="font-size:17px">⚔ 접현 직전!</b><p>선원들이 뛰어들기 전에 선장끼리 먼저 겨루겠습니까?<br><small class="hint">이기면 그 배가 바로 항복합니다. 지면 사기가 떨어집니다.</small></p><div style="display:flex;gap:8px;justify-content:center"><button id="iga1" class="main">⚔ 일기토</button><button id="iga2">바로 접현</button></div></div>`;
+    document.body.appendChild(d);$('iga1').onclick=()=>{d.remove();B.pause=false;igFromBattle();};$('iga2').onclick=()=>{d.remove();B.pause=false;bd0();};return;}
+  return bd0.apply(this,arguments);};}
+{const sb0=startBattle;startBattle=function(p,mode){const r=sb0.apply(this,arguments);try{if(p&&p.boss!=null&&!injured())setTimeout(()=>{if(B&&!B.igDone)toast(`☠ ${p.name}: "배 위에서 칼로 겨뤄 보자!" — 두목 배 옆으로 붙어 T키로 일기토를 받으세요. 이기면 추가 현상금!`,true);},1500);}catch(e){}return r;};}
 
 // ===== 온라인 (Render 서버용) — ONLINE 빌드에서만 들어간다 =====
 const ON={live:false,id:0,nm:'',tok:'',ws:null,wsOk:false,W:{mk:{},dev:{},disc:{},inv:{},nm:{}},players:[],chat:[],unread:0,tab:'chat',qmk:{},qdev:{},rank:null,rankT:0,open:false,retry:0,posT:0};
@@ -3066,20 +3417,23 @@ const fleetLine=L=>L.map(s=>`<div class="sh">${shipImg(s[0]??s.t,54)}<span>${esc
 
 // 신청하기
 function duelAsk(id){const o=ON.players.find(x=>x.id===id);if(!o||!S)return;const why=duelWhyNot(o);if(why){toast('결투할 수 없습니다: '+why);return;}
-  let bet=0;const R=drRec(id),M=drRec(ON.id);
-  const draw=()=>{duelShow(`<h3>⚔ ${esc(o.nm)} 선장에게 결투 신청</h3>
+  let bet=0,mode='sea';const R=drRec(id),M=drRec(ON.id);const igOn=!(ON.W.cfg&&ON.W.cfg.ig===false);
+  const draw=()=>{duelShow(`<h3>${mode==='ig'?'🗡':'⚔'} ${esc(o.nm)} 선장에게 ${mode==='ig'?'일기토':'결투'} 신청</h3>
+    <div class="bets"><button data-dm="sea" class="${mode==='sea'?'on':''}">⚔ 해전 (함대끼리)</button>${igOn?`<button data-dm="ig" class="${mode==='ig'?'on':''}">🗡 일기토 (선장끼리)</button>`:''}</div>
+    ${mode==='ig'?`<p class="hint">매 판 방어 1개 + 공격 1개를 동시에 고르는 심리전입니다. ${ON.W.cfg&&ON.W.cfg.igFair?'<b>공정 모드</b>: 능력과 장비가 모두 같습니다.':'내 무기·방어구와 무예·체력·담력이 반영됩니다.'} 일기토 대전에서는 다치지 않습니다.</p>`:''}
     <div class="hint">상대 함대 ${o.ships}척 · 결투 ${R.w}승 ${R.l}패 · 점수 ${Math.round(R.r)} &nbsp;|&nbsp; 나: ${M.w}승 ${M.l}패 · 점수 ${Math.round(M.r)}</div>
     <p>내기 골드를 고르세요. <b>이긴 쪽이 건 만큼 가져갑니다.</b> 진 쪽도 배는 잃지 않고 선체만 상합니다.</p>
     <div class="bets">${BETS.map(v=>`<button data-bet="${v}" class="${v===bet?'on':''}" ${v>S.gold?'disabled':''}>${v?v.toLocaleString()+'골드':'명예만 (0)'}</button>`).join('')}<input id="dbet" type="number" min="0" max="${Math.floor(S.gold)}" placeholder="직접 입력" style="width:110px"></div>
     <div class="hint">가진 골드 ${Math.floor(S.gold).toLocaleString()} · 상대가 25초 안에 수락해야 시작합니다. 빠른 배, 대포, 포술사, 선원이 많을수록 유리합니다.</div>
     <div class="btns"><button id="dno">그만두기</button><button class="main" id="dgo">⚔ 신청 보내기 (${bet.toLocaleString()}골드)</button></div>`,false);
     $('duelbox').querySelectorAll('[data-bet]').forEach(b=>b.onclick=()=>{bet=+b.dataset.bet;draw();});
+    $('duelbox').querySelectorAll('[data-dm]').forEach(b=>b.onclick=()=>{mode=b.dataset.dm;draw();});
     $('dbet').oninput=e=>{bet=Math.max(0,Math.min(Math.floor(S.gold),Math.floor(+e.target.value||0)));$('dgo').textContent=`⚔ 신청 보내기 (${bet.toLocaleString()}골드)`;};
     $('dno').onclick=duelClose;
-    $('dgo').onclick=()=>{if(bet>S.gold){toast('가진 골드보다 많이 걸 수 없습니다.');return;}if(!wsSend({type:'dask',to:id,bet,snap:duelSnap()})){toast('서버와 연결이 끊겨 보내지 못했습니다.');return;}duelClose();};};
+    $('dgo').onclick=()=>{if(bet>S.gold){toast('가진 골드보다 많이 걸 수 없습니다.');return;}if(!wsSend(mode==='ig'?{type:'dask',mode:'ig',to:id,bet,snap:{gold:Math.floor(S.gold)},f:heroFighter()}:{type:'dask',to:id,bet,snap:duelSnap()})){toast('서버와 연결이 끊겨 보내지 못했습니다.');return;}duelClose();};};
   draw();}
 // 받은 신청
-function duelReq(m){if(!S||S.car||inPort>=0||B){wsSend({type:'dans',id:m.id,ok:false});return;}
+function duelReq(m){if(!S||S.car||inPort>=0||B||IG){wsSend({type:'dans',id:m.id,ok:false});return;}if(m.mode==='ig')return igReq(m);
   sfx('mission');const R=m.rec;
   duelShow(`<h3>⚔ ${esc(m.nm)} 선장이 결투를 신청했습니다!</h3>
    <div class="hint">상대 기록 ${R[0]}승 ${R[1]}패 · 점수 ${R[2]}</div>
@@ -3213,6 +3567,36 @@ function heroStart(){if(heroObs)return;heroWalk(document.body);
   heroObs.observe(document.body,{childList:true,subtree:true,characterData:true});}
 {const r0=onReady;onReady=async function(note){const r=await r0.apply(this,arguments);try{heroStart();}catch(e){}return r;};}
 {const f0=flt;flt=function(o,t,c){return f0.call(this,o,heroize(t),c);};}
+
+// ---------- 일기토 대전 (온라인) ----------
+const igrRec=id=>(ON.W.ig&&ON.W.ig[id])||{w:0,l:0,net:0,r:1000};
+function igReq(m){sfx('mission');const R=m.rec,me=heroFighter();
+  duelShow(`<h3>🗡 ${esc(m.nm)} 선장이 일기토를 청했습니다!</h3><div class="hint">상대 검객 기록 ${R[0]}승 ${R[1]}패 · 점수 ${R[2]}${m.fair?' · <b>공정 모드</b> (능력·장비 모두 같음)':''}</div>
+   <p class="res" style="font-size:18px">내기: ${m.bet?m.bet.toLocaleString()+'골드':'명예만'}</p>
+   <div class="sides"><div class="side"><b>${esc(m.nm)}</b><div class="hint">${WT[m.f.wt]?WT[m.f.wt][1]:''} ${esc(m.f.wn)} · ${esc(m.f.an)} · 체력 ${m.f.hpMax}</div></div><div class="vs">VS</div>
+   <div class="side"><b>나</b><div class="hint">${WT[me.wt]?WT[me.wt][1]:''} ${esc(me.wn)} · ${esc(me.an)} · 체력 ${m.fair?120:me.hpMax}</div></div></div>
+   ${m.bet>S.gold?`<p class="cd">가진 골드가 내기보다 적어 받을 수 없습니다.</p>`:''}<div class="hint">남은 시간 <span class="cd" id="dcd"></span></div>
+   <div class="btns"><button id="dno">거절</button><button class="main" id="dok" ${m.bet>S.gold?'disabled':''}>🗡 받아들인다</button></div>`,true);
+  const ans=ok=>{wsSend(ok?{type:'dans',id:m.id,ok:true,snap:{gold:Math.floor(S.gold)},f:heroFighter()}:{type:'dans',id:m.id,ok:false});duelClose();};
+  $('dno').onclick=()=>ans(false);$('dok').onclick=()=>ans(true);ON.dreqId=m.id;countdown(m.ms||25000,'dcd',()=>{if(ON.dreqId===m.id)duelClose();});}
+function igPvpStart(m){if(ON.duelOpen)duelClose();const me=m.me,op=me==='A'?'B':'A';const A=Object.assign({},m[me],{pt:portrait(HY)}),Bf=Object.assign({},m[op]);paused=true;
+  igStart({mode:'pvp',pvp:m.id,me,A,B:Bf,title:'선장 대전'+(m.fair?' · 공정 모드':'')+(m.bet?` · 내기 ${m.bet.toLocaleString()}`:''),send:c=>wsSend({type:'igc',id:m.id,c}),
+    after:()=>{if(inPort<0&&!infoOpen)paused=false;}});IG.deadline=Date.now()+(m.ms||10000);}
+function igPvpEnd(m){const me=m.a===ON.id?'A':'B',won=m.win===me;S.dlog=S.dlog||{};if(S.dlog['ig'+m.id]){wsSend({type:'dack',id:m.id});return;}
+  const g=won?m.bet:-Math.min(m.bet,Math.floor(S.gold));S.gold+=g;S.fame=Math.max(0,(S.fame||0)+(won?8:0));S.dlog['ig'+m.id]=1;const t=(m.why?m.why+' · ':'')+(m.bet?`내기 ${won?'+':'−'}${Math.abs(g).toLocaleString()}골드 · `:'')+`검객 점수 ${won?'+':'−'}${m.dr}`+hsGain(won?12:5);
+  save();wsSend({type:'dack',id:m.id});if(IG&&IG.pvp===m.id)igFinish(won,t);else toast(`🗡 일기토 ${won?'승리':'패배'} · ${t.replace(/<[^>]+>/g,'')}`,true);}
+{const w2=onWs;onWs=function(m){
+  if(m.type==='init'){ON.W.ig=(m.world&&m.world.ig)||{};}
+  if(m.type==='igs')return igPvpStart(m);
+  if(m.type==='igh'){if(IG&&IG.pvp===m.id&&!IG.wait){IG.hint=m.h;igDraw();}return;}
+  if(m.type==='igr'){if(!IG||IG.pvp!==m.id)return;const me=IG.me,op=me==='A'?'B':'A';Object.assign(IG.A,m.st[me]);Object.assign(IG.B,m.st[op]);IG.r=m.r-1;igApply(m.res,me==='B');if(m.over)IG.wait='결과를 기다립니다…';igDraw();return;}
+  if(m.type==='ign'){if(IG&&IG.pvp===m.id){IG.r=m.r;IG.hint=null;IG.ch={g:[],a:[],sk:''};IG.deadline=Date.now()+(m.ms||10000);IG.wait=null;igDraw();}return;}
+  if(m.type==='ige'){if(!S){ON.dq.push(m);return;}return igPvpEnd(m);}
+  if(m.type==='igrk'){Object.assign(ON.W.ig||(ON.W.ig={}),m.ig);Object.assign(ON.W.nm,m.nm||{});if(ON.open&&ON.tab==='duel')panelUI();return;}
+  return w2(m);};}
+{const dq0=duelResult;duelResult=function(m){if(m&&m.type==='ige')return igPvpEnd(m);return dq0.apply(this,arguments);};}
+{const dh0=duelHTML;duelHTML=function(){const h=dh0(),me=igrRec(ON.id),L=Object.keys(ON.W.ig||{}).map(u=>({id:+u,nm:(ON.W.nm||{})[u]||'?',...ON.W.ig[u]})).filter(x=>x.w+x.l>0).sort((a,b)=>b.r-a.r).slice(0,20);
+  return h+`<b>🗡 검객 순위 (일기토)</b> <small class="hint">나: ${me.w}승 ${me.l}패 · 점수 ${Math.round(me.r)}</small>${L.length?`<table class="mt"><tr><th>#</th><th>선장</th><th class="n">점수</th><th class="n">승·패</th></tr>${L.map((x,i)=>`<tr${x.id===ON.id?' style="background:#efe2c4"':''}><td>${i+1}</td><td>${esc(x.nm)}</td><td class="n">${Math.round(x.r)}</td><td class="n">${x.w}·${x.l}</td></tr>`).join('')}</table>`:'<p class="hint">아직 일기토 대전을 한 선장이 없습니다.</p>'}`;};}
 
 </script>
 </body></html>

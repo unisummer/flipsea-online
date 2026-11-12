@@ -56,6 +56,7 @@ h2{font-size:17px;margin:0 0 8px}.evl{display:flex;justify-content:space-between
 </div>
 <div class="card" id="box" hidden>
   <div class="row" style="justify-content:space-between;margin-bottom:10px"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="duel" style="width:20px;height:20px"> <b>⚔ 선장끼리 결투 허용</b></label><small class="sub" id="duelSt"></small></div>
+  <div class="row" style="margin-bottom:10px;gap:18px"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="igOn" style="width:20px;height:20px"> <b>🗡 선장끼리 일기토 허용</b></label><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="igFair" style="width:20px;height:20px"> <b>⚖ 공정 모드</b> <small class="sub">(일기토 대전에서 능력·장비를 모두 같게 — 수업 대회용)</small></label></div>
   <div class="row" style="justify-content:space-between"><b id="cnt"></b><input id="q" placeholder="이름 찾기" style="width:160px"></div>
   <div class="wrap"><table><thead><tr><th>#</th><th>선장</th><th class="n hide-s">날짜</th><th class="n hide-s">자산</th><th class="hide-s">마지막 저장</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>
 </div>
@@ -86,7 +87,7 @@ function drawPir(st){if(document.activeElement&&/pf|pp/.test(document.activeElem
 $('pf').oninput=()=>$('pfV').textContent=$('pf').value+'%';$('pp').oninput=()=>$('ppV').textContent=$('pp').value+'%';
 $('pirOk').onclick=async()=>{try{const r=await call('pirate',{pf:+$('pf').value/100,pp:+$('pp').value/100});say(`해적을 바꿨습니다: 빈도 ${Math.round(r.pf*100)}% · 세기 ${Math.round(r.pp*100)}%. 접속 중인 학생에게 바로 알려집니다.`);refresh();}catch(e){say(e.message,true);}};
 $('pirReset').onclick=()=>{$('pf').value=100;$('pp').value=100;$('pirOk').click();};
-function drawEv(st){drawPir(st);const now=Date.now();$('evList').innerHTML=(st.ev||[]).length?st.ev.map(e=>`<div class="evl"><span class="${e.type==='raid'||e.type==='storm'?'badc':'good'}"><b>${EVT[e.type][0]}</b> · ${e.scope<0?'온 바다':REG[e.scope]} · ${e.mag}% · 남은 ${Math.max(0,Math.ceil((e.end-now)/60000))}분${e.by==='auto'?' · 세계 시계':''}</span><button data-eend="${e.id}">끝내기</button></div>`).join(''):'<div class="sub">진행 중인 이벤트가 없습니다.</div>';
+function drawEv(st){drawPir(st);$('igOn').checked=st.ig!==false;$('igFair').checked=!!st.igFair;const now=Date.now();$('evList').innerHTML=(st.ev||[]).length?st.ev.map(e=>`<div class="evl"><span class="${e.type==='raid'||e.type==='storm'?'badc':'good'}"><b>${EVT[e.type][0]}</b> · ${e.scope<0?'온 바다':REG[e.scope]} · ${e.mag}% · 남은 ${Math.max(0,Math.ceil((e.end-now)/60000))}분${e.by==='auto'?' · 세계 시계':''}</span><button data-eend="${e.id}">끝내기</button></div>`).join(''):'<div class="sub">진행 중인 이벤트가 없습니다.</div>';
   document.querySelectorAll('[data-eend]').forEach(b=>b.onclick=async()=>{try{await call('event_end',{id:+b.dataset.eend});refresh();}catch(e){say(e.message,true);}});
   const A=st.auto||{};$('auOn').checked=!!A.on;$('auE').value=String(A.every||10);$('auD').value=String(A.dur||5);document.querySelectorAll('#auT input').forEach(c=>c.checked=!A.types||A.types.includes(c.value));
   $('auSt').textContent=A.on?`켜짐 · 다음 이벤트 약 ${Math.max(0,Math.ceil(((A.next||0)-now)/60000))}분 뒤`:'꺼짐';$('rsSt').textContent=`지금 시즌: ${st.season||1}`;}
@@ -101,5 +102,6 @@ $('rs1').onclick=()=>reset(false);$('rs2').onclick=()=>reset(true);
 async function load(){try{const j=await call('users');$('evbox').hidden=false;$('rsbox').hidden=false;$('pirbox').hidden=false;refresh();L=j.list;$('duel').checked=!!j.duel;$('duelSt').textContent=j.duel?'켜짐 · 학생들이 서로 결투하고 골드를 걸 수 있습니다':'꺼짐 · 결투 신청 버튼이 사라집니다';$('box').hidden=false;draw();}catch(e){say(e.message,true);}}
 $('go').onclick=()=>{say('불러오는 중…');load().then(()=>{if(!$('msg').classList.contains('err'))say('목록을 불러왔습니다.');});};
 $('duel').onchange=async()=>{const on=$('duel').checked;try{const j=await call('duel',{on});$('duelSt').textContent=j.duel?'켜짐 · 학생들이 서로 결투하고 골드를 걸 수 있습니다':'꺼짐 · 결투 신청 버튼이 사라집니다';say(j.duel?'결투를 켰습니다. 접속 중인 학생들에게 바로 알려집니다.':'결투를 껐습니다.');}catch(e){$('duel').checked=!on;say(e.message,true);}};
+const igSave=async()=>{try{const r=await call('ig',{on:$('igOn').checked,fair:$('igFair').checked});say(`일기토 ${r.ig?'켜짐':'꺼짐'} · 공정 모드 ${r.fair?'켜짐':'꺼짐'}`);}catch(e){say(e.message,true);}};$('igOn').onchange=igSave;$('igFair').onchange=igSave;
 $('key').onkeydown=e=>{if(e.key==='Enter')$('go').click();};$('q').oninput=draw;
 </script></body></html>
