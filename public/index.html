@@ -1669,7 +1669,7 @@ const hpMaxK=k=>ST(S.fleet[k]).hp;
 function hpK(k){const sh=S.fleet[k];if(sh.hp==null)sh.hp=hpMaxK(k);return sh.hp;}
 const gunsT=()=>S.fleet.reduce((a,sh)=>a+ST(sh).guns,0);
 function myPower(){let p=0;S.fleet.forEach((sh,k)=>{const T=ST(sh);p+=T.guns*(1+shipRole(k,4)/150)+hpK(k)/8;});return p*Math.max(.3,Math.min(1,S.crew/Math.max(1,crewNeedT())));}
-const fleetPower=(ships,lv)=>ships.reduce((a,t)=>{const T=SHIPTYPES[t];return a+T.guns*(1+(20+lv*12)/150)+T.hp/8;},0);
+const fleetPower=(ships,lv)=>ships.reduce((a,t)=>{const T=SHIPTYPES[t];return a+T.guns*(1+(20+lv*12)/150)+T.hp/8;},0)*(typeof pirPow==='function'?pirPow():1);
 const PIR_NAMES=['검은 갈매기단','바다뱀단','붉은 닻단','흰 해골단','늑대 이빨단','안개 그림자단','쇠갈고리단','상어 지느러미단','녹슨 칼단','밤바다단','소금 까마귀단','부서진 키단'];
 const BOSS=[
  {n:'검은 돛 바르가',lv:4,b:6000,ships:[7,4,2],d:'훔친 프리깃을 타고 상선만 노리는 해적. 겁이 많아 불리하면 달아난다.'},
@@ -1700,8 +1700,8 @@ function pirDaily(){if(!S.pir)S.pir=[];if(S.car||inPort>=0)return;
   S.pir=S.pir.filter(p=>p.boss!=null||(S.day-p.born<45&&gcDist(S.lat,S.lon,p.lat,p.lon)<1600));
   const H=PORTS[HOME],dh=gcDist(S.lat,S.lon,H.lat,H.lon);
   if(!S.st.pir1&&S.day>3&&dh>500){if(spawnPir(1,[1]))S.st.pir1=1;return;}
-  const n=S.pir.filter(p=>p.boss==null).length,rate=(S.opt.pirLow?.4:1)*(.09+Math.min(.07,dh/70000));
-  if(n<3&&dh>800&&S.day>8&&Math.random()<rate){let lv=1+Math.floor(dh/3500)+(Math.random()<.3?1:0)-(Math.random()<.3?1:0);
+  const pf=typeof pirFreq==='function'?pirFreq():1,n=S.pir.filter(p=>p.boss==null).length,rate=pf*(.09+Math.min(.07,dh/70000)),cap=Math.max(1,Math.round(3*Math.min(pf,1.67)));
+  if(n<cap&&dh>800&&S.day>8&&Math.random()<rate){let lv=1+Math.floor(dh/3500)+(Math.random()<.3?1:0)-(Math.random()<.3?1:0);
     const pl=1+Math.floor(gunsT()/22);spawnPir(Math.max(1,Math.min(5,lv,pl+1)));}
   bossHomes().forEach((h,i)=>{if(S.bd[i]||S.pir.some(p=>p.boss===i))return;if(gcDist(S.lat,S.lon,h[0],h[1])<1100)spawnPir(BOSS[i].lv,BOSS[i].ships.slice(),i,h);});}
 function nearHarbor(lat,lon,km){return SEAPORTS.some(q=>Math.abs(q.lat-lat)<2&&gcDist(lat,lon,q.lat,q.lon)<km);}
@@ -1764,7 +1764,7 @@ function startBattle(p,mode){$('bat').style.display='none';encOpen=false;paused=
   const cr=crewMaxT();
   S.fleet.forEach((sh,k)=>{const T=ST(sh),capA=sh.as.find(a=>a.r===0&&!a.aux);
     const s=mkShip(0,sh.t,k,{T,name:sh.name,hp:hpK(k),crew:Math.max(1,Math.round(S.crew*T.crew/cr)),gun:shipRole(k,4),rep:shipRole(k,5),lead:k===0?curSt(HY,0):capA?curSt(capA.m,0):10,flag:k===0});B.ships.push(s);if(k===0)B.flag=s;});
-  p.ships.forEach((t,i)=>{const T=SHIPTYPES[t];B.ships.push(mkShip(1,t,i,{name:p.boss!=null&&i===0?p.name:`${p.name} ${i+1}호`,hp:T.hp,crew:Math.round(T.crew*.9),gun:20+p.lv*12,rep:10+p.lv*8,lead:20+p.lv*10,boss:p.boss!=null&&i===0,lv:p.lv}));});
+  const pw=typeof pirPow==='function'?pirPow():1;p.ships.forEach((t,i)=>{const T0=SHIPTYPES[t],T=pw===1?T0:Object.assign({},T0,{hp:Math.max(10,Math.round(T0.hp*pw)),guns:Math.max(1,Math.round(T0.guns*pw)),crew:Math.max(4,Math.round(T0.crew*pw))});B.ships.push(mkShip(1,t,i,{T,name:p.boss!=null&&i===0?p.name:`${p.name} ${i+1}호`,hp:T.hp,crew:Math.round(T.crew*.9),gun:20+p.lv*12,rep:10+p.lv*8,lead:20+p.lv*10,boss:p.boss!=null&&i===0,lv:p.lv}));});
   const gap=mode==='caught'?440:mode==='close'?600:760,ang=Math.random()*360;
   const al=B.ships.filter(s=>s.side===0),en=B.ships.filter(s=>s.side===1);
   const place=(L,dir)=>L.forEach((s,i)=>{const off=(i-(L.length-1)/2)*95,a=(ang+(dir<0?180:0))*DEG;const px=Math.sin(a)*gap/2,py=-Math.cos(a)*gap/2;const pa=a+Math.PI/2;
@@ -2688,6 +2688,30 @@ function tutTick(){if(!S)return;const t=tutT();
 {const sell0=sell;sell=function(g,n){const c=S.cargo[g],cost=c&&c.c>=1?c.c:0,q0=c?c.q:0,g0=S.gold;const r=sell0.apply(this,arguments);const sold=q0-(S.cargo[g]?S.cargo[g].q:0);
   if(sold>0&&S.tut&&!S.tut.done&&TUT[S.tut.i]&&TUT[S.tut.i].t==='첫 장사: 팔기'&&+g===tutRoute().g){tutFlag('soldG',sold);tutFlag('profit',(S.gold-g0)-cost*sold);}return r;};}
 
+// ===== 설정: 해적 빈도·세기 (싱글은 내가, 온라인은 선생님이 정함) =====
+const pirCfg=()=>{if(typeof ON!=='undefined'&&ON.live){const c=(ON.W&&ON.W.cfg)||{};return {f:c.pf??1,p:c.pp??1,lock:1};}return {f:(S&&S.opt.pf)??1,p:(S&&S.opt.pp)??1,lock:0};};
+function pirFreq(){return pirCfg().f;}
+function pirPow(){return pirCfg().p;}
+UIW.push(['opts','설정','0',0]);UI_SHORT.opts='설정';
+function optsHTML(){const c=pirCfg(),pc=v=>Math.round(v*100);
+  const row=(k,label,v,desc)=>`<div class="optr"><div><b>${label}</b> <span class="optv" id="ov_${k}">${pc(v)}%</span></div>
+    <input type="range" min="10" max="200" step="10" value="${pc(v)}" data-opt="${k}" ${c.lock?'disabled':''}><div class="hint">${desc}</div></div>`;
+  return `${c.lock?'<p class="hint">🌐 온라인 모드에서는 <b>선생님이 관리 페이지에서</b> 정합니다. 모든 선장에게 같은 값이 적용됩니다.</p>':''}
+   ${row('pf','☠ 해적 빈도',c.f,'바다에 해적이 나타나는 정도와 한꺼번에 돌아다니는 수 (100%면 최대 3무리, 10%면 1무리)')}
+   ${row('pp','⚔ 해적 세기',c.p,'해적 배의 선체·대포·선원 (100%가 원래 값). 약하면 덜 쫓아오고 더 잘 도망칩니다')}
+   ${c.lock?'':'<div class="btns"><button data-opt-reset="1">원래대로 (100%)</button></div>'}<p class="hint" style="font-size:11px">해적 두목은 빈도와 상관없이 제자리에 있습니다.</p>`;}
+function optsBind(root){root.querySelectorAll('[data-opt]').forEach(r=>{r.oninput=()=>{const v=+r.value/100;S.opt[r.dataset.opt]=v;const l=root.querySelector('#ov_'+r.dataset.opt);if(l)l.textContent=r.value+'%';};r.onchange=()=>{save();toast(`${r.dataset.opt==='pf'?'해적 빈도':'해적 세기'} ${r.value}%`);};});
+  const z=root.querySelector('[data-opt-reset]');if(z)z.onclick=()=>{S.opt.pf=1;S.opt.pp=1;save();optsDraw(true);};}
+let optsLast='';
+function optsDraw(force){if(!S||MOB)return;let el=$('opts');if(!el){el=document.createElement('div');el.id='opts';el.className='panel';document.body.appendChild(el);}
+  const h=`<h3>⚙ 설정 <small style="font-weight:400">(0키)</small></h3>`+optsHTML();if(h!==optsLast||force){optsLast=h;el.innerHTML=h;optsBind(el);uiApply();}}
+setInterval(()=>{try{if(S&&!MOB&&uiShown('opts'))optsDraw();}catch(e){}},1500);
+{const ot=window.onUiToggle;window.onUiToggle=(id,now)=>{if(id==='opts'&&now)optsDraw(true);if(ot)ot(id,now);};}
+// 휴대폰: 메뉴에 설정 넣기
+{const dm=drawMenu;drawMenu=function(){const r=dm.apply(this,arguments);const b=$('mmBody');if(b&&S){const d=document.createElement('div');d.innerHTML='<h4>⚙ 설정</h4>'+optsHTML();b.appendChild(d);optsBind(d);}return r;};}
+(()=>{const st=document.createElement('style');st.textContent=`#opts{right:290px;top:260px;width:300px;padding:10px 14px;font-size:13px}#opts h3{margin:0 0 6px}
+.optr{margin:8px 0}.optr input[type=range]{width:100%}.optv{float:right;font-weight:700;color:#2f5d73}`;document.head.appendChild(st);})();
+
 // ===== 투자의 쓸모: 조선소 투자 → 특별 주문 배, 시장 투자 → 명품 상품 =====
 // 등급은 그 항구에 넣은 '투자 골드'로만 오른다 (거래로는 오르지 않음).
 const IVLV=[0,3000,10000,30000,70000,150000];
@@ -3113,12 +3137,12 @@ document.addEventListener('pointerdown',e=>{const b=e.target.closest&&e.target.c
   if(m.type==='dgone'){if(ON.dreqId===m.id)duelClose();return;}
   if(m.type==='dres'){if(ON.duelOpen&&ON.dreqId)duelClose();return duelResult(m);}
   if(m.type==='dr'){Object.assign(ON.W.dr||(ON.W.dr={}),m.dr);Object.assign(ON.W.nm,m.nm||{});if(ON.open&&ON.tab==='duel')panelUI();return;}
-  if(m.type==='cfg'){ON.W.cfg=m.cfg;if(ON.open)panelUI();return;}
+  if(m.type==='cfg'){const c0=ON.W.cfg||{};ON.W.cfg=m.cfg;if(ON.open)panelUI();if((c0.pf??1)!==(m.cfg.pf??1)||(c0.pp??1)!==(m.cfg.pp??1)){toast(`☠ 선생님이 해적을 바꿨습니다: 빈도 ${Math.round((m.cfg.pf??1)*100)}% · 세기 ${Math.round((m.cfg.pp??1)*100)}%`,true);try{optsDraw(true);}catch(e){}}return;}
   return w0(m);};}
 
 // ---------- 실시간 순위 창 (L) · 온라인 창 (O) ----------
 UIW.push(['rankw','실시간 순위','L',1],['onp','온라인 창','O',0,1]);
-window.onUiToggle=(id,now)=>{if(id==='onp'){ON.open=now;panelUI();}if(id==='rankw')rankDraw(true);};
+{const ot=window.onUiToggle;window.onUiToggle=(id,now)=>{if(id==='onp'){ON.open=now;panelUI();}if(id==='rankw')rankDraw(true);if(ot)ot(id,now);};}
 {const pu=panelUI;panelUI=function(){const r=pu.apply(this,arguments);if(typeof UIS!=='undefined'&&(UIS.v.onp?1:0)!==(ON.open?1:0)){UIS.v.onp=ON.open?1:0;uiBar();}return r;};}
 const fmtG=v=>v>=1e8?(v/1e8).toFixed(1)+'억':v>=1e4?(v/1e4).toFixed(v>=1e5?0:1)+'만':Math.round(v).toLocaleString();
 let rankLast='';

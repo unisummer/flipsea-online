@@ -41,6 +41,13 @@ h2{font-size:17px;margin:0 0 8px}.evl{display:flex;justify-content:space-between
     <label>길이 <select id="auD"><option value="2">2분</option><option value="3">3분</option><option value="5">5분</option><option value="10">10분</option></select></label></div>
   <div class="tp" id="auT"></div><div id="auSt" class="sub"></div>
 </div>
+<div class="card" id="pirbox" hidden>
+  <h2>☠ 해적 조절</h2>
+  <div class="sub">온라인 바다 전체에 적용됩니다. 학생들이 해적 때문에 장사를 못 하면 낮추고, 긴장감이 필요하면 올리세요. (10%~200%, 처음 100%)</div>
+  <div style="margin-top:8px"><b>빈도</b> <span id="pfV"></span><input id="pf" type="range" min="10" max="200" step="10" style="width:100%"><div class="sub">해적이 나타나는 정도와 한꺼번에 돌아다니는 무리 수</div></div>
+  <div style="margin-top:8px"><b>세기</b> <span id="ppV"></span><input id="pp" type="range" min="10" max="200" step="10" style="width:100%"><div class="sub">해적 배의 선체·대포·선원</div></div>
+  <div class="row" style="margin-top:6px"><button id="pirOk" class="main">적용</button><button id="pirReset">100%로</button><span id="pirSt" class="sub"></span></div>
+</div>
 <div class="card" id="rsbox" hidden>
   <h2>🔄 새 시즌 시작 (초기화)</h2>
   <div class="sub">수업마다 순위를 새로 보고 싶을 때 씁니다. 모든 항해 저장, 투자·영주, 결투 기록, 발견 기록, 대화, 진행 중인 이벤트가 지워집니다. 접속 중인 학생은 안내가 뜬 뒤 처음 화면으로 돌아갑니다. <b>되돌릴 수 없습니다.</b> 싱글 모드 저장(각자 기기)은 지워지지 않습니다.</div>
@@ -75,7 +82,11 @@ $('evT').innerHTML=Object.entries(EVT).map(([k,v])=>`<option value="${k}">${v[0]
 $('evS').innerHTML='<option value="-1">온 바다</option>'+REG.map((r,i)=>`<option value="${i}">${r}</option>`).join('');
 const evDesc=()=>{const v=EVT[$('evT').value];$('evDesc').textContent=v[1];$('evM').value=v[2];};$('evT').onchange=evDesc;evDesc();
 $('auT').innerHTML=Object.entries(EVT).map(([k,v])=>`<label><input type="checkbox" value="${k}" checked> ${v[0]}</label>`).join('');
-function drawEv(st){const now=Date.now();$('evList').innerHTML=(st.ev||[]).length?st.ev.map(e=>`<div class="evl"><span class="${e.type==='raid'||e.type==='storm'?'badc':'good'}"><b>${EVT[e.type][0]}</b> · ${e.scope<0?'온 바다':REG[e.scope]} · ${e.mag}% · 남은 ${Math.max(0,Math.ceil((e.end-now)/60000))}분${e.by==='auto'?' · 세계 시계':''}</span><button data-eend="${e.id}">끝내기</button></div>`).join(''):'<div class="sub">진행 중인 이벤트가 없습니다.</div>';
+function drawPir(st){if(document.activeElement&&/pf|pp/.test(document.activeElement.id))return;$('pf').value=Math.round((st.pf??1)*100);$('pp').value=Math.round((st.pp??1)*100);$('pfV').textContent=$('pf').value+'%';$('ppV').textContent=$('pp').value+'%';$('pirSt').textContent=`지금: 빈도 ${Math.round((st.pf??1)*100)}% · 세기 ${Math.round((st.pp??1)*100)}%`;}
+$('pf').oninput=()=>$('pfV').textContent=$('pf').value+'%';$('pp').oninput=()=>$('ppV').textContent=$('pp').value+'%';
+$('pirOk').onclick=async()=>{try{const r=await call('pirate',{pf:+$('pf').value/100,pp:+$('pp').value/100});say(`해적을 바꿨습니다: 빈도 ${Math.round(r.pf*100)}% · 세기 ${Math.round(r.pp*100)}%. 접속 중인 학생에게 바로 알려집니다.`);refresh();}catch(e){say(e.message,true);}};
+$('pirReset').onclick=()=>{$('pf').value=100;$('pp').value=100;$('pirOk').click();};
+function drawEv(st){drawPir(st);const now=Date.now();$('evList').innerHTML=(st.ev||[]).length?st.ev.map(e=>`<div class="evl"><span class="${e.type==='raid'||e.type==='storm'?'badc':'good'}"><b>${EVT[e.type][0]}</b> · ${e.scope<0?'온 바다':REG[e.scope]} · ${e.mag}% · 남은 ${Math.max(0,Math.ceil((e.end-now)/60000))}분${e.by==='auto'?' · 세계 시계':''}</span><button data-eend="${e.id}">끝내기</button></div>`).join(''):'<div class="sub">진행 중인 이벤트가 없습니다.</div>';
   document.querySelectorAll('[data-eend]').forEach(b=>b.onclick=async()=>{try{await call('event_end',{id:+b.dataset.eend});refresh();}catch(e){say(e.message,true);}});
   const A=st.auto||{};$('auOn').checked=!!A.on;$('auE').value=String(A.every||10);$('auD').value=String(A.dur||5);document.querySelectorAll('#auT input').forEach(c=>c.checked=!A.types||A.types.includes(c.value));
   $('auSt').textContent=A.on?`켜짐 · 다음 이벤트 약 ${Math.max(0,Math.ceil(((A.next||0)-now)/60000))}분 뒤`:'꺼짐';$('rsSt').textContent=`지금 시즌: ${st.season||1}`;}
@@ -87,7 +98,7 @@ $('auOn').onchange=auSave;$('auE').onchange=auSave;$('auD').onchange=auSave;$('a
 const reset=async all=>{const t=prompt(`${all?'선장 계정까지 모두':'모든 항해 기록을'} 지우고 새 시즌을 시작합니다. 되돌릴 수 없습니다.\n계속하려면 「초기화」라고 입력하세요.`,'');if(t===null)return;if(t.trim()!=='초기화'){say('입력이 달라 초기화하지 않았습니다.',true);return;}
   try{const r=await call('reset',{all,confirm:'초기화'});say(`새 시즌 ${r.season}을 시작했습니다. ${all?'학생들은 선장 이름을 새로 만들면 됩니다.':'학생들은 같은 이름·비밀번호로 들어가 새 항해를 시작합니다.'}`);load();}catch(e){say(e.message,true);}};
 $('rs1').onclick=()=>reset(false);$('rs2').onclick=()=>reset(true);
-async function load(){try{const j=await call('users');$('evbox').hidden=false;$('rsbox').hidden=false;refresh();L=j.list;$('duel').checked=!!j.duel;$('duelSt').textContent=j.duel?'켜짐 · 학생들이 서로 결투하고 골드를 걸 수 있습니다':'꺼짐 · 결투 신청 버튼이 사라집니다';$('box').hidden=false;draw();}catch(e){say(e.message,true);}}
+async function load(){try{const j=await call('users');$('evbox').hidden=false;$('rsbox').hidden=false;$('pirbox').hidden=false;refresh();L=j.list;$('duel').checked=!!j.duel;$('duelSt').textContent=j.duel?'켜짐 · 학생들이 서로 결투하고 골드를 걸 수 있습니다':'꺼짐 · 결투 신청 버튼이 사라집니다';$('box').hidden=false;draw();}catch(e){say(e.message,true);}}
 $('go').onclick=()=>{say('불러오는 중…');load().then(()=>{if(!$('msg').classList.contains('err'))say('목록을 불러왔습니다.');});};
 $('duel').onchange=async()=>{const on=$('duel').checked;try{const j=await call('duel',{on});$('duelSt').textContent=j.duel?'켜짐 · 학생들이 서로 결투하고 골드를 걸 수 있습니다':'꺼짐 · 결투 신청 버튼이 사라집니다';say(j.duel?'결투를 켰습니다. 접속 중인 학생들에게 바로 알려집니다.':'결투를 껐습니다.');}catch(e){$('duel').checked=!on;say(e.message,true);}};
 $('key').onkeydown=e=>{if(e.key==='Enter')$('go').click();};$('q').oninput=draw;
