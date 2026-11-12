@@ -1549,7 +1549,7 @@ function updateHud(){
    a.classList.toggle('fold',!!S.opt.advFold||room<70);a.style.maxHeight=Math.max(40,room)+'px';}
   $('near').classList.toggle('fold',!!S.opt.nearFold);$('mis').classList.toggle('fold',!!S.opt.misFold);$('help').classList.toggle('fold',!!S.opt.helpFold);$('helptg').textContent=S.opt.helpFold?'▸ 펼치기':'▾ 접기';
   $('near').style.top=($('hud').offsetHeight+22)+'px';
-  $('mis').style.top=($('help').style.display==='none'?12:$('help').offsetHeight+24)+'px';
+  $('mis').style.top=($('help').style.display==='none'||$('help').classList.contains('uihide')?12:$('help').offsetHeight+24)+'px';
   renderSpeed();if(MOB)mobTop();
   const np=inPort<0?nearPort():-1, nd=inPort<0?nearDisc():-1; const pr=$('prompt'); const ps=[];if(np>=0)ps.push(`E: ${PORTS[np].name}에 입항`);if(nd>=0)ps.push(`Q: ${DISC[nd].t} 조사하기`);if(ps.length){pr.style.display='block';if(MOB){const h=(np>=0?`<button data-k="e">⚓ ${PORTS[np].name} 입항</button>`:'')+(nd>=0?`<button data-k="q">🔍 ${DISC[nd].t} 조사</button>`:'');if(pr.dataset.h!==h){pr.dataset.h=h;pr.innerHTML=h;}}else{pr.dataset.h='';pr.textContent=ps.join('   ·   ');}}else pr.style.display='none';
 }
@@ -1577,12 +1577,11 @@ addEventListener('keydown',e=>{if($('title').style.display==='flex')return;const
   if('12345'.includes(k)&&k)setSpeed(SPEEDS['12345'.indexOf(k)]);
   if(k==='f'){follow=true;}
   if(k==='v'){layers=(layers+1)%4;}
-  if(k==='h'){const h=$('help');h.style.display=h.style.display==='none'?'block':'none';}
   if(k==='m'){if(cam.z>.5){cam.zPrev=cam.z;cam.z=Math.min(VW/IMW,VH/IMH)*1.0;follow=false;cam.x=IMW/2;cam.y=IMH/2;}else{cam.z=cam.zPrev||3.5;follow=true;}}
   if(k==='e'||k==='enter'){const np=anchorAt>=0?anchorAt:nearPort();anchorAt=-1;showArrive();if(np>=0)enterPort(np);}
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
-for(const id of ['adv','near','help','mis'])$(id).addEventListener('mousedown',e=>{const h=e.target.closest('[data-fold]');if(!h||!S)return;e.stopPropagation();e.preventDefault();const k=h.dataset.fold+'Fold';S.opt[k]=S.opt[k]?0:1;_hc[h.dataset.fold]=null;},true);
+for(const id of ['adv','near','help','mis'])$(id).addEventListener('click',e=>{const h=e.target.closest('[data-fold]');if(!h||!S||window.UIDRAG)return;e.stopPropagation();e.preventDefault();const k=h.dataset.fold+'Fold';S.opt[k]=S.opt[k]?0:1;_hc[h.dataset.fold]=null;},true);
 $('adv').addEventListener('mousedown',e=>{const r=e.target.closest('.np');if(!r||!r.dataset.p||!S||inPort>=0)return;e.stopPropagation();const p=PORTS[+r.dataset.p];setRoute(p.lat,p.lon,p.id);});
 $('near').addEventListener('mousedown',e=>{const r=e.target.closest('.np');if(!r||!S||inPort>=0)return;e.stopPropagation();const id=+r.dataset.p,p=PORTS[id];
   if(!known(id)&&!rumored(id)){S.rum.push(id);}setRoute(p.lat,p.lon,id);});
@@ -2510,6 +2509,182 @@ function slotMeta(s){let L=null;try{const x=localStorage.getItem(skey(s)+'_m');L
 function drawSlots(){const el=$('slots');if(!el||S)return;el.innerHTML=[1,2,3].map(s=>{const m=slotMeta(s);return `<button data-slot="${s}" class="${s===SLOT?'on':''}"><b>항해 ${s}</b><small>${m?`${m.day}일째 · ${(m.gold||0).toLocaleString()}골드<br>${m.t?ago(m.t):''}${m.cl?' ☁':''}`:'비어 있음'}</small></button>`;}).join('');
   el.querySelectorAll('[data-slot]').forEach(b=>b.onclick=()=>{SLOT=+b.dataset.slot;try{localStorage.setItem('flipsea_slot',SLOT);}catch(e){}CLOUD.meta=CLOUD.metas[SLOT]||null;newClick=0;$('bNew').textContent='새로 시작';$('bCont').disabled=!hasSave();drawSlots();contChoice();const c=$('cloudst');if(c)c.textContent='☁ '+cloudLine();});}
 
+// ===== 화면 창 관리 (PC) — 단축키 바, 열고 닫기, 접기, 끌어 옮기기, 배치 기억 =====
+// 창: [id, 이름, 단축키, 처음에 보이기, 캔버스 그림인지]
+const UIW=[['hud','상태판','U',1],['help','조작법','H',1],['near','가까운 항구','P',1],['adv','판매 조언','N',1],['mis','이야기·과제','K',1],['where','지금 자리','C',1],['tut','튜토리얼','Y',1],['mini','미니맵','Z',1,1],['comp','나침반','X',1,1]];
+const UI_SHORT={hud:'상태',help:'조작',near:'항구',adv:'조언',mis:'과제',where:'위치',tut:'배우기',mini:'지도',comp:'나침반',rankw:'순위',onp:'온라인'};
+const UI_KEY='flipsea_ui_v1';
+let UIS={v:{},pos:{},bar:1};
+try{const o=JSON.parse(localStorage.getItem(UI_KEY)||'null');if(o)UIS=Object.assign(UIS,o);}catch(e){}
+const uiSave=()=>{try{localStorage.setItem(UI_KEY,JSON.stringify(UIS));}catch(e){}};
+const uiDef=id=>UIW.find(w=>w[0]===id);
+const uiShown=id=>{const w=uiDef(id);return UIS.v[id]!=null?!!UIS.v[id]:!!(w&&w[3]);};
+const uiHidden=id=>!uiShown(id);
+window.UIDRAG=false;
+function uiToggle(id,force){const now=force!=null?force:!uiShown(id);UIS.v[id]=now?1:0;uiSave();uiApply();uiBar();
+  if(typeof tutFlag==='function')tutFlag('hk');const w=uiDef(id);if(w&&!force)toast(`${w[1]} ${now?'열기':'닫기'} (${w[2]})`);
+  if(window.onUiToggle)onUiToggle(id,now);}
+function uiApply(){if(typeof MOB!=='undefined'&&MOB)return;
+  for(const [id,,,,cv] of UIW){if(cv)continue;const el=$(id);if(!el)continue;el.classList.toggle('uihide',uiHidden(id));
+    const p=UIS.pos[id];if(p&&!el.classList.contains('uihide')){const w=el.offsetWidth||200,h=el.offsetHeight||60;
+      const x=Math.max(0,Math.min(innerWidth-Math.min(w,120),p[0])),y=Math.max(0,Math.min(innerHeight-40,p[1]));
+      el.style.left=x+'px';el.style.top=y+'px';el.style.right='auto';el.style.bottom='auto';}
+    if(!el.querySelector(':scope > .uig')){const g=document.createElement('span');g.className='uig';g.innerHTML=`<b title="끌어서 옮기기">⠿</b><i title="닫기 (${uiDef(id)[2]})">✕</i>`;el.appendChild(g);}}}
+// 창 드래그: 제목(h3, 상태판 첫 줄)이나 ⠿ 손잡이를 잡고 끈다
+(()=>{let d=null;
+  document.addEventListener('mousedown',e=>{if(typeof MOB!=='undefined'&&MOB)return;const el=e.target.closest&&e.target.closest('.panel,#tut');if(!el||!uiDef(el.id))return;
+    if(e.target.closest('.uig i')){e.preventDefault();e.stopPropagation();uiToggle(el.id,false);return;}
+    const grip=e.target.closest('.uig b,h3,#hud .big,#where b:first-child,#tut .th');if(!grip)return;if(e.target.closest('button,input,a'))return;
+    const r=el.getBoundingClientRect();d={el,dx:e.clientX-r.left,dy:e.clientY-r.top,x0:e.clientX,y0:e.clientY,go:false};},true);
+  addEventListener('mousemove',e=>{if(!d)return;if(!d.go&&Math.hypot(e.clientX-d.x0,e.clientY-d.y0)<5)return;d.go=true;window.UIDRAG=true;document.body.classList.add('uidrag');
+    const x=Math.max(0,Math.min(innerWidth-80,e.clientX-d.dx)),y=Math.max(0,Math.min(innerHeight-30,e.clientY-d.dy));
+    d.el.style.left=x+'px';d.el.style.top=y+'px';d.el.style.right='auto';d.el.style.bottom='auto';UIS.pos[d.el.id]=[x,y];});
+  addEventListener('mouseup',()=>{if(!d)return;if(d.go){uiSave();if(typeof tutFlag==='function')tutFlag('drag');}d=null;document.body.classList.remove('uidrag');setTimeout(()=>{window.UIDRAG=false;},0);});})();
+// 단축키 바
+function uiBar(){if(typeof MOB!=='undefined'&&MOB){const b=$('uibar');if(b)b.style.display='none';return;}
+  let b=$('uibar');if(!b){b=document.createElement('div');b.id='uibar';document.body.appendChild(b);
+    b.addEventListener('mousedown',e=>{e.stopPropagation();const t=e.target.closest('[data-uw]');if(!t)return;e.preventDefault();const k=t.dataset.uw;
+      if(k==='_bar'){UIS.bar=UIS.bar?0:1;uiSave();uiBar();return;}
+      if(k==='_reset'){UIS.pos={};UIS.v={};uiSave();for(const [id,,,,cv] of UIW){const el=$(id);if(el&&!cv){el.style.left='';el.style.right='';el.style.bottom='';el.style.top='';}}updateHud();uiApply();uiBar();toast('창 배치를 처음 모양으로 되돌렸습니다.');return;}
+      uiToggle(k);});}
+  if(!S||$('title').style.display==='flex'){b.style.display='none';return;}b.style.display='';
+  b.innerHTML=UIS.bar?UIW.map(([id,n,k])=>`<button data-uw="${id}" class="${uiShown(id)?'on':''}" title="${n} 열고 닫기"><kbd>${k}</kbd>${UI_SHORT[id]||n}</button>`).join('')+`<button data-uw="_reset" title="창 위치와 열림을 처음대로">⟲</button><button data-uw="_bar" title="단축키 바 접기 (\`)">▴</button>`
+    :`<button data-uw="_bar" title="단축키 바 펼치기 (\`)"><kbd>\`</kbd>창 ▾</button>`;}
+(()=>{const st=document.createElement('style');st.textContent=`
+.uihide{display:none!important}
+.panel>.uig,#tut>.uig{position:absolute;top:3px;right:5px;display:flex;gap:2px;opacity:.35;font-size:12px;z-index:2}
+.panel:hover>.uig,#tut:hover>.uig{opacity:.95}
+.uig b,.uig i{cursor:pointer;font-style:normal;padding:0 4px;border-radius:4px;color:#5a4128}.uig b{cursor:move}.uig b:hover,.uig i:hover{background:#e3cfa6}
+#hud .big,.panel h3,#tut .th{cursor:move}
+body.uidrag,body.uidrag *{cursor:move!important;user-select:none!important}
+#uibar{position:fixed;left:50%;top:46px;transform:translateX(-50%);z-index:5;display:flex;gap:1px;flex-wrap:nowrap;justify-content:center;white-space:nowrap;
+  background:rgba(59,42,26,.78);padding:3px 5px;border-radius:12px}
+#uibar button{background:transparent;color:#f6ecd4;border:1px solid transparent;border-radius:8px;padding:1px 6px;font-size:12px;opacity:.6;line-height:1.6;cursor:pointer}
+#uibar button.on{opacity:1;border-color:rgba(246,236,212,.3)}#uibar button:hover{background:rgba(246,236,212,.15);opacity:1}
+#uibar kbd{font:inherit;font-size:10.5px;background:rgba(246,236,212,.2);border-radius:4px;padding:0 4px;margin-right:3px}
+body.battle #uibar,body.mob #uibar{display:none!important}
+@media (max-width:1180px){#uibar{flex-wrap:wrap;max-width:calc(100vw - 40px)}}
+body.on:not(.mob) #toast{top:80px}
+#tut{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);width:400px;max-height:46vh;overflow:auto;z-index:12;
+  background:rgba(250,242,222,.97);border:2px solid #2f5d73;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.35);padding:10px 14px;font-size:13.5px;line-height:1.55}
+#tut[style*="left"]{transform:none}
+#tut .th{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 0 4px;font-size:14px;color:#2f5d73;padding-right:34px}
+#tut .tp{height:5px;background:#dccaa2;border-radius:3px;margin:2px 0 8px}#tut .tp i{display:block;height:100%;background:#2f5d73;border-radius:3px}
+#tut h4{margin:2px 0 6px;font-size:15.5px}#tut .goal{background:#e6efe8;border-left:4px solid #2e7d4f;padding:5px 8px;border-radius:6px;margin:6px 0}
+#tut .goal.ok{background:#d9eedf}#tut .rw{color:#8a5a14;font-size:12.5px}#tut .btns{display:flex;gap:6px;justify-content:flex-end;margin-top:6px;flex-wrap:wrap}
+#tut kbd{background:#3b2a1a;color:#f6ecd4;border-radius:4px;padding:0 5px;font:12px monospace}
+#tut table{border-collapse:collapse;font-size:12.5px;width:100%}#tut td{padding:2px 4px;border-bottom:1px solid #e3d3b0;vertical-align:top}
+#tut.fold .tb{display:none}
+body.battle #tut,body.port-open #tut{}
+body.mob #tut{left:6px;right:6px;width:auto;transform:none;top:calc(env(safe-area-inset-top,0px) + 58px);bottom:auto;max-height:32vh;font-size:12.5px;padding:8px 10px}
+body.mob #tut .uig{display:none}`;document.head.appendChild(st);})();
+// 캔버스 그림(미니맵, 나침반)은 숨기기만 된다
+{const dm0=drawMini;drawMini=function(){if(!MOB&&uiHidden('mini')){MINI={x:-9999,y:-9999,w:0,h:0};return;}return dm0.apply(this,arguments);};
+ const dc0=drawCompass;drawCompass=function(){if(!MOB&&uiHidden('comp'))return;return dc0.apply(this,arguments);};}
+// 상태판이 다시 그려질 때마다 배치를 덮어씌운다
+{const uh0=updateHud;updateHud=function(){const r=uh0.apply(this,arguments);try{uiApply();if(!uiBar.t||Date.now()-uiBar.t>1000){uiBar.t=Date.now();uiBar();}tutTick();}catch(e){console.error(e);}return r;};}
+addEventListener('keydown',e=>{if(!S||$('title').style.display==='flex'||B||storyOpen||encOpen)return;if(e.target&&/INPUT|TEXTAREA/.test(e.target.tagName))return;if(e.ctrlKey||e.metaKey||e.altKey)return;
+  const k=e.key.toLowerCase();if(k==='`'){UIS.bar=UIS.bar?0:1;uiSave();uiBar();return;}
+  if(MOB)return;const w=UIW.find(x=>x[2].toLowerCase()===k);if(!w)return;if(infoOpen&&k!=='y')return;e.preventDefault();uiToggle(w[0]);});
+
+// ===== 튜토리얼 =====
+// 한 단계씩 해 보며 배운다. 단계마다 조합이 고정 보수를 주고(시세와 상관없음), 끝까지 하면 캐러벨 1척.
+const Kb=(pc,mob)=>MOB?mob:pc;
+const isOnl=()=>typeof ON!=='undefined'&&!!ON.live;
+const tutT=()=>S.tut||(S.tut={i:0,f:{}});
+function tutFlag(k,v){if(!S)return;const t=tutT();if(t.done)return;t.f[k]=(t.f[k]||0)+(v==null?1:v);}
+function tutRoute(){const t=tutT();if(t.rt)return t.rt;const h=PORTS[HOME];let best=null;
+  for(const q of SEAPORTS){if(q.id===HOME||q.inland)continue;const d=gcDist(h.lat,h.lon,q.lat,q.lon);if(d<150||d>1400)continue;
+    for(const g of prodList(HOME)){const b=buyPrice(HOME,g),s=sellPrice(q.id,g),gain=(s-b)/Math.max(1,b)-d/12000;if(s>b&&(!best||gain>best.gain))best={q:q.id,g,b,s,d:Math.round(d),gain};}}
+  if(!best){const q=SEAPORTS.filter(x=>x.id!==HOME).map(x=>({x,d:gcDist(h.lat,h.lon,x.lat,x.lon)})).sort((a,b)=>a.d-b.d)[0];best={q:q.x.id,g:prodList(HOME)[0],b:0,s:0,d:Math.round(q.d)};}
+  t.rt=best;if(!known(best.q)&&!rumored(best.q))(S.rum||(S.rum=[])).push(best.q);return best;}
+const tq=()=>PORTS[tutRoute().q], tg=()=>GOODS[tutRoute().g][0];
+const seatedN=()=>S.fleet.reduce((n,sh)=>n+sh.as.filter(a=>a.m!==HY&&!MATES[a.m].hero).length,0);
+const TUT=[
+ {t:'뒤집힌 바다에 오신 것을 환영합니다',b:()=>`<p>여러분은 부산의 젊은 선장 <b>호연</b>입니다. 사고팔고, 바다를 탐험하고, 동료를 모아 큰 함대를 꾸리는 것이 목표입니다.</p>
+   <p>이 튜토리얼은 <b>${TUT.length-1}단계</b>로 기본 조작부터 첫 장사까지 함께 해 봅니다. 단계를 마칠 때마다 <b>조합이 보수를 줍니다</b>. 끝까지 하면 <b>캐러벨 1척</b>을 선물로 받습니다.</p>
+   <p class="hint">${isOnl()?'온라인에서는 다른 선장들의 거래로 시세가 계속 바뀝니다. 그래서 튜토리얼 보수는 시세와 상관없이 조합이 <b>정해진 금액</b>으로 줍니다.':'튜토리얼 보수는 시세와 상관없이 조합이 정해진 금액으로 줍니다.'}</p>`,btn:'시작하기',rw:0},
+ {t:'부산 항구에 들어가기',b:()=>`<p>배는 지금 부산 앞바다에 있습니다. 항구 가까이 있으면 ${Kb('<kbd>E</kbd>나 <kbd>Enter</kbd>를 누르거나 화면의 「부산 입항」 버튼을 누르면','화면의 「⚓ 부산 입항」 버튼을 누르면')} 들어갑니다.</p><p class="hint">항구가 멀리 있을 때는 지도에서 항구 표시를 누르면 그곳까지 자동으로 갑니다.</p>`,goal:()=>'부산 입항',ok:()=>inPort===HOME,rw:100},
+ {t:'시장 읽는 법',b:()=>{const r=tutRoute();return `<p>항구의 <b>교역소</b> 탭이 시장입니다. 위 표는 <b>이 항구에서 살 수 있는 물건</b>, 아래 표는 <b>내 배의 짐</b>입니다.</p>
+   <table><tr><td><b>값</b></td><td>지금 사는 값. ▲가 붙으면 평소보다 비싸진 것 (많이 사면 오릅니다)</td></tr><tr><td><b>재고</b></td><td>한 번에 살 수 있는 양</td></tr><tr><td><b>가장 비싸게 본 곳</b></td><td>내가 가 본 항구 중 이 물건을 제일 비싸게 사 주는 곳</td></tr>
+   <tr><td><b>원가 대비</b></td><td>(짐 표) 여기서 팔면 산 값의 몇 %를 받는지. 100%를 넘으면 이익</td></tr><tr><td><b>추천</b></td><td>지금 팔기 · 들고 가기 · 손해를 알려 줍니다</td></tr></table>
+   <p><b>돈 버는 기본</b>: 특산품은 나는 곳에서 싸고, <b>멀고 기후가 다른 곳</b>일수록 비싸게 팔립니다. 지금 부산의 <b>${tg()}</b>는 약 ${r.b}골드인데, ${r.d.toLocaleString()}km 떨어진 <b>${tq().name}</b>에서는 약 ${r.s}골드에 팔립니다.</p>`;},
+   goal:()=>'부산 교역소 탭을 열고 표를 읽어 보기',ok:()=>false,btn:'다 읽었어요',need:()=>inPort>=0&&portTab==='trade',needTxt:'부산 항구의 교역소 탭을 여세요 (항구 밖이면 부산으로 가서 E로 입항)',rw:100},
+ {t:'첫 장사: 사기',b:()=>`<p>부산 교역소에서 <b>${tg()}</b>를 <b>10개 이상</b> 사세요. 버튼 <b>10</b>을 누르면 10개를 삽니다.</p><p class="hint">한 번에 너무 많이 사면 값이 오릅니다. 처음엔 10~20개로 충분합니다. 화물칸 남은 자리도 보세요.</p>`,
+   goal:()=>`${tg()} 10개 이상 사기 (지금 ${(S.cargo[tutRoute().g]||{q:0}).q}개)`,ok:()=>(S.cargo[tutRoute().g]||{q:0}).q>=10,rw:500,rwTxt:'조합 지원금'},
+ {t:'보급 채우기',b:()=>`<p>항해 중에는 날마다 <b>물과 식량</b>이 줄어듭니다. 다 떨어지면 선원이 쓰러지고, 결국 배가 난파합니다.</p><p><b>보급</b> 탭에서 물과 식량을 채우세요. 화물칸과 따로 싣습니다.</p>`,
+   goal:()=>`물·식량을 거의 가득 (${Math.floor(S.water)}/${supMaxT()}, ${Math.floor(S.food)}/${supMaxT()})`,ok:()=>S.water>=supMaxT()*.85&&S.food>=supMaxT()*.85,rw:100},
+ {t:'출항하기',b:()=>`<p>장사 준비가 끝났습니다. ${Kb('<kbd>E</kbd>나 오른쪽 위 「출항」 버튼','「출항」 버튼')}으로 항구를 나서세요. 바다에 나가면 날마다 물과 식량이 줄고, 선원 월급이 나갑니다.</p>`,goal:()=>'항구에서 나가기',ok:()=>inPort<0,rw:100},
+ {t:'화면의 창 다루기',b:()=>MOB?`<p>아래 메뉴 버튼으로 정보 창을 열고 닫을 수 있습니다. 위쪽 띠에는 날짜와 돈이 보입니다.</p>`:`<p>위쪽 가운데 <b>단축키 바</b>가 화면의 모든 창을 다룹니다. 처음엔 다 열어 두고, 익숙해지면 닫았다가 필요할 때만 단축키로 부르세요.</p>
+   <table><tr><td><kbd>H</kbd> 조작법</td><td><kbd>U</kbd> 상태판</td><td><kbd>P</kbd> 가까운 항구</td></tr><tr><td><kbd>K</kbd> 이야기·과제</td><td><kbd>N</kbd> 판매 조언</td><td><kbd>Y</kbd> 이 튜토리얼</td></tr><tr><td><kbd>C</kbd> 지금 자리</td><td><kbd>Z</kbd> 미니맵</td><td><kbd>X</kbd> 나침반</td></tr></table>
+   <p>창의 <b>제목을 마우스로 잡아 끌면</b> 원하는 곳으로 옮겨집니다. 위치는 이 컴퓨터에 기억됩니다. ⟲ 버튼은 처음 배치로 되돌립니다.</p>`,
+   goal:()=>MOB?'아래 메뉴를 한 번 눌러 보고 「다 했어요」':'① 단축키 하나로 창을 닫았다 열기 ② 창 하나를 끌어서 옮기기',ok:t=>MOB?false:(t.f.hk||0)>=2&&t.f.drag,btn:MOB?'다 했어요':null,rw:300},
+ {t:'돛 올리고 키 돌리기',b:()=>`<p>배는 <b>돛</b>으로 나아가고 <b>키</b>로 방향을 바꿉니다.</p>
+   <p>${Kb('<kbd>W</kbd>를 두 번 눌러 돛을 가득 올리고, <kbd>A</kbd>/<kbd>D</kbd>로 키를 돌려 보세요.','위쪽 <b>돛 ▲</b>을 두 번 누르고, 화면을 끌어 방향을 바꿔 보세요.')}</p>
+   <p class="hint">${isOnl()?'온라인에서는 모든 선장의 시간이 같은 빠르기(하루 2.5초)로 흐릅니다. 빨리 가고 싶으면 돛과 더 빠른 배를 쓰세요.':'싱글 모드에서는 '+Kb('<kbd>1</kbd>~<kbd>5</kbd>','위쪽 배율 버튼')+'로 시간을 빠르게 하고 '+Kb('<kbd>Space</kbd>','⏸')+'로 멈출 수 있습니다.'} 바람을 등지거나 옆에서 받으면 가장 빠르고, 맞바람은 느립니다. 나침반의 초록 테두리가 빠른 방향입니다.</p>`,
+   goal:()=>'돛을 가득 올리고 방향을 45° 넘게 바꾸기',ok:t=>t.f.sail2&&(t.f.turn||0)>=45,rw:200},
+ {t:'배 멈추기',b:()=>`<p>항구 가까이에서는 속도를 줄여야 합니다. ${Kb('<kbd>S</kbd>를 눌러','<b>돛 ▼</b>을 눌러')} 돛을 모두 내리면 배가 거의 멈춥니다.</p>`,goal:()=>'돛을 모두 내리기',ok:t=>S.sail===0&&t.f.sail2&&inPort<0,rw:100},
+ {t:'자동 항해로 다른 항구 가기',b:()=>`<p>이제 <b>${tq().name}</b>으로 갑니다. <b>지도에서 ${tq().name}을 클릭</b>하거나 <b>가까운 항구 창(<kbd>P</kbd>)</b>에서 이름을 누르면 자동으로 항로를 따라갑니다.</p>
+   <p class="hint">${tq().name}은 부산에서 약 ${tutRoute().d.toLocaleString()}km. 자동 항해 중 키를 돌리면 직접 조종으로 바뀝니다. ${Kb('<kbd>R</kbd>','')} 자동 항로는 항구를 거치는 안전 항로와 최단 항로가 있습니다.</p>`,
+   goal:()=>`${tq().name}으로 자동 항해 시작`,ok:()=>inPort<0&&((routePort===tutRoute().q||(typeof routeFinal!=='undefined'&&routeFinal===tutRoute().q))&&autop||inPort===tutRoute().q),rw:200},
+ {t:'도착하기',b:()=>`<p>배가 ${tq().name}에 가까워지면 저절로 돛을 내리고 들어갑니다. 가는 동안 <b>판매 조언 창(<kbd>N</kbd>)</b>을 보세요. 싣고 있는 ${tg()}를 어디서 얼마에 팔 수 있는지 알려 줍니다.</p>`,goal:()=>`${tq().name} 입항`,ok:()=>inPort===tutRoute().q,rw:300},
+ {t:'첫 장사: 팔기',b:()=>`<p>교역소 아래 <b>내 짐 팔기</b> 표에서 ${tg()}를 파세요. <b>원가 대비</b>가 100%를 넘으면 이익입니다. 「추천대로 팔기」 버튼도 있습니다.</p>
+   <p class="hint">실제 판매값은 그때 시세를 따릅니다. 하지만 이 단계를 마치면 조합이 <b>1,500골드</b>를 따로, 정해진 금액으로 줍니다.</p>`,
+   goal:()=>{const t=tutT();return `${tg()} 팔기${t.f.profit!=null?` · 이번 장사 이익 ${Math.round(t.f.profit).toLocaleString()}골드`:''}`;},ok:t=>(t.f.soldG||0)>=1,rw:1500,rwTxt:'조합 의뢰 보수'},
+ {t:'주점에서 항해자 영입',b:()=>`<p><b>주점</b> 탭에는 일거리를 찾는 항해자가 있습니다. 항해자는 배의 <b>자리</b>에 앉아야 힘을 냅니다. 처음엔 이런 사람이 좋습니다:</p>
+   <table><tr><td><b>회계사</b></td><td>사는 값 −8%, 파는 값 +8%까지. 장사에 바로 도움</td></tr><tr><td><b>항해사</b></td><td>배 속도 최대 +25%. 멀리 갈수록 이득</td></tr><tr><td><b>갑판장</b></td><td>필요한 선원 수 −25%, 바다에서 선체를 고침</td></tr>
+   <tr><td>측량사</td><td>보이는 범위가 넓어져 항구·발견물을 잘 찾음</td></tr><tr><td>포술장</td><td>해전 포격이 강해짐</td></tr><tr><td>의사</td><td>항해 중 선원을 덜 잃음</td></tr><tr><td>학자</td><td>발견물 조사(Q)가 잘 됨</td></tr></table>
+   <p class="hint">카드의 막대가 그 일을 얼마나 잘하는지 보여 줍니다. 영입비와 날마다 월급이 듭니다. 이 항구에 사람이 없으면 다른 항구 주점에서 영입해도 됩니다.</p>`,
+   goal:()=>'항해자 한 명 영입하기',ok:t=>hiredIds().length>(t.f.h0??99),rw:800,rwTxt:'조합 계약금 지원',skip:1},
+ {t:'항해자를 자리에 앉히기',b:()=>`<p>${Kb('<kbd>T</kbd>','함대 버튼')}로 <b>함대와 항해자</b> 창을 엽니다. 영입한 항해자를 배의 자리(항해사, 회계사 …)에 앉히세요. 앉히지 않으면 데리고만 다닐 뿐 힘을 쓰지 않습니다.</p>`,goal:()=>'영입한 항해자를 자리에 앉히기',ok:t=>seatedN()>(t.f.s0??99),rw:300,skip:1},
+ {t:'조선소와 배의 속도',b:()=>`<p>항구의 <b>조선소</b>에서 배를 고치고, 새 배를 사고, <b>개조</b>로 더 빠르게 만들 수 있습니다. 그 항구에 투자 단계가 높을수록 빠른 배(슬루프 → 스쿠너 → 클리퍼 → 증기 클리퍼)를 팝니다.</p>
+   <p>함대 창(${Kb('<kbd>T</kbd>','함대')}) 맨 위의 <b>⛵ 함대 최고 속도</b> 표가 무엇이 속도를 올리는지 보여 줍니다.</p>`,goal:()=>'아무 항구에서 조선소 탭 열어 보기',ok:t=>t.f.yard,rw:200},
+ {t:'이제 혼자 항해할 차례',b:()=>`<p><b>돈 버는 길</b></p><table><tr><td>①</td><td>특산품을 싸게 사서 <b>멀고 기후가 다른 곳</b>에 판다 (판매 조언 창 <kbd>N</kbd>)</td></tr><tr><td>②</td><td>자주 가는 항구의 <b>시장의 집</b>에 투자하면 그 항구에서 물건이 많아지고 질이 좋아진다</td></tr>
+   <tr><td>③</td><td>바다의 <b>발견물</b>을 조사(Q)해 조합에 보고하면 보상</td></tr><tr><td>④</td><td><b>이야기·과제</b> 창(<kbd>K</kbd>)의 과제를 하나씩</td></tr>${isOnl()?'<tr><td>⑤</td><td>온라인: 투자 1위가 되면 영주, 실시간 순위(<kbd>L</kbd>), 선장끼리 결투(내기 골드)</td></tr>':''}</table>
+   <p>마지막 선물로 <b>캐러벨 1척</b>을 드립니다. 배가 늘면 짐을 더 싣고 항해자를 더 데려갈 수 있습니다.</p>`,btn:'캐러벨 받고 마치기',rw:0,ship:1},
+];
+function tutReward(st){const t=tutT();let msg=[];if(st.rw){S.gold+=st.rw;msg.push(`${st.rwTxt||'조합 보수'} ${st.rw.toLocaleString()}골드`);}
+  if(st.ship){if(S.fleet.length<5){S.fleet.push({t:0,name:'배움호',as:[]});S.crew=Math.min(crewMaxT(),S.crew+12);msg.push('캐러벨 「배움호」와 선원 12명');}else{S.gold+=SHIPTYPES[0].price;msg.push(`함대가 가득해 배 값 ${SHIPTYPES[0].price.toLocaleString()}골드`);}}
+  if(msg.length){sfx('mission');toast(`튜토리얼 ${t.i}단계 완료! ${msg.join(' · ')}`,true);}}
+function tutNext(){const t=tutT(),st=TUT[t.i];tutReward(st);t.i++;t.f={};if(t.i>=TUT.length){t.done=1;toast('튜토리얼을 모두 마쳤습니다! 이제 넓은 바다로 나가 보세요. 튜토리얼 창은 Y로 다시 볼 수 있습니다.',true);}
+  save();tutDraw(true);}
+let tutLast='';
+function tutDraw(force){if(!S)return;let el=$('tut');if(!el){el=document.createElement('div');el.id='tut';document.body.appendChild(el);
+    el.addEventListener('click',e=>{const b=e.target.closest('[data-tt]');if(!b)return;const a=b.dataset.tt,t=tutT();
+      if(a==='next'){const st=TUT[t.i];if(st.need&&!st.need()){toast(st.needTxt);return;}tutNext();}
+      else if(a==='skip'){t.f={};t.i++;if(t.i>=TUT.length)t.done=1;save();tutDraw(true);}
+      else if(a==='fold'){t.fold=t.fold?0:1;tutDraw(true);}
+      else if(a==='quit'){if(confirm('튜토리얼을 그만둘까요? 남은 보상과 캐러벨은 받지 못합니다. (Y로 다시 열 수 있습니다)')){t.done=1;t.quit=1;save();tutDraw(true);}}
+      else if(a==='close'){uiToggle('tut',false);}});}
+  const t=tutT();const hide=$('title').style.display==='flex'||(MOB?t.done&&!tutDraw.mobOpen:uiHidden('tut'))||B||storyOpen;el.style.display=hide?'none':'';if(hide)return;
+  el.classList.toggle('fold',!!t.fold);
+  let h;if(t.done){h=`<div class="th"><span>📘 튜토리얼 ${t.quit?'(그만둠)':'완료'}</span></div><div class="tb"><p>${t.quit?'튜토리얼을 그만두었습니다.':'모든 단계를 마쳤습니다. 수고했어요!'}</p>
+      <p class="hint">기억할 단축키: ${Kb('U 상태판 · H 조작법 · P 가까운 항구 · N 판매 조언 · K 과제 · T 함대 · I 상품 정보 · J 일지 · M 세계 지도 · Q 조사','아래 메뉴')}</p>
+      <div class="btns">${t.quit?'<button data-tt="restart">처음부터 다시</button>':''}<button data-tt="close">닫기 (Y)</button></div></div>`;}
+  else{const st=TUT[t.i],ok=st.ok&&st.ok(t),need=st.need?st.need():true;
+    h=`<div class="th"><span>📘 튜토리얼 ${t.i}/${TUT.length-1}</span><span><button data-tt="fold" style="font-size:11px;padding:0 6px">${t.fold?'▸ 펼치기':'▾ 접기'}</button></span></div>
+     <div class="tp"><i style="width:${(t.i/(TUT.length-1)*100).toFixed(0)}%"></i></div>
+     <div class="tb"><h4>${st.t}</h4>${st.b()}
+     ${st.goal?`<div class="goal ${ok?'ok':''}">${ok?'✔':'🎯'} ${st.goal()}</div>`:''}
+     <div class="rw">${st.rw?`보수: ${st.rw.toLocaleString()}골드 (${st.rwTxt||'조합 보수'}, 고정)`:st.ship?'선물: 캐러벨 1척 + 선원 12명':''}</div>
+     <div class="btns">${t.i?'<button data-tt="quit" style="opacity:.7">그만두기</button>':''}${st.skip?'<button data-tt="skip">이 단계 건너뛰기</button>':''}${st.btn?`<button class="main" data-tt="next" ${need?'':'title="'+(st.needTxt||'')+'"'}>${st.btn}</button>`:''}</div></div>`;}
+  if(h!==tutLast||force){tutLast=h;el.innerHTML=h;if(!MOB&&!el.querySelector('.uig')){const g=document.createElement('span');g.className='uig';g.innerHTML='<b title="끌어서 옮기기">⠿</b><i title="닫기 (Y)">✕</i>';el.appendChild(g);}
+    }
+  if(!MOB){const p=UIS.pos.tut;if(p){el.style.left=p[0]+'px';el.style.top=p[1]+'px';el.style.bottom='auto';el.style.right='auto';el.style.transform='none';}
+    else if(inPort>=0){const w=Math.max(230,Math.min(380,(innerWidth-Math.min(860,innerWidth*.96))/2-14));el.style.left='6px';el.style.right='auto';el.style.bottom='8px';el.style.top='auto';el.style.transform='none';el.style.width=w+'px';}
+    else{el.style.left='';el.style.right='';el.style.bottom='';el.style.top='';el.style.transform='';el.style.width='';}}}
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('#tut [data-tt="restart"]');if(!b)return;S.tut={i:0,f:{}};save();tutDraw(true);});
+let tutHd=null;
+function tutTick(){if(!S)return;const t=tutT();
+  if(!t.done){if(t.f.h0==null){t.f.h0=hiredIds().length;t.f.s0=seatedN();}if(S.sail===2)t.f.sail2=1;
+    if(S.sail===2&&inPort<0){if(tutHd==null)tutHd=S.hd;let d=Math.abs(((S.hd-tutHd)%360+540)%360-180);t.f.turn=Math.max(t.f.turn||0,d);}else tutHd=null;
+    if(inPort>=0&&portTab==='yard')t.f.yard=1;
+    const st=TUT[t.i];if(st&&st.ok&&!st.btn&&st.ok(t))tutNext();}
+  tutDraw();}
+// 사고팔기 기록 (튜토리얼 이익 계산용)
+{const sell0=sell;sell=function(g,n){const c=S.cargo[g],cost=c&&c.c>=1?c.c:0,q0=c?c.q:0,g0=S.gold;const r=sell0.apply(this,arguments);const sold=q0-(S.cargo[g]?S.cargo[g].q:0);
+  if(sold>0&&S.tut&&!S.tut.done&&TUT[S.tut.i]&&TUT[S.tut.i].t==='첫 장사: 팔기'&&+g===tutRoute().g){tutFlag('soldG',sold);tutFlag('profit',(S.gold-g0)-cost*sold);}return r;};}
+
 // ===== 온라인 (Render 서버용) — ONLINE 빌드에서만 들어간다 =====
 const ON={live:false,id:0,nm:'',tok:'',ws:null,wsOk:false,W:{mk:{},dev:{},disc:{},inv:{},nm:{}},players:[],chat:[],unread:0,tab:'chat',qmk:{},qdev:{},rank:null,rankT:0,open:false,retry:0,posT:0};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -2596,7 +2771,7 @@ function onWs(m){
       const L=ivInfo(p);if(L.lord&&lord0[p]&&L.lord.id!==lord0[p].id&&S){if(L.lord.id===ON.id)toast(`👑 ${PORTS[p].name}의 투자 1위가 되었습니다! 이제 이 도시의 영주입니다.`,true);else if(lord0[p].id===ON.id)toast(`${L.lord.nm} 선장이 ${PORTS[p].name}의 영주 자리를 가져갔습니다.`,true);}}
     if(ON.open&&ON.tab==='lord')panelUI();}
   else if(m.type==='pd'){const M=new Map(ON.players.map(o=>[o.id,o]));for(const a of m.add||[])M.set(a.id,Object.assign(M.get(a.id)||{},a));for(const g of m.gone||[])M.delete(g);
-    for(const a of m.d||[]){const o=M.get(a[0])||{id:a[0],nm:'?'};o.lat=a[1]/1000;o.lon=a[2]/1000;o.hd=a[3];o.port=a[4];o.ships=a[5]>>1;o.bat=!!(a[5]&1);M.set(a[0],o);}
+    for(const a of m.d||[]){const o=M.get(a[0])||{id:a[0],nm:'?'};o.lat=a[1]/1000;o.lon=a[2]/1000;o.hd=a[3];o.port=a[4];o.ships=a[5]>>1;o.bat=!!(a[5]&1);if(a[6]!=null)o.asset=a[6];M.set(a[0],o);}
     ON.players=[...M.values()].filter(o=>typeof o.lat==='number');ghostUpdate(ON.players);if(ON.open&&ON.tab==='who')panelUI();chipUI();}
   else if(m.type==='players'){ON.players=m.list||[];ghostUpdate(ON.players);if(ON.open&&ON.tab==='who')panelUI();chipUI();}
   else if(m.type==='chat'){ON.chat.push(m.m);if(ON.chat.length>80)ON.chat=ON.chat.slice(-60);if(!(ON.open&&ON.tab==='chat')&&m.m.nm!==ON.nm){ON.unread++;if(S)toast(`💬 ${m.m.nm}: ${m.m.text.slice(0,40)}`);}chipUI();if(ON.open&&ON.tab==='chat')panelUI();}
@@ -2607,7 +2782,7 @@ function onWs(m){
 setInterval(()=>{if(!ON.live)return;
   const mk=Object.keys(ON.qmk);if(mk.length&&wsSend({type:'mk',d:mk.map(k=>[k,+ON.qmk[k][0].toFixed(3),+ON.qmk[k][1].toFixed(3)])}))ON.qmk={};
   const dv=Object.keys(ON.qdev);if(dv.length&&wsSend({type:'dev',d:dv.map(p=>[+p,+ON.qdev[p].toFixed(3)])}))ON.qdev={};
-  if(S&&Date.now()-ON.posT>2000){ON.posT=Date.now();wsSend({type:'pos',lat:+S.lat.toFixed(3),lon:+S.lon.toFixed(3),hd:Math.round(S.hd||0),port:inPort,ships:S.fleet.length,fl:S.fleet[0]?S.fleet[0].name:'',day:Math.floor(S.day),bat:!!B});}},400);
+  if(S&&Date.now()-ON.posT>2000){ON.posT=Date.now();wsSend({type:'pos',lat:+S.lat.toFixed(3),lon:+S.lon.toFixed(3),hd:Math.round(S.hd||0),port:inPort,ships:S.fleet.length,fl:S.fleet[0]?S.fleet[0].name:'',day:Math.floor(S.day),bat:!!B,asset:Math.round(assetNow())});}},400);
 // ---------- 함께 쓰는 시세와 발전 ----------
 function wm(k){let m=ON.W.mk[k];const now=Date.now();if(!m)m=ON.W.mk[k]={s:0,b:0,t:now};const dt=now-m.t;if(dt>0){const f=Math.pow(.9,dt/20000);m.s*=f;m.b*=f;m.t=now;}return m;}
 function qmk(k,ds,db){const q=ON.qmk[k]||(ON.qmk[k]=[0,0]);q[0]+=ds;q[1]+=db;}
@@ -2851,6 +3026,26 @@ document.addEventListener('pointerdown',e=>{const b=e.target.closest&&e.target.c
   if(m.type==='dr'){Object.assign(ON.W.dr||(ON.W.dr={}),m.dr);Object.assign(ON.W.nm,m.nm||{});if(ON.open&&ON.tab==='duel')panelUI();return;}
   if(m.type==='cfg'){ON.W.cfg=m.cfg;if(ON.open)panelUI();return;}
   return w0(m);};}
+
+// ---------- 실시간 순위 창 (L) · 온라인 창 (O) ----------
+UIW.push(['rankw','실시간 순위','L',1],['onp','온라인 창','O',0,1]);
+window.onUiToggle=(id,now)=>{if(id==='onp'){ON.open=now;panelUI();}if(id==='rankw')rankDraw(true);};
+{const pu=panelUI;panelUI=function(){const r=pu.apply(this,arguments);if(typeof UIS!=='undefined'&&(UIS.v.onp?1:0)!==(ON.open?1:0)){UIS.v.onp=ON.open?1:0;uiBar();}return r;};}
+const fmtG=v=>v>=1e8?(v/1e8).toFixed(1)+'억':v>=1e4?(v/1e4).toFixed(v>=1e5?0:1)+'만':Math.round(v).toLocaleString();
+let rankLast='';
+function rankDraw(force){if(MOB||!ON.live||!S)return;let el=$('rankw');if(!el){el=document.createElement('div');el.id='rankw';el.className='panel';document.body.appendChild(el);
+    el.addEventListener('click',e=>{if(e.target.closest('[data-rf]')&&!window.UIDRAG){S.opt.rankFold=S.opt.rankFold?0:1;rankDraw(true);}const r=e.target.closest('[data-rp]');if(r){const p=ON.players.find(x=>x.id===+r.dataset.rp);if(p){const q=proj(p.lat,p.lon);cam.x=q[0];cam.y=q[1];follow=p.id===ON.id;}}});}
+  const M=new Map();for(const p of ON.players)M.set(p.id,{...p});const me=M.get(ON.id)||{id:ON.id,nm:ON.nm};me.asset=assetNow();M.set(ON.id,me);
+  const L=[...M.values()].sort((a,b)=>(b.asset||0)-(a.asset||0));const mi=L.findIndex(x=>x.id===ON.id);
+  const lords={};for(const p in ON.W.inv||{}){const I=ivInfo(p);if(I.lord)lords[I.lord.id]=(lords[I.lord.id]||0)+1;}
+  const row=(x,i)=>`<tr data-rp="${x.id}" class="${x.id===ON.id?'me':''}"><td>${i+1}</td><td>${esc(x.nm)}${lords[x.id]?` <small title="영주인 도시">👑${lords[x.id]}</small>`:''}${x.bat?' <small>⚔</small>':''}</td><td class="n">${fmtG(x.asset||0)}</td></tr>`;
+  const rows=L.slice(0,10).map(row).join('')+(mi>=10?'<tr><td colspan="3" class="hint">…</td></tr>'+row(L[mi],mi):'');
+  const h=`<h3 data-rf="1">🏆 실시간 순위 <small style="font-weight:400;color:#7a5f40">접속 ${L.length}명 · ${S.opt.rankFold?'▸ 펼치기':'▾ 접기'}</small></h3>${S.opt.rankFold?`<div class="hint">나: ${mi+1}위 · ${fmtG(me.asset)}</div>`:`<table>${rows}</table><div class="hint" style="font-size:11px">자산 = 골드 + 배 값 절반 + 짐 + 투자. 이름을 누르면 그 배로 갑니다.</div>`}`;
+  if(h!==rankLast||force){rankLast=h;el.innerHTML=h;uiApply();}}
+setInterval(()=>{try{rankDraw();}catch(e){}},1000);
+(()=>{const st=document.createElement('style');st.textContent=`#rankw{right:280px;top:84px;width:230px;padding:8px 10px;font-size:12.5px}#rankw h3{margin:0 0 4px;font-size:14px}
+#rankw table{width:100%;border-collapse:collapse}#rankw td{padding:2px 3px;border-bottom:1px solid #e3d3b0;cursor:pointer}#rankw td.n{text-align:right;font-variant-numeric:tabular-nums}
+#rankw tr.me td{background:#efe2c4;font-weight:700}body.battle #rankw,body:not(.online) #rankw{display:none!important}`;document.head.appendChild(st);})();
 
 </script>
 </body></html>
