@@ -2689,7 +2689,7 @@ function tutTick(){if(!S)return;const t=tutT();
 const ON={live:false,id:0,nm:'',tok:'',ws:null,wsOk:false,W:{mk:{},dev:{},disc:{},inv:{},nm:{}},players:[],chat:[],unread:0,tab:'chat',qmk:{},qdev:{},rank:null,rankT:0,open:false,retry:0,posT:0};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function onApi(method,p,body,ms){const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),ms||15000);
-  try{const bs=body?JSON.stringify(body):undefined;const r=await fetch(p,{method,signal:ctl.signal,keepalive:!!(bs&&bs.length<60000),headers:{'Content-Type':'application/json',...(ON.tok?{Authorization:'Bearer '+ON.tok}:{})},body:bs});
+  try{const bs=body?JSON.stringify(body):undefined;const r=await fetch(p,{method,signal:ctl.signal,keepalive:!!(bs&&bs.length<60000),headers:{'Content-Type':'application/json',...(ON.tok?{Authorization:'Bearer '+ON.tok}:{}),...(ON.season?{'X-Season':String(ON.season)}:{})},body:bs});
     const j=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign({code:j.err||('http_'+r.status),status:r.status},j);return j;}
   catch(e){if(e&&e.name==='AbortError')throw {code:'timeout'};throw e&&e.code?e:{code:'network'};}finally{clearTimeout(tm);}}
 // ---------- 스타일 ----------
@@ -2724,7 +2724,7 @@ async function doLogin(create){const name=$('onName').value.trim(),pin=$('onPin'
   if(!/^[\p{L}\p{N}_\- ]{2,12}$/u.test(name)){m.className='msg bad';m.textContent='선장 이름은 2~12자의 한글·영문·숫자로 정해 주세요.';return;}
   if(!/^\d{4,8}$/.test(pin)){m.className='msg bad';m.textContent='비밀번호는 숫자 4~8자리입니다.';return;}
   m.className='msg';m.textContent='확인하는 중…';$('onGo').disabled=true;
-  try{const r=await onApi('POST','/api/login',{name,pin,create},20000);ON.tok=r.token;ON.nm=r.name;ON.id=r.id;try{localStorage.setItem(ONK,JSON.stringify({tok:r.token,nm:r.name,id:r.id}));}catch(e){}
+  try{const r=await onApi('POST','/api/login',{name,pin,create},20000);ON.tok=r.token;ON.nm=r.name;ON.id=r.id;ON.season=r.season||1;try{localStorage.setItem(ONK,JSON.stringify({tok:r.token,nm:r.name,id:r.id}));}catch(e){}
     onReady(r.isNew?`새 선장 '${r.name}'을(를) 등록했습니다. 이 이름과 비밀번호를 기억해 두세요.`:'');}
   catch(e){$('onGo').disabled=false;m.className='msg bad';
     if(e.code==='no_user'){m.className='msg';m.innerHTML=`'<b>${esc(name)}</b>'은(는) 처음 보는 이름입니다. 새 선장으로 등록할까요? <button class="main" id="onNew">새 선장 등록</button>`;$('onNew').onclick=()=>doLogin(true);}
@@ -2735,7 +2735,7 @@ async function doLogin(create){const name=$('onName').value.trim(),pin=$('onPin'
     else m.textContent='들어가지 못했습니다 ('+e.code+').';}}
 function goSolo(){ON.live=false;window.KEYP='';CLOUD.st='none';setNeed(false);loginBox().innerHTML=`<b>🧭 싱글 모드</b> <small class="hint">혼자 · 배율 자유 · 이 기기에만 저장</small> <button id="onBack">🌐 온라인 모드로</button>`;$('onBack').onclick=()=>{loginForm();};cloudUI();}
 function onLogout(){try{localStorage.removeItem(ONK);}catch(e){}ON.tok='';ON.live=false;if(ON.ws){try{ON.ws.close();}catch(e){}}window.KEYP='';CLOUD.st='wait';CLOUD.metas={};CLOUD.meta=null;loginForm('다른 선장 이름으로 들어가세요.');cloudUI();}
-async function onReady(note){ON.live=true;window.KEYP='on'+ON.id+'_';setNeed(false);
+async function onReady(note){ON.live=true;window.KEYP='on'+ON.id+'_'+((ON.season||1)>1?'s'+ON.season+'_':'');setNeed(false);
   loginBox().innerHTML=`<span class="who">⚓ ${esc(ON.nm)} 선장</span> <small class="hint">으로 접속했습니다</small> <button id="onOut">다른 선장으로</button>${note?`<div class="msg">${esc(note)}</div>`:''}`;$('onOut').onclick=onLogout;
   CLOUD.col={doc:n=>({get:async()=>{const r=await onApi('GET','/api/doc/'+encodeURIComponent(n));return {exists:r.exists,data:()=>r.data};},set:async d=>{await onApi('PUT','/api/doc/'+encodeURIComponent(n),{data:d},30000);}})};
   CLOUD.st='wait';cloudUI();
@@ -2749,7 +2749,7 @@ async function onBoot(){CLOUD.st='wait';const el=loginBox();setNeed(true);const 
   for(let i=0;i<12&&!ok;i++){try{const h=await onApi('GET','/healthz',null,10000);ok=!!h.ok;}catch(e){await new Promise(r=>setTimeout(r,2000));}if(!$('onWake'))break;}
   clearInterval(iv);if(!$('onWake'))return;
   if(!ok){loginForm('서버가 응답하지 않습니다. 잠시 뒤 새로 고침 하거나 싱글 모드를 고르세요.',true);return;}
-  const sv=onSaved();if(sv&&sv.tok){ON.tok=sv.tok;try{const me=await onApi('GET','/api/me');ON.nm=me.name;ON.id=me.id;onReady('');return;}catch(e){ON.tok='';}}
+  const sv=onSaved();if(sv&&sv.tok){ON.tok=sv.tok;try{const me=await onApi('GET','/api/me');ON.nm=me.name;ON.id=me.id;ON.season=me.season||1;onReady('');return;}catch(e){ON.tok='';}}
   loginForm();}
 cloudInit=onBoot;
 const cloudLine0=cloudLine;cloudLine=function(){if(!ON.live&&CLOUD.st==='none')return '서버 없이 혼자 하는 중: 이 기기에만 저장됩니다.';return cloudLine0().replace('계정 저장을 확인하는 중','서버 저장을 확인하는 중').replace(/계정 저장/g,'서버 저장');};
@@ -2852,7 +2852,7 @@ const cloudSave0=cloudSave;
 cloudSave=async function(raw,t,force){if(!ON.live)return cloudSave0(raw,t,force);if(CLOUD.st!=='ok'||!S)return;const now=Date.now();
   if(document.visibilityState==='hidden'){ // 창을 닫거나 다른 앱으로 넘어갈 때: 기다리지 않고 바로 보낸다
     const z=raw.length<60000?{z:0,d:raw}:(PREZ?PREZ.z:null);if(!z)return;const {docs,meta}=saveDocs(z,raw.length<60000?t:PREZ.t);
-    try{fetch('/api/save',{method:'PUT',keepalive:true,headers:{'Content-Type':'application/json',Authorization:'Bearer '+ON.tok},body:JSON.stringify({docs})});CLOUD.meta=meta;CLOUD.metas[SLOT]=meta;CLOUD.lastT=now;}catch(e){}return;}
+    try{if(ON.dead)return;fetch('/api/save',{method:'PUT',keepalive:true,headers:{'Content-Type':'application/json',Authorization:'Bearer '+ON.tok,...(ON.season?{'X-Season':String(ON.season)}:{})},body:JSON.stringify({docs})});CLOUD.meta=meta;CLOUD.metas[SLOT]=meta;CLOUD.lastT=now;}catch(e){}return;}
   if(!force&&now-CLOUD.lastT<30000)return;if(CLOUD.busy){CLOUD.again=true;return;}CLOUD.busy=true;CLOUD.lastT=now;
   try{const z=(PREZ&&PREZ.raw===raw)?PREZ.z:await gz(raw);const {docs,meta}=saveDocs(z,t);await onApi('PUT','/api/save',{docs},30000);CLOUD.meta=meta;CLOUD.metas[SLOT]=meta;CLOUD.okT=now;CLOUD.err='';}
   catch(e){CLOUD.err=(e&&e.code)||'오류';}
@@ -3046,6 +3046,39 @@ setInterval(()=>{try{rankDraw();}catch(e){}},1000);
 (()=>{const st=document.createElement('style');st.textContent=`#rankw{right:280px;top:84px;width:230px;padding:8px 10px;font-size:12.5px}#rankw h3{margin:0 0 4px;font-size:14px}
 #rankw table{width:100%;border-collapse:collapse}#rankw td{padding:2px 3px;border-bottom:1px solid #e3d3b0;cursor:pointer}#rankw td.n{text-align:right;font-variant-numeric:tabular-nums}
 #rankw tr.me td{background:#efe2c4;font-weight:700}body.battle #rankw,body:not(.online) #rankw{display:none!important}`;document.head.appendChild(st);})();
+
+// ---------- 새 시즌(초기화) ----------
+{const w1=onWs;onWs=function(m){
+  if(m.type==='reset'){ON.dead=true;try{if(ON.ws)ON.ws.onclose=null;}catch(e){}
+    const d=document.createElement('div');d.style.cssText='position:fixed;inset:0;z-index:99;background:rgba(20,12,4,.8);display:flex;align-items:center;justify-content:center';
+    d.innerHTML=`<div style="background:#f6ecd4;border:3px solid #8a6a44;border-radius:14px;padding:22px 26px;max-width:420px;text-align:center;font-size:16px"><h2 style="margin:0 0 8px">🔄 새 시즌이 시작됩니다</h2><p>선생님이 온라인 바다를 초기화했습니다. ${m.all?'선장 이름을 새로 만들어 주세요.':'같은 선장 이름으로 새 항해를 시작합니다.'}</p><p class="hint">잠시 뒤 처음 화면으로 돌아갑니다…</p></div>`;
+    document.body.appendChild(d);if(m.all){try{localStorage.removeItem(ONK);}catch(e){}}setTimeout(()=>location.reload(),3500);return;}
+  if(m.type==='init'){ON.W.ev=(m.world&&m.world.ev)||[];ON.skew=(m.world&&m.world.now||Date.now())-Date.now();if(m.world&&m.world.season&&ON.season&&m.world.season!==ON.season){ON.dead=true;setTimeout(()=>location.reload(),500);}evBar();}
+  if(m.type==='ev'){ON.W.ev=m.ev||[];evBar();return;}
+  return w1(m);};}
+{const cs=cloudSave;cloudSave=function(){if(ON.dead)return;return cs.apply(this,arguments);};}
+
+// ---------- 운영 이벤트: 축제, 풍년 장터, 순풍, 해적 대습격, 폭풍 ----------
+const EVT={festival:['🎉','축제',m=>`파는 값 +${m}%`],harvest:['🌾','풍년 장터',m=>`사는 값 −${m}%`],wind:['🌬','순풍',m=>`배 속도 +${m}%`],raid:['☠','해적 대습격',m=>`해적 ${1+m/100}배`],storm:['🌀','폭풍',m=>`배 속도 −${m}%`]};
+const REG_N=REGIONS.flat();
+const evNow=()=>Date.now()+(ON.skew||0);
+const evLive=()=>ON.live?(ON.W.ev||[]).filter(e=>e.end>evNow()):[];
+function evAt(type,lat,lon){if(!ON.live)return 0;const r=regionOf(lat,lon);let m=0;for(const e of evLive())if(e.type===type&&(e.scope<0||e.scope===r))m=Math.max(m,e.mag);return m/100;}
+{const sp0=sellPrice;sellPrice=function(p,g){const v=sp0(p,g),f=evAt('festival',PORTS[p].lat,PORTS[p].lon);return f?Math.max(1,Math.round(v*(1+f))):v;};}
+{const bb0=buyBase;buyBase=function(p,g){const v=bb0(p,g),f=evAt('harvest',PORTS[p].lat,PORTS[p].lon);return f?v*(1-f):v;};}
+{const nm0=navMul;navMul=function(){let m=nm0();if(!S||!ON.live)return m;const w=evAt('wind',S.lat,S.lon),s=evAt('storm',S.lat,S.lon);return m*(1+w)*(1-s);};}
+{const pd0=pirDaily;pirDaily=function(){const r=pd0.apply(this,arguments);try{const x=S&&evAt('raid',S.lat,S.lon);if(x&&inPort<0&&!S.car&&S.day>3){const H=PORTS[HOME],dh=gcDist(S.lat,S.lon,H.lat,H.lon),n=(S.pir||[]).filter(p=>p.boss==null).length;
+  if(dh>300&&n<5&&Math.random()<.2*x){spawnPir(Math.max(1,Math.min(5,2+Math.floor(dh/3500))));}}}catch(e){}return r;};}
+let evLast='';
+function evBar(){let el=$('evbar');if(!el){el=document.createElement('div');el.id='evbar';document.body.appendChild(el);}
+  const L=evLive(),here=S?regionOf(S.lat,S.lon):-9;
+  const h=L.map(e=>{const T=EVT[e.type];if(!T)return '';const mine=e.scope<0||e.scope===here,min=Math.max(1,Math.ceil((e.end-evNow())/60000));
+    return `<span class="ev ${e.type==='raid'||e.type==='storm'?'bad':'good'} ${mine?'here':''}" title="${T[1]}: ${T[2](e.mag)}">${T[0]} <b>${e.scope<0?'온 바다':REG_N[e.scope]}</b> ${T[1]} · ${T[2](e.mag)} · ${min}분${mine?' · <u>여기</u>':''}</span>`;}).join('');
+  if(h!==evLast){evLast=h;el.innerHTML=h;}el.style.display=h&&S&&!B?'':'none';}
+setInterval(()=>{try{evBar();}catch(e){}},2000);
+(()=>{const st=document.createElement('style');st.textContent=`#evbar{position:fixed;left:50%;top:78px;transform:translateX(-50%);z-index:5;display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:90vw;pointer-events:none}
+#evbar .ev{background:rgba(46,125,79,.88);color:#fff;border-radius:12px;padding:2px 10px;font-size:12.5px;opacity:.75}#evbar .ev.bad{background:rgba(168,50,42,.9)}#evbar .ev.here{opacity:1;box-shadow:0 0 0 2px #ffd36a}
+body.on:not(.mob) #toast{top:108px}body.mob #evbar{top:calc(env(safe-area-inset-top,0px) + 50px);font-size:11px}`;document.head.appendChild(st);})();
 
 </script>
 </body></html>

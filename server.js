@@ -3,6 +3,7 @@ const http = require('http'), fs = require('fs'), path = require('path'), zlib =
 const { attach } = require('./ws-lite');
 const { makeStore } = require('./store');
 const { makeDuel } = require('./duel');
+const { makeEvents } = require('./events');
 
 const PORT = +process.env.PORT || 10000;
 const store = makeStore();
@@ -17,17 +18,17 @@ loadIndex();
 
 // ---------- 함께 쓰는 세계 ----------
 const DECAY_MS = 20000;           // 시세 압력은 실제 20초마다 0.9배로 풀린다
-const W = { mk: {}, dev: {}, disc: {}, inv: {}, nm: {}, dr: {}, cfg: { duel: true }, dpend: {} };   // dr: 결투 기록, cfg: 선생님 설정   // inv: 항구별 {선장id: 누적 투자 골드}
+const W = { mk: {}, dev: {}, disc: {}, inv: {}, nm: {}, dr: {}, cfg: { duel: true }, dpend: {}, ev: [], auto: null, season: 1 };   // dr: 결투 기록, cfg: 선생님 설정   // inv: 항구별 {선장id: 누적 투자 골드}
 let CHAT = [], worldDirty = false, chatDirty = false;
 function mkDecay(m, now) { const dt = now - m.t; if (dt > 0) { const f = Math.pow(0.9, dt / DECAY_MS); m.s *= f; m.b *= f; m.t = now; } return m; }
 function mkPack(m) { return [+m.s.toFixed(3), +m.b.toFixed(3)]; }
 function worldSnapshot() {
   const now = Date.now(), mk = {};
   for (const k in W.mk) { const m = mkDecay(W.mk[k], now); if (m.s + m.b < 0.05) { delete W.mk[k]; continue; } mk[k] = mkPack(m); }
-  return { mk, dev: W.dev, disc: W.disc, inv: W.inv, nm: W.nm, dr: W.dr, cfg: W.cfg, now };
+  return { mk, dev: W.dev, disc: W.disc, inv: W.inv, nm: W.nm, dr: W.dr, cfg: W.cfg, ev: W.ev, season: W.season, now };
 }
 async function loadWorld() {
-  try { const v = await store.kvGet('world'); if (v) { const o = JSON.parse(v); Object.assign(W, { mk: o.mk || {}, dev: o.dev || {}, disc: o.disc || {}, inv: o.inv || {}, nm: o.nm || {}, dr: o.dr || {}, cfg: Object.assign({ duel: true }, o.cfg), dpend: o.dpend || {} }); } } catch (e) { console.error('world load', e.message); }
+  try { const v = await store.kvGet('world'); if (v) { const o = JSON.parse(v); Object.assign(W, { mk: o.mk || {}, dev: o.dev || {}, disc: o.disc || {}, inv: o.inv || {}, nm: o.nm || {}, dr: o.dr || {}, cfg: Object.assign({ duel: true }, o.cfg), dpend: o.dpend || {}, ev: o.ev || [], auto: o.auto || null, season: o.season || 1 }); } } catch (e) { console.error('world load', e.message); }
   try { const v = await store.kvGet('chat'); if (v) CHAT = JSON.parse(v); } catch (e) {}
 }
 async function saveWorld() {
@@ -70,9 +71,11 @@ async function api(req, res, url) {
       fails.delete(fk);
     }
     const token = crypto.randomBytes(24).toString('hex'); await store.tokenSet(token, Number(u.id));
-    return send(res, 200, { token, name: u.name, id: Number(u.id), isNew });
+    return send(res, 200, { token, name: u.name, id: Number(u.id), isNew, season: W.season });
   }
-  if (p === '/api/me') { const uid = await authUid(req); if (!uid) return send(res, 401, { err: 'auth' }); const u = await store.userById(uid); return send(res, 200, { id: uid, name: u ? u.name : '?' }); }
+  if (p === '/api/me') { const uid = await authUid(req); if (!uid) return send(res, 401, { err: 'auth' }); const u = await store.userById(uid); return send(res, 200, { id: uid, name: u ? u.name : '?', season: W.season }); }
+  // 지난 시즌에 열려 있던 창이 옛 저장을 올리지 못하게 한다
+  if ((p.startsWith('/api/doc/') || p === '/api/save') && req.method === 'PUT' && req.headers['x-season'] && Number(req.headers['x-season']) !== W.season) return send(res, 409, { err: 'season' });
   if (p.startsWith('/api/doc/')) {
     const uid = await authUid(req); if (!uid) return send(res, 401, { err: 'auth' });
     const n = decodeURIComponent(p.slice(9)); if (!DOC_RE.test(n)) return send(res, 400, { err: 'doc' });
@@ -106,6 +109,23 @@ async function admin(req, res, act) {
   const b = await body(req, 4096), k = Buffer.from(String(b.key || '')), K = Buffer.from(KEY);
   if (k.length !== K.length || !crypto.timingSafeEqual(k, K)) { if (++adminFail.n >= 5) adminFail = { n: 0, until: Date.now() + 10 * 60000 }; return send(res, 401, { err: 'key' }); }
   adminFail.n = 0;
+  if (act === 'state') return send(res, 200, { duel: W.cfg.duel, ev: W.ev, auto: W.auto, season: W.season });
+  if (act === 'event') { const r = EV.start(String(b.type), Number(b.scope), b.mag, b.mins, 'teacher'); return send(res, r.err ? 400 : 200, r); }
+  if (act === 'event_end') { EV.end(Number(b.id)); return send(res, 200, { ok: true, ev: W.ev }); }
+  if (act === 'auto') { return send(res, 200, { auto: EV.setAuto(b) }); }
+  if (act === 'reset') {
+    // 새 시즌: 저장·투자·결투·발견·대화를 모두 지운다. all이면 선장 계정도 지운다.
+    if (b.confirm !== '초기화') return send(res, 400, { err: 'confirm' });
+    const all = !!b.all;
+    W.season = (W.season || 1) + 1;
+    bc({ type: 'reset', season: W.season, all });
+    for (const c of [...clients.keys()]) { try { c.close(); } catch (e) {} }
+    await store.wipe(all);
+    Object.assign(W, { mk: {}, dev: {}, disc: {}, inv: {}, nm: {}, dr: {}, dpend: {} }); EV.clear();
+    CHAT = []; chatDirty = true; worldDirty = true; fails.clear(); await saveWorld();
+    console.log(`새 시즌 ${W.season} 시작 (계정 ${all ? '삭제' : '유지'})`);
+    return send(res, 200, { ok: true, season: W.season });
+  }
   if (act === 'duel') { if (typeof b.on === 'boolean') { W.cfg.duel = b.on; worldDirty = true; bc({ type: 'cfg', cfg: W.cfg }); bc({ type: 'sys', text: b.on ? '⚔ 선생님이 결투를 켰습니다.' : '선생님이 결투를 껐습니다.' }); } return send(res, 200, { duel: W.cfg.duel }); }
   if (act === 'users') {
     const metas = {}; for (const r of await store.metasAll()) { let m; try { m = JSON.parse(r.data); } catch (e) { continue; } const o = metas[r.uid]; if (!o || (m.t || 0) > (o.t || 0)) metas[r.uid] = m; }
@@ -151,6 +171,7 @@ const server = http.createServer(async (req, res) => {
 // ---------- 실시간 ----------
 const clients = new Map();   // conn -> {uid, nm, pos, chatT}
 function sendTo(uid, obj) { const s = JSON.stringify(obj); for (const [c, v] of clients) if (v.uid === uid) c.send(s); }
+let EV = null;
 const DUEL = makeDuel({ W, clients, bc: (o) => bc(o), sendTo, dirty: () => { worldDirty = true; } });
 function bc(obj, except) { const s = JSON.stringify(obj); for (const c of clients.keys()) if (c !== except) c.send(s); }
 function playerList() {
@@ -231,6 +252,7 @@ attach(server, '/ws', async (c, url) => {
 (async () => {
   try { await store.init(); storeOk = true; } catch (e) { storeErr = String(e.message || e); console.error('저장소 연결 실패:', storeErr); }
   await loadWorld();
+  EV = makeEvents({ W, bc: (o) => bc(o), dirty: () => { worldDirty = true; } });
   server.listen(PORT, () => console.log(`뒤집힌 바다 서버: ${PORT}번 포트, 저장소=${store.kind}${storeOk ? '' : ' (연결 실패: ' + storeErr + ')'}`));
 })();
 process.on('SIGTERM', async () => { await saveWorld(); if (store.flush) store.flush(); process.exit(0); });
