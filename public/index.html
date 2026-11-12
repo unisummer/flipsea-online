@@ -434,9 +434,11 @@ const SHIPTYPES=[
  {n:'클리퍼',hp:200,guns:16,sz:'대형',rig:'가로돛',hold:650,spd:1.8,crew:60,seats:10,price:65000,d:'바다에서 가장 빠른 범선. 좁고 긴 선체에 돛을 하늘까지 단다. 투자 4단계 항구에서 판다.',need:4},
  {n:'증기 클리퍼',hp:260,guns:24,sz:'대형',rig:'증기 겸용',hold:700,spd:2.2,crew:70,seats:10,price:140000,d:'돛과 증기기관을 함께 쓰는 새 시대의 배. 바람이 나빠도 잘 나아간다. 투자 5단계 항구에서 판다.',need:5},
 ];
+// ===== 배 한 척의 실제 능력 (특별 주문 배는 수식어 보정이 붙는다) =====
+function ST(sh){const T=SHIPTYPES[sh.t],x=sh.x;if(!x)return T;return Object.assign({},T,{n:x.nm+' '+T.n,spd:T.spd*(x.spd||1),hp:Math.round(T.hp*(x.hp||1)),hold:Math.round(T.hold*(x.hold||1)),guns:Math.round(T.guns*(x.guns||1)),crew:Math.max(4,Math.round(T.crew*(x.crew||1)))});}
 // ===== 속도 성장 =====
 function speedHTML(){const n=S.fleet.length,avg=f=>S.fleet.reduce((a,sh,k)=>a+f(sh,k),0)/n;
-  const ship=avg(sh=>SHIPTYPES[sh.t].spd),up=avg((sh,k)=>upMulK(k)),navi=avg((sh,k)=>1+.25*shipRole(k,1)/100),sea=seaMul(),etc=navMul()/sea,eng=boostMax()>0?boostMul():1;
+  const ship=avg(sh=>ST(sh).spd),up=avg((sh,k)=>upMulK(k)),navi=avg((sh,k)=>1+.25*shipRole(k,1)/100),sea=seaMul(),etc=navMul()/sea,eng=boostMax()>0?boostMul():1;
   const tot=fleetSail(0)*navMul(),l=seaLv(),pct=x=>'×'+x.toFixed(2);
   const rows=[['🚢 배 종류',pct(ship),'더 빠른 배: 슬루프 → 스쿠너 → 클리퍼 → 증기 클리퍼 (항구 투자 단계가 높아야 팜)'],['🔧 배 개조',pct(up),'조선소에서 돛 개량 (최대 +32%), 구리판 선체 (최대 +14%)'],
     ['🧭 항해사',pct(navi),'배마다 항해사를 앉히면 빨라집니다 (능력 100이면 +25%)'],['🌊 항해 숙련 '+l+'단계',pct(sea),l<SEA_LV.length-1?`누적 ${Math.round(S.km||0).toLocaleString()}km · 다음 단계까지 ${Math.round(SEA_LV[l+1]-(S.km||0)).toLocaleString()}km`:'최고 단계'],
@@ -458,12 +460,12 @@ const FT_FA=[[0,.82],[30,.9],[60,.97],[90,1],[110,.92],[125,.8],[135,.68],[150,.
 function rigF(rig,rel){if(rig==='증기 겸용')return .72+.28*rigF('가로돛',rel);const T=rig==='가로돛'?FT_SQ:FT_FA;for(let i=1;i<T.length;i++)if(rel<=T[i][0]){const a=T[i-1],b=T[i],t=(rel-a[0])/(b[0]-a[0]);return a[1]+(b[1]-a[1])*t;}return T[T.length-1][1];}
 function shipRole(k,r){let v=0;for(const a of S.fleet[k].as)if(a.r===r)v+=a.aux?curSt(a.m,r)*.5:curSt(a.m,r);return Math.min(120,v);}
 const hasCap=k=>k===0||S.fleet[k].as.some(a=>a.r===0&&!a.aux);
-function shipF(k,rel){const T=SHIPTYPES[S.fleet[k].t];return T.spd*rigF(T.rig,rel)*upMulK(k)*(1+.25*shipRole(k,1)/100)*(hasCap(k)?1:.9)*(.75+.25*Math.min(1,hpK(k)/hpMaxK(k)));}
+function shipF(k,rel){const T=ST(S.fleet[k]);return T.spd*rigF(T.rig,rel)*upMulK(k)*(1+.25*shipRole(k,1)/100)*(hasCap(k)?1:.9)*(.75+.25*Math.min(1,hpK(k)/hpMaxK(k)));}
 function fleetSail(rel){let t=0;for(let k=0;k<S.fleet.length;k++)t+=shipF(k,rel);return t/S.fleet.length;} // 함대 속도 = 배들의 평균
-const holdT=()=>(typeof inCity!=='undefined'&&inCity&&S.car)?S.car.cap:S.fleet.reduce((a,sh)=>a+SHIPTYPES[sh.t].hold,0);
-const crewMaxT=()=>S.fleet.reduce((a,sh)=>a+SHIPTYPES[sh.t].crew,0);
-const crewNeedT=()=>Math.max(1,Math.round(S.fleet.reduce((a,sh,k)=>a+SHIPTYPES[sh.t].crew*.66*(1-.25*Math.min(1,shipRole(k,5)/100)),0)));
-const supMaxT=()=>S.fleet.reduce((a,sh)=>a+Math.round(SHIPTYPES[sh.t].hold/2),0);
+const holdT=()=>(typeof inCity!=='undefined'&&inCity&&S.car)?S.car.cap:S.fleet.reduce((a,sh)=>a+ST(sh).hold,0);
+const crewMaxT=()=>S.fleet.reduce((a,sh)=>a+ST(sh).crew,0);
+const crewNeedT=()=>Math.max(1,Math.round(S.fleet.reduce((a,sh,k)=>a+ST(sh).crew*.66*(1-.25*Math.min(1,shipRole(k,5)/100)),0)));
+const supMaxT=()=>S.fleet.reduce((a,sh)=>a+Math.round(ST(sh).hold/2),0);
 const seatsT=()=>S.fleet.reduce((a,sh)=>a+SHIPTYPES[sh.t].seats,0);
 function yardTypes(p){const b=bandOf(PORTS[p].lat),h=hash3(p,9,4),L=[0];
   if(b==='열대'||b==='아열대·건조')L.push(1);
@@ -977,7 +979,7 @@ function fleetHTML(inPortNow){
    <div style="margin-top:6px"><button id="autoas">자동 배치 (기함부터 차례로)</button> <small>🔒 잠근 사람은 자동 배치가 건드리지 않습니다.</small></div></div>
   ${speedHTML()}
   <div class="eff"><span><b>함대 평균 속도</b> ${Math.round(fleetSail(60)*100)}</span>${FLEET_ROLES.map(i=>`<span title="${ROLE_USE[i]}"><b>${ROLES[i]}</b> ${Math.round(roleVal(i))}</span>`).join('')}</div>`;
-  S.fleet.forEach((sh,k)=>{const T=SHIPTYPES[sh.t];
+  S.fleet.forEach((sh,k)=>{const T=ST(sh);
     h+=`<div class="shipc">${shipImg(sh.t,96)}<div class="mh"><b>${sh.name}</b> <small>${T.sz} ${T.n} · ${T.rig} · 짐칸 ${T.hold}톤 · 선원 ${T.crew}명 · 대포 ${T.guns}문 · 선체 ${Math.round(hpK(k))}/${T.hp} · 자리 ${seatsUsed(sh)}/${T.seats}${k===0?' · <b>기함</b> (호연은 자리 수에 들지 않음)':''}</small><small> · 이 배 속도 <b>${Math.round(shipF(k,60)*100)}</b>${hasCap(k)?'':' <b style="color:#a8322a">(선장 없음)</b>'}</small>${k>0?` <button data-flag="${k}">기함으로</button>`:''}${k>1?` <button data-mv="${k}" data-d="-1" title="앞으로">▲</button>`:''}${k>0&&k<S.fleet.length-1?` <button data-mv="${k}" data-d="1" title="뒤로">▼</button>`:''}${k>0?` <small>${k+1}번</small>`:' <small>1번</small>'}</div>
      <table class="mt">${sh.as.map(a=>`<tr${a.lock?' class="locked"':''}><td><b>${a.aux?'보조 '+ROLES[a.r]:ROLES[a.r]}</b></td><td>${ptImg(a.m,26,'sm')} ${MATES[a.m].name}</td><td class="n">${STATK[a.r]} ${curSt(a.m,a.r)}</td><td class="hint">${ROLE_USE[a.r]}</td><td class="b">${MATES[a.m].hero?'':`<button data-lock="${a.m}" title="잠그면 자동 배치가 바꾸지 않음">${a.lock?'🔒':'🔓'}</button><button data-un="${a.m}">빼기</button>`}</td></tr>`).join('')||'<tr><td class="hint">빈 배</td></tr>'}</table>
      ${seatsUsed(sh)<T.seats&&free.length?`<div class="asg"><select data-k="${k}" class="selm">${free.map(i=>{const br=bestRole(i);return `<option value="${i}" data-br="${br}">${MATES[i].name} · 추천 ${ROLES[br]} (${STATK[br]} ${curSt(i,br)})</option>`;}).join('')}</select>
@@ -995,11 +997,12 @@ function bindFleet(root,redraw){
   root.querySelectorAll('[data-flag]').forEach(b=>b.onclick=()=>{makeFlag(+b.dataset.flag);redraw();});
   const au=root.querySelector('#autoas');if(au)au.onclick=()=>{autoAssign();redraw();};
   root.querySelectorAll('[data-fire]').forEach(b=>b.onclick=()=>{fire(+b.dataset.fire);redraw();});}
+const shipCost=t=>Math.round(SHIPTYPES[t].price*(typeof yardLv==='function'&&S&&inPort>=0&&yardLv(inPort)>=2?.95:1));
 function yardHTML(p){const L=yardTypes(p);
   let h=`<h4>배 사기 <small>(함대는 최대 5척)</small></h4><table class="mt"><tr><th>배</th><th>돛</th><th class="n">짐칸</th><th class="n">빠르기</th><th class="n">선원</th><th class="n">자리</th><th class="n">대포</th><th class="n">선체</th><th class="n">값</th><th></th></tr>`+
-   L.map(t=>{const T=SHIPTYPES[t];return `<tr><td>${shipImg(t,78)}<b>${T.n}</b> <small>${T.sz}</small><div class="hint">${T.d}</div></td><td>${T.rig}</td><td class="n">${T.hold}</td><td class="n">${Math.round(T.spd*100)}</td><td class="n">${T.crew}</td><td class="n">${T.seats}</td><td class="n">${T.guns}</td><td class="n">${T.hp}</td><td class="n">${T.price.toLocaleString()}</td>
-   <td class="b"><button data-bs="${t}" ${S.gold<T.price||S.fleet.length>=5?'disabled':''}>사기</button></td></tr>`;}).join('')+'</table>';
-  h+=`<h4>내 함대</h4><table class="mt">`+S.fleet.map((sh,k)=>{const T=SHIPTYPES[sh.t];return `<tr><td><b>${sh.name}</b> <small>${T.n}</small></td><td>${T.rig}</td><td class="n">짐칸 ${T.hold}</td><td class="n">선원 ${T.crew}</td><td class="b">${k?`<button data-ss="${k}">팔기 (${Math.round(T.price*.5).toLocaleString()})</button>`:'기함'}</td></tr>`;}).join('')+'</table>';
+   L.map(t=>{const T=SHIPTYPES[t];return `<tr><td>${shipImg(t,78)}<b>${T.n}</b> <small>${T.sz}</small><div class="hint">${T.d}</div></td><td>${T.rig}</td><td class="n">${T.hold}</td><td class="n">${Math.round(T.spd*100)}</td><td class="n">${T.crew}</td><td class="n">${T.seats}</td><td class="n">${T.guns}</td><td class="n">${T.hp}</td><td class="n">${shipCost(t).toLocaleString()}</td>
+   <td class="b"><button data-bs="${t}" ${S.gold<shipCost(t)||S.fleet.length>=5?'disabled':''}>사기</button></td></tr>`;}).join('')+'</table>';
+  h+=`<h4>내 함대</h4><table class="mt">`+S.fleet.map((sh,k)=>{const T=ST(sh);return `<tr><td><b>${sh.name}</b> <small>${T.n}</small></td><td>${T.rig}</td><td class="n">짐칸 ${T.hold}</td><td class="n">선원 ${T.crew}</td><td class="b">${k?`<button data-ss="${k}">팔기 (${Math.round(T.price*.5*(sh.x&&sh.x.val||1)).toLocaleString()})</button>`:'기함'}</td></tr>`;}).join('')+'</table>';
   h+=`<h4>배 개조 <small>(빨라진 만큼 같은 날짜에 더 멀리 갑니다)</small></h4><table class="mt">`+S.fleet.map((sh,k)=>{const T=SHIPTYPES[sh.t];
     return `<tr><td><b>${sh.name}</b> <small>${T.n} · 지금 속도 ${Math.round(shipF(k,60)*100)}</small></td>`+['s','h'].map(w=>{const U=UPG[w],n=upLv(sh,w),c=U.cost(T,n),lock=stageOf(p)<U.need;
       return `<td title="${U.d}">${U.n} ${'●'.repeat(n)}${'○'.repeat(U.max-n)}<br>${n>=U.max?'<small>끝까지 개조함</small>':lock?`<small>투자 ${U.need}단계 항구에서</small>`:`<button data-up="${k}" data-w="${w}" ${S.gold<c?'disabled':''}>+${Math.round(U.per*100)}% (${c.toLocaleString()})</button>`}</td>`;}).join('')+'</tr>';}).join('')+'</table>';
@@ -1007,13 +1010,13 @@ function yardHTML(p){const L=yardTypes(p);
   if(nx.length)h+=`<p class="hint">이 항구에서 투자 단계를 올리면 더 빠른 배를 살 수 있습니다: ${nx.join(' · ')}</p>`;
   h+=`<div class="note">함대 속도는 배들의 평균입니다. 가로돛은 순풍에, 세로돛은 맞바람에 강합니다. 새 배에는 선원이 없으니 '보급' 탭에서 선원을 채우세요. 선원이 정원의 3분의 2보다 적으면 느려집니다.</div>`;return h;}
 function bindYard(root,redraw){
-  root.querySelectorAll('[data-bs]').forEach(b=>b.onclick=()=>{const t=+b.dataset.bs,T=SHIPTYPES[t];if(S.gold<T.price||S.fleet.length>=5)return;S.gold-=T.price;
+  root.querySelectorAll('[data-bs]').forEach(b=>b.onclick=()=>{const t=+b.dataset.bs,T=SHIPTYPES[t],pc=shipCost(t);if(S.gold<pc||S.fleet.length>=5)return;S.gold-=pc;
     const nm=SHIPNAMES.find(n=>!S.fleet.some(f=>f.name===n))||('배 '+(S.fleet.length+1));S.fleet.push({t,name:nm,as:[],hp:T.hp});sfx('ship');toast(`${T.n} '${nm}'을(를) 샀습니다. 선원을 채우고 선장을 앉히세요. 함대 탭에서 기함으로 삼을 수도 있습니다.`,true);checkMissions();save();redraw();});
   root.querySelectorAll('[data-up]').forEach(b=>b.onclick=()=>{const k=+b.dataset.up,w=b.dataset.w,sh=S.fleet[k],T=SHIPTYPES[sh.t],U=UPG[w],n=upLv(sh,w),c=U.cost(T,n);
     if(n>=U.max||S.gold<c)return;S.gold-=c;sh.up=Object.assign({s:0,h:0},sh.up);sh.up[w]=n+1;sfx('ship');toast(`${sh.name}: ${U.n} ${n+1}단계. 이 배가 ${Math.round(U.per*100)}% 빨라졌습니다.`,true);save();redraw();});
-  root.querySelectorAll('[data-ss]').forEach(b=>b.onclick=()=>{const k=+b.dataset.ss,sh=S.fleet[k],T=SHIPTYPES[sh.t];
+  root.querySelectorAll('[data-ss]').forEach(b=>b.onclick=()=>{const k=+b.dataset.ss,sh=S.fleet[k],T=ST(sh);
     if(cargoT()>holdT()-T.hold){toast('짐이 너무 많아 이 배를 팔 수 없습니다. 짐을 먼저 줄이세요.');return;}
-    sh.as.slice().forEach(a=>unassign(a.m));S.fleet.splice(k,1);S.gold+=Math.round(T.price*.5);S.crew=Math.min(S.crew,crewMaxT());toast(`${sh.name}을(를) 팔았습니다.`);save();redraw();});}
+    sh.as.slice().forEach(a=>unassign(a.m));S.fleet.splice(k,1);S.gold+=Math.round(T.price*.5*(sh.x&&sh.x.val||1));S.crew=Math.min(S.crew,crewMaxT());toast(`${sh.name}을(를) 팔았습니다.`);save();redraw();});}
 function tavernHire(p){const L=tavernMates(p);if(!L.length)return '<p class="hint">오늘은 일거리를 찾는 항해자가 없습니다.</p>';
   return `<h4>일거리를 찾는 항해자 <small>(지금 ${hiredIds().length}명 · 최대 ${mateCap()}명 · 자리에 앉히지 않아도 데리고 다닐 수 있음)</small></h4>`+L.map(m=>mateCard(m.id,` <button data-hire="${m.id}" ${S.gold<mateFee(m)?'disabled':''}>영입 (${mateFee(m)}골드)</button>`)).join('');}
 function openFleet(){if(!S)return;const draw=()=>{$('infobox').innerHTML=`<div class="phead"><h2>함대와 항해자</h2><button class="main" id="ix">닫기 (T)</button></div><div class="pbody">${fleetHTML(false)}</div>`;$('ix').onclick=closeInfo;bindFleet($('infobox'),draw);};
@@ -1662,10 +1665,10 @@ addEventListener('blur',()=>{if(S&&inPort<0)save();});
 
 // ===== 7단계: 해적과 해전 =====
 const SIZE_L={'소형':30,'중형':40,'대형':52}, TURN_R={'소형':62,'중형':46,'대형':35};
-const hpMaxK=k=>SHIPTYPES[S.fleet[k].t].hp;
+const hpMaxK=k=>ST(S.fleet[k]).hp;
 function hpK(k){const sh=S.fleet[k];if(sh.hp==null)sh.hp=hpMaxK(k);return sh.hp;}
-const gunsT=()=>S.fleet.reduce((a,sh)=>a+SHIPTYPES[sh.t].guns,0);
-function myPower(){let p=0;S.fleet.forEach((sh,k)=>{const T=SHIPTYPES[sh.t];p+=T.guns*(1+shipRole(k,4)/150)+hpK(k)/8;});return p*Math.max(.3,Math.min(1,S.crew/Math.max(1,crewNeedT())));}
+const gunsT=()=>S.fleet.reduce((a,sh)=>a+ST(sh).guns,0);
+function myPower(){let p=0;S.fleet.forEach((sh,k)=>{const T=ST(sh);p+=T.guns*(1+shipRole(k,4)/150)+hpK(k)/8;});return p*Math.max(.3,Math.min(1,S.crew/Math.max(1,crewNeedT())));}
 const fleetPower=(ships,lv)=>ships.reduce((a,t)=>{const T=SHIPTYPES[t];return a+T.guns*(1+(20+lv*12)/150)+T.hp/8;},0);
 const PIR_NAMES=['검은 갈매기단','바다뱀단','붉은 닻단','흰 해골단','늑대 이빨단','안개 그림자단','쇠갈고리단','상어 지느러미단','녹슨 칼단','밤바다단','소금 까마귀단','부서진 키단'];
 const BOSS=[
@@ -1754,13 +1757,13 @@ const ARENA=1500, RANGE={n:360,c:260,f:300};
 const gauss=()=>(Math.random()+Math.random()+Math.random()-1.5)*1.15;
 const bear=(a,b)=>(Math.atan2(b.x-a.x,-(b.y-a.y))/DEG+360)%360;
 const crewF=s=>Math.max(.3,Math.min(1,s.crew/(s.crewMax*.6)));
-function mkShip(side,t,k,o){const T=SHIPTYPES[t],L=SIZE_L[T.sz];return Object.assign({side,t,T,k,L,W:L*.32,x:0,y:0,hd:0,v:16,sail:2,hpMax:T.hp,sailHp:100,crewMax:T.crew,guns:T.guns,rl:{'-1':0,'1':0},chainCd:0,fireCd:0,repCd:0,repT:0,repRate:0,fire:0,out:null,outT:0,flee:false,tgt:null,pref:Math.random()<.5?1:-1,boardCd:0,tr:[],trT:0,aiT:Math.random()},o);}
+function mkShip(side,t,k,o){const T=(o&&o.T)||SHIPTYPES[t],L=SIZE_L[T.sz];return Object.assign({side,t,T,k,L,W:L*.32,x:0,y:0,hd:0,v:16,sail:2,hpMax:T.hp,sailHp:100,crewMax:T.crew,guns:T.guns,rl:{'-1':0,'1':0},chainCd:0,fireCd:0,repCd:0,repT:0,repRate:0,fire:0,out:null,outT:0,flee:false,tgt:null,pref:Math.random()<.5?1:-1,boardCd:0,tr:[],trT:0,aiT:Math.random()},o);}
 function startBattle(p,mode){$('bat').style.display='none';encOpen=false;paused=true;
   const w=nav.w||{u:0,v:1,s:.6};
   B={p,t:0,wt:(Math.atan2(w.u,w.v)/DEG+360)%360,ws:w.s,ships:[],balls:[],fx:[],fl:[],order:3,target:null,zm:MOB?1.8:1,end:null,endT:0,buff:0,skillCd:0,pause:false,res:{sunk:[],cap:[]},snd:{},first:!S.st.bat,cx:0,cy:0,camx:0,camy:0};
   const cr=crewMaxT();
-  S.fleet.forEach((sh,k)=>{const T=SHIPTYPES[sh.t],capA=sh.as.find(a=>a.r===0&&!a.aux);
-    const s=mkShip(0,sh.t,k,{name:sh.name,hp:hpK(k),crew:Math.max(1,Math.round(S.crew*T.crew/cr)),gun:shipRole(k,4),rep:shipRole(k,5),lead:k===0?curSt(HY,0):capA?curSt(capA.m,0):10,flag:k===0});B.ships.push(s);if(k===0)B.flag=s;});
+  S.fleet.forEach((sh,k)=>{const T=ST(sh),capA=sh.as.find(a=>a.r===0&&!a.aux);
+    const s=mkShip(0,sh.t,k,{T,name:sh.name,hp:hpK(k),crew:Math.max(1,Math.round(S.crew*T.crew/cr)),gun:shipRole(k,4),rep:shipRole(k,5),lead:k===0?curSt(HY,0):capA?curSt(capA.m,0):10,flag:k===0});B.ships.push(s);if(k===0)B.flag=s;});
   p.ships.forEach((t,i)=>{const T=SHIPTYPES[t];B.ships.push(mkShip(1,t,i,{name:p.boss!=null&&i===0?p.name:`${p.name} ${i+1}호`,hp:T.hp,crew:Math.round(T.crew*.9),gun:20+p.lv*12,rep:10+p.lv*8,lead:20+p.lv*10,boss:p.boss!=null&&i===0,lv:p.lv}));});
   const gap=mode==='caught'?440:mode==='close'?600:760,ang=Math.random()*360;
   const al=B.ships.filter(s=>s.side===0),en=B.ships.filter(s=>s.side===1);
@@ -1981,9 +1984,9 @@ function drawBattleUI(){const F=B.flag,p=B.p;
   ctx.textAlign='center';ctx.font='11px serif';ctx.fillStyle='rgba(243,232,207,.85)';ctx.fillText('배 둘레 고리: 초록 쪽으로 뱃머리(흰 점)를 두면 빠름 · W/S 돛 · A/D 키 · 적 클릭: 목표 지정 · 휠 확대 · P 멈춤 · 점선 밖으로 나가면 달아남',VW/2,VH-12);ctx.textAlign='left';
   if(B.pause){ctx.fillStyle='rgba(20,14,8,.45)';ctx.fillRect(0,0,VW,VH);ctx.fillStyle='#f3e8cf';ctx.font='bold 28px serif';ctx.textAlign='center';ctx.fillText('잠깐 멈춤 (P)',VW/2,VH/2);ctx.textAlign='left';}}
 // ----- 조선소 수리 · 조합 현상 수배 -----
-const repCostK=k=>{const T=SHIPTYPES[S.fleet[k].t];return Math.round((hpMaxK(k)-hpK(k))*T.price/T.hp*.15);};
+const repCostK=k=>{const T=ST(S.fleet[k]);return Math.round((hpMaxK(k)-hpK(k))*T.price/T.hp*.15);};
 function repairHTML(){const tot=S.fleet.reduce((a,sh,k)=>a+repCostK(k),0);
-  return `<h4>배 고치기</h4><table class="mt">${S.fleet.map((sh,k)=>{const m=hpMaxK(k),h=Math.round(hpK(k)),c=repCostK(k);return `<tr><td><b>${sh.name}</b> <small>${SHIPTYPES[sh.t].n} · 대포 ${SHIPTYPES[sh.t].guns}문</small></td><td class="n">선체 ${h}/${m}</td><td><span class="xpb" style="width:90px"><i style="width:${h/m*100}%;background:${h/m>.5?'#4f7f5a':'#b8342b'}"></i></span></td><td class="b">${c?`<button data-rep="${k}" ${S.gold<c?'disabled':''}>고치기 (${c.toLocaleString()})</button>`:'멀쩡함'}</td></tr>`;}).join('')}</table>
+  return `<h4>배 고치기</h4><table class="mt">${S.fleet.map((sh,k)=>{const m=hpMaxK(k),h=Math.round(hpK(k)),c=repCostK(k);return `<tr><td><b>${sh.name}</b> <small>${ST(sh).n} · 대포 ${ST(sh).guns}문</small></td><td class="n">선체 ${h}/${m}</td><td><span class="xpb" style="width:90px"><i style="width:${h/m*100}%;background:${h/m>.5?'#4f7f5a':'#b8342b'}"></i></span></td><td class="b">${c?`<button data-rep="${k}" ${S.gold<c?'disabled':''}>고치기 (${c.toLocaleString()})</button>`:'멀쩡함'}</td></tr>`;}).join('')}</table>
    ${tot?`<button class="main" id="repAll" ${S.gold<tot?'disabled':''}>모두 고치기 (${tot.toLocaleString()}골드)</button>`:''}`;}
 function bindRepair(root,redraw){root.querySelectorAll('[data-rep]').forEach(b=>b.onclick=()=>{const k=+b.dataset.rep,c=repCostK(k);if(S.gold<c)return;S.gold-=c;S.fleet[k].hp=hpMaxK(k);sfx('coin');save();redraw();});
   const a=root.querySelector('#repAll');if(a)a.onclick=()=>{S.fleet.forEach((sh,k)=>{const c=repCostK(k);if(S.gold>=c){S.gold-=c;sh.hp=hpMaxK(k);}});sfx('coin');toast('배를 모두 고쳤습니다.');save();redraw();};}
@@ -2685,6 +2688,91 @@ function tutTick(){if(!S)return;const t=tutT();
 {const sell0=sell;sell=function(g,n){const c=S.cargo[g],cost=c&&c.c>=1?c.c:0,q0=c?c.q:0,g0=S.gold;const r=sell0.apply(this,arguments);const sold=q0-(S.cargo[g]?S.cargo[g].q:0);
   if(sold>0&&S.tut&&!S.tut.done&&TUT[S.tut.i]&&TUT[S.tut.i].t==='첫 장사: 팔기'&&+g===tutRoute().g){tutFlag('soldG',sold);tutFlag('profit',(S.gold-g0)-cost*sold);}return r;};}
 
+// ===== 투자의 쓸모: 조선소 투자 → 특별 주문 배, 시장 투자 → 명품 상품 =====
+// 등급은 그 항구에 넣은 '투자 골드'로만 오른다 (거래로는 오르지 않음).
+const IVLV=[0,3000,10000,30000,70000,150000];
+const lvOf=v=>{let l=0;for(let i=1;i<IVLV.length;i++)if((v||0)>=IVLV[i])l=i;return l;};
+const yardLv=p=>lvOf(S.yinv&&S.yinv[p]);
+const mktLv=p=>lvOf(S.inv&&S.inv[p]);
+const lvBar=(v)=>{const l=lvOf(v),a=IVLV[l],b=IVLV[l+1];return `<div class="bar" style="height:8px;margin:4px 0"><i style="width:${b?Math.min(100,((v||0)-a)/(b-a)*100):100}%"></i></div>`;};
+const nextTxt=v=>{const l=lvOf(v);return IVLV[l+1]?`다음 ${l+1}등급까지 ${(IVLV[l+1]-(v||0)).toLocaleString()}골드`:'최고 등급';};
+// 시드 난수 (같은 항구·같은 기간이면 같은 물건이 나온다)
+function srng(seed){let a=seed>>>0;return()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;};}
+
+// ---------- 특별 주문 배 ----------
+const SMOD=[
+  {k:'spd',a:['날렵한',.08,.15],b:['초신속의',.18,.30],t:'빠르기'},
+  {k:'hp',a:['튼튼한',.15,.30],b:['강철 같은',.35,.55],t:'선체'},
+  {k:'hold',a:['넉넉한',.15,.30],b:['거대한',.35,.55],t:'짐칸'},
+  {k:'guns',a:['중무장한',.20,.35],b:['요새 같은',.40,.60],t:'대포'},
+  {k:'crew',a:['손이 덜 가는',-.15,-.25],b:['자동 돛줄의',-.30,-.40],t:'필요 선원'},
+];
+const YARD_PERK=['','개조비 −15%','개조비 −15% · 새 배 값 −5%','✨ 특별 주문 열림 (수식어 1개)','특별 주문: 수식어 1~2개, 희귀 수식어가 더 자주','특별 주문: 수식어 2~3개, 전설의 배가 나올 수 있음 · 한 달에 2척'];
+const spWin=()=>Math.floor(S.day/30);
+const spLeft=p=>{const n=yardLv(p)>=5?2:1,u=(S.ysp&&S.ysp[p]&&S.ysp[p].w===spWin())?S.ysp[p].n:0;return Math.max(0,n-u);};
+const spPrice=t=>Math.round(SHIPTYPES[t].price*1.6);
+function rollShip(lv){const r=Math.random,cnt=lv>=5?(r()<.4?3:2):lv>=4?(r()<.4?2:1):1,rare=lv>=5?.35:lv>=4?.2:.1;
+  const pool=SMOD.slice().sort(()=>r()-.5).slice(0,cnt);const x={spd:1,hp:1,hold:1,guns:1,crew:1,mods:[]};let val=1;
+  for(const m of pool){const R=r()<rare?m.b:m.a,v=R[1]+(R[2]-R[1])*r();x[m.k]=+(1+v).toFixed(3);x.mods.push([m.k,R[0],Math.round(v*100)]);val+=Math.abs(v)*1.2;}
+  let nm=x.mods.map(m=>m[1]).join('·');
+  if(lv>=5&&r()<.06){nm='전설의 '+nm;x.spd=+(x.spd*1.1).toFixed(3);x.hp=+(x.hp*1.1).toFixed(3);x.leg=1;val+=.4;}
+  x.nm=nm;x.val=+val.toFixed(2);return x;}
+let yardReveal=null;
+const modTxt=x=>x.mods.map(m=>`${SMOD.find(s=>s.k===m[0]).t} ${m[2]>0?'+':''}${m[2]}%`).join(' · ')+(x.leg?' · 전설 +10%':'');
+{const yh0=yardHTML;yardHTML=function(p){let h=yh0(p);const lv=yardLv(p),v=(S.yinv&&S.yinv[p])||0,L=yardTypes(p),left=spLeft(p);
+  const top=`<div class="note" style="border-left:4px solid #b07a2e"><b>🏗 조선소 투자 ${lv}등급</b> <small>(이 항구 조선소에 넣은 돈 ${v.toLocaleString()}골드 · ${nextTxt(v)})</small>${lvBar(v)}
+    <div class="hint">${YARD_PERK.slice(1).map((t,i)=>`<span style="${lv>=i+1?'color:#2e7d4f;font-weight:700':''}">${i+1}등급: ${t}</span>`).join('<br>')}</div>
+    <div class="btns" style="margin-top:6px">${[1000,5000,20000,50000].map(a=>`<button data-yinv="${a}" ${S.gold<a?'disabled':''}>${a.toLocaleString()} 투자</button>`).join('')}</div></div>`;
+  let sp='';
+  if(lv>=3){sp=`<h4>✨ 특별 주문 <small>(${left?`이번 달 ${left}척 남음`:`이번 달 입고분이 다 팔렸습니다 · ${30-Math.floor(S.day)%30}일 뒤 새로 들어옴`})</small></h4>
+    ${left?`<p class="hint">${lv>=5?'조선소장이 웃으며 말합니다. <b>"오늘은 특별한 배가 들어왔군!"</b> ':''}배 이름 앞에 수식어가 붙은, 능력이 무작위로 더 좋은 배를 만듭니다. 원래 배가 좋을수록 보정도 큽니다. 무엇이 나올지는 받아 봐야 압니다.</p>
+    <table class="mt">${L.map(t=>{const T=SHIPTYPES[t],c=spPrice(t);return `<tr><td>${shipImg(t,60)} <b>✨ ${T.n}</b> <small>기본: 빠르기 ${Math.round(T.spd*100)} · 짐칸 ${T.hold} · 대포 ${T.guns} · 선체 ${T.hp}</small></td><td class="n">${c.toLocaleString()}</td><td class="b"><button class="main" data-sp="${t}" ${S.gold<c||S.fleet.length>=5?'disabled':''}>특별 주문</button></td></tr>`;}).join('')}</table>`:''}`;}
+  else sp=`<p class="hint">✨ 조선소 투자 3등급이 되면 <b>특별 주문</b>으로 '날렵한 갤리온', '튼튼한 클리퍼'처럼 능력이 무작위로 더 좋은 배를 살 수 있습니다.</p>`;
+  const rv=yardReveal&&yardReveal.p===p?`<div class="note" style="background:#fff3cf;border:2px solid #e0a21a"><b style="font-size:16px">🎉 새 배: ${yardReveal.name} — ${yardReveal.full}</b><br>${modTxt(yardReveal.x)}<br><small class="hint">함대 탭과 「내 함대」에서 확인하세요. 팔 때도 보정만큼 비싸게 팔립니다.</small></div>`:'';
+  return rv+top+h.replace('<h4>내 함대</h4>',sp+'<h4>내 함대</h4>');};}
+{const by0=bindYard;bindYard=function(root,redraw){by0(root,redraw);
+  root.querySelectorAll('[data-yinv]').forEach(b=>b.onclick=()=>{const v=+b.dataset.yinv,p=inPort;if(S.gold<v)return;const l0=yardLv(p);S.gold-=v;S.yinv=S.yinv||{};S.yinv[p]=(S.yinv[p]||0)+v;S.fame=(S.fame||0)+Math.round(v/200);S.st.invest=(S.st.invest||0)+v;
+    const l1=yardLv(p);sfx(l1>l0?'mission':'coin');toast(l1>l0?`🏗 ${PORTS[p].name} 조선소 ${l1}등급! ${YARD_PERK[l1]}`:`${PORTS[p].name} 조선소에 ${v.toLocaleString()}골드를 투자했습니다.`,l1>l0);save();redraw();});
+  root.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{const t=+b.dataset.sp,p=inPort,c=spPrice(t),T=SHIPTYPES[t];if(S.gold<c||S.fleet.length>=5||!spLeft(p)||yardLv(p)<3)return;
+    S.gold-=c;const x=rollShip(yardLv(p));S.ysp=S.ysp||{};const w=spWin();if(!S.ysp[p]||S.ysp[p].w!==w)S.ysp[p]={w,n:0};S.ysp[p].n++;
+    const nm=SHIPNAMES.find(n=>!S.fleet.some(f=>f.name===n))||('배 '+(S.fleet.length+1));const sh={t,name:nm,as:[],x};sh.hp=ST(sh).hp;S.fleet.push(sh);
+    yardReveal={p,name:nm,full:ST(sh).n,x};sfx(x.leg?'relic':'found');toast(`✨ ${ST(sh).n} '${nm}'! ${modTxt(x)}`,true);checkMissions();save();redraw();});};}
+// 조선소 등급 혜택: 개조비 −15% (1등급~), 새 배 값 −5% (2등급~)
+{const c0=UPG.s.cost,c1=UPG.h.cost;UPG.s.cost=(T,n)=>Math.round(c0(T,n)*(S&&inPort>=0&&yardLv(inPort)>=1?.85:1));UPG.h.cost=(T,n)=>Math.round(c1(T,n)*(S&&inPort>=0&&yardLv(inPort)>=1?.85:1));}
+
+// ---------- 명품 상품 (시장 투자) ----------
+const LUXG=[['상급',1.25,1.15,1.3],['명품',1.45,1.25,1.4],['황실 진상',1.7,1.35,1.55],['전설의',2.0,1.5,1.75]]; // 이름, 파는 값 배수, 최소 판매가(원가 배수), 사는 값 배수
+const LUXP=[null,null,[1,0,0,0],[.7,.3,0,0],[.4,.4,.2,0],[.2,.4,.3,.1]];
+const luxWin=()=>Math.floor(S.day/10);
+function luxOffers(p){const lv=mktLv(p);if(lv<2)return [];const r=srng(p*7919+luxWin()*104729+(S.seed||0)),L=prodList(p).slice();if(!L.length)return [];
+  const n=Math.min(L.length,lv>=5?3:lv>=3?2:1),out=[];
+  for(let i=0;i<n;i++){const g=L.splice(Math.floor(r()*L.length),1)[0];let x=r(),gi=0;const P=LUXP[lv];for(;gi<3;gi++){if(x<P[gi])break;x-=P[gi];}
+    const G=LUXG[gi],key=p+':'+luxWin()+':'+i,used=(S.luxB&&S.luxB[key])||0;out.push({i,g,G,key,qty:Math.max(0,10+10*lv-used),price:Math.max(1,Math.round(buyPrice(p,g)*G[3]))});}
+  return out;}
+const luxQ=()=>(S.lux||[]).reduce((a,l)=>a+l.q,0);
+const luxHere=(l,p)=>{const v=Math.round(sellPrice(p,l.g)*l.mul);return l.from===p?v:Math.max(v,Math.round(l.c*l.fl));};
+{const ct0=cargoT;cargoT=function(){return ct0()+luxQ();};}
+{const a0=assetNow;assetNow=function(){return a0()+(S.lux||[]).reduce((a,l)=>a+l.q*l.c,0);};}
+function luxBuy(o,n){const p=inPort;n=Math.min(n,o.qty,freeT(),Math.floor(S.gold/o.price));if(n<=0)return;S.gold-=n*o.price;S.luxB=S.luxB||{};S.luxB[o.key]=(S.luxB[o.key]||0)+n;
+  S.lux=S.lux||[];let l=S.lux.find(x=>x.g===o.g&&x.gr===o.G[0]&&x.from===p);if(!l){l={g:o.g,gr:o.G[0],mul:o.G[1],fl:o.G[2],from:p,q:0,c:0};S.lux.push(l);}
+  l.c=(l.c*l.q+o.price*n)/(l.q+n);l.q+=n;addDev(p,'tp',n*o.price*.003);sfx('coin');toast(`✨ ${o.G[0]} ${GOODS[o.g][0]} ${n}톤을 샀습니다. 다른 항구 어디서든 원가의 ${Math.round(o.G[2]*100)}% 이상 받습니다.`,true);save();drawPort();}
+function luxSell(i,n){const p=inPort,l=S.lux[i];if(!l)return;n=Math.min(n,l.q);let earn=0;for(let k=0;k<n;k++){earn+=luxHere(l,p);mk(p,l.g).s+=1;}
+  S.gold+=earn;l.q-=n;if(l.q<=0)S.lux.splice(i,1);addDev(p,'tp',earn*.004);S.st.sold=S.st.sold||{};sfx('coin');toast(`✨ ${l.gr} ${GOODS[l.g][0]} ${n}톤을 ${earn.toLocaleString()}골드에 팔았습니다 (이익 ${Math.round(earn-l.c*n).toLocaleString()}).`,true);save();drawPort();}
+function luxHTML(p){const lv=mktLv(p),O=luxOffers(p),mine=S.lux||[];let h='';
+  if(lv>=2)h+=`<h4>✨ 오늘의 명품 <small>(시장 투자 ${lv}등급 · ${10-Math.floor(S.day)%10}일 뒤 바뀜)</small></h4><table class="mt">${O.map(o=>`<tr><td>${gi(o.g)} <b>${o.G[0]} ${GOODS[o.g][0]}</b><div class="hint">어디서 팔든 원가의 <b>${Math.round(o.G[2]*100)}%</b> 이상 · 보통 값의 ${o.G[1]}배 (이 항구에서 되팔면 보장 없음)</div></td><td class="n"><b>${o.price}</b></td><td class="n">${o.qty}</td>
+    <td class="b">${o.qty?`<button data-lb="${o.i}" data-n="10">10</button><button data-lb="${o.i}" data-n="999">최대</button>`:'<small>다 팔림</small>'}</td></tr>`).join('')}</table>`;
+  else h+=`<p class="hint">✨ 이 항구의 <b>시장 투자 2등급</b>(${IVLV[2].toLocaleString()}골드)부터 <b>명품 상품</b>이 나옵니다. 어디서 팔아도 원가보다 비싸게 팔리는 특별한 물건입니다. (지금 ${lv}등급)</p>`;
+  if(mine.length)h+=`<h4>✨ 내 명품 짐</h4><table class="mt"><tr><th>상품</th><th class="n">수량</th><th class="n">원가</th><th class="n">여기 값</th><th class="n">원가 대비</th><th></th></tr>${mine.map((l,i)=>{const v=luxHere(l,p);return `<tr><td>${gi(l.g)} ${l.gr} ${GOODS[l.g][0]}${l.from===p?' <small class="hint">(산 곳)</small>':''}</td><td class="n">${l.q}</td><td class="n">${Math.round(l.c)}</td><td class="n"><b>${v}</b></td><td class="n" style="color:${v>=l.c?'#3b7a3b':'#a8322a'}">${Math.round(v/l.c*100)}%</td><td class="b"><button data-ls="${i}" data-n="10">10</button><button data-ls="${i}" data-n="999">전부</button></td></tr>`;}).join('')}</table>`;
+  return h;}
+{const dp0=drawPort;drawPort=function(){const r=dp0.apply(this,arguments);try{if(inPort>=0&&portTab==='trade'){const t=document.querySelector('#portbox .sellt');if(t){t.insertAdjacentHTML('afterend',`<div id="luxbox">${luxHTML(inPort)}</div>`);
+    const O=luxOffers(inPort);document.querySelectorAll('#luxbox [data-lb]').forEach(b=>b.onclick=()=>luxBuy(O.find(o=>o.i===+b.dataset.lb),+b.dataset.n));
+    document.querySelectorAll('#luxbox [data-ls]').forEach(b=>b.onclick=()=>luxSell(+b.dataset.ls,+b.dataset.n));}}}catch(e){console.error(e);}return r;};}
+// 시장의 집: 투자로 얻는 것 정리
+{const ih0=investHTML;investHTML=function(p){const h=ih0(p),v=(S.inv&&S.inv[p])||0,lv=mktLv(p),yv=(S.yinv&&S.yinv[p])||0;
+  const M=['','등급 표시만','✨ 명품 상품 1종 (상급)','명품 2종 (상급·명품)','명품 2종, 황실 진상이 나올 수 있음','명품 3종, 전설의 상품이 나올 수 있음'];
+  return `<div class="note" style="border-left:4px solid #2f5d73"><b>💰 시장 투자 ${lv}등급</b> <small>(${v.toLocaleString()}골드 · ${nextTxt(v)})</small>${lvBar(v)}<div class="hint">${M.slice(1).map((t,i)=>`<span style="${lv>=i+1?'color:#2e7d4f;font-weight:700':''}">${i+1}등급: ${t}</span>`).join('<br>')}</div>
+    <div class="hint" style="margin-top:4px">거래로 오르는 <b>발전 단계</b>와 따로, 투자 등급은 <b>투자한 골드로만</b> 오릅니다. 조선소 투자(${yv.toLocaleString()}골드 · ${yardLv(p)}등급)는 조선소 탭에서 합니다.</div></div>`+h;};}
+
 // ===== 온라인 (Render 서버용) — ONLINE 빌드에서만 들어간다 =====
 const ON={live:false,id:0,nm:'',tok:'',ws:null,wsOk:false,W:{mk:{},dev:{},disc:{},inv:{},nm:{}},players:[],chat:[],unread:0,tab:'chat',qmk:{},qdev:{},rank:null,rankT:0,open:false,retry:0,posT:0};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -2905,7 +2993,8 @@ function ivInfo(p){const P=ON.W.inv[p]||{};const L=Object.keys(P).map(u=>({id:+u
   const tot=L.reduce((s,x)=>s+x.g,0);L.forEach((x,i)=>{x.sh=tot?x.g/tot:0;x.rk=i+1;x.t=titleOf(x);x.b=x.g>=IV_MIN?Math.max(IV_FLOOR,Math.round(IV_POOL*x.sh)):0;});
   const me=L.find(x=>x.id===ON.id)||null;return {L,tot,me,lord:L.length&&L[0].g>=IV_MIN?L[0]:null};}
 function ivBonus(p){if(!ON.live)return 0;const I=ivInfo(p);return I.me?I.me.b:0;}
-const stock0=stock;stock=function(p,g){const s=stock0(p,g);if(!ON.live)return s;return s+ivBonus(p);};
+// 지분 보너스는 재고의 '한도'를 늘린다. 사면 함께 줄어든다 (전에는 다 사도 보너스만큼 남아 있었음)
+const stock0=stock;stock=function(p,g){if(!ON.live)return stock0(p,g);const lv=PROD[p].includes(g)?0:linkLvFor(p,g),cap=(lv?20+20*lv:60+25*(stageOf(p)-1))+ivBonus(p);return Math.max(0,Math.floor(cap-mk(p,g).b));};
 const investHTML0=investHTML;
 investHTML=function(p){const h=investHTML0(p);if(!ON.live)return h;const I=ivInfo(p),b=ivBonus(p),t=I.me&&I.me.t;
   const top=I.L.slice(0,8).map(x=>`<tr${x.id===ON.id?' style="background:#efe2c4"':''}><td>${x.rk}</td><td>${x.t?x.t[1]+' '+x.t[2]:''}</td><td>${esc(x.nm)}${x.id===ON.id?' (나)':''}</td><td class="n">${x.g.toLocaleString()}</td><td class="n">${(x.sh*100).toFixed(1)}%</td><td class="n">+${x.b}</td></tr>`).join('');
@@ -2931,7 +3020,7 @@ function kmTo(o){const D=Math.PI/180,a=S,dLat=(o.lat-a.lat)*D,dLon=(o.lon-a.lon)
 const duelOn=()=>ON.live&&!(ON.W.cfg&&ON.W.cfg.duel===false);
 function duelWhyNot(o){if(!duelOn())return '결투 꺼짐';if(!S)return '';if(S.car)return '내륙에서는 불가';if(inPort>=0)return '항구 밖으로 나가야 함';if(B)return '해전 중';
   if(o.port>=0)return '상대가 항구에 있음';if(o.bat)return '상대가 해전 중';const d=kmTo(o);if(d>DUEL_KM)return `${Math.round(d).toLocaleString()}km · ${DUEL_KM}km 안으로`;return '';}
-function duelSnap(){return {ships:S.fleet.map((sh,k)=>({t:sh.t,n:sh.name,hp:Math.round(hpK(k)),mx:hpMaxK(k),g:SHIPTYPES[sh.t].guns})),crew:S.crew,need:crewNeedT(),
+function duelSnap(){return {ships:S.fleet.map((sh,k)=>({t:sh.t,n:sh.name,hp:Math.round(hpK(k)),mx:hpMaxK(k),g:ST(sh).guns})),crew:S.crew,need:crewNeedT(),
   gun:S.fleet.reduce((a,sh,k)=>a+shipRole(k,4),0)/S.fleet.length,spd:+(fleetSail(60)*navMul()).toFixed(3),gold:Math.floor(S.gold)};}
 const drRec=id=>(ON.W.dr&&ON.W.dr[id])||{w:0,l:0,net:0,r:1000};
 (()=>{const st=document.createElement('style');st.textContent=`
@@ -2971,7 +3060,7 @@ function duelReq(m){if(!S||S.car||inPort>=0||B){wsSend({type:'dans',id:m.id,ok:f
   duelShow(`<h3>⚔ ${esc(m.nm)} 선장이 결투를 신청했습니다!</h3>
    <div class="hint">상대 기록 ${R[0]}승 ${R[1]}패 · 점수 ${R[2]}</div>
    <p class="res" style="font-size:18px">내기: ${m.bet?m.bet.toLocaleString()+'골드':'명예만 (골드 없음)'}</p>
-   <div class="sides"><div class="side"><b>${esc(m.nm)}</b>${fleetLine(m.ships)}</div><div class="vs">VS</div><div class="side"><b>나 (${esc(ON.nm)})</b>${fleetLine(S.fleet.map((sh,k)=>[sh.t,sh.name,Math.round(hpK(k)),hpMaxK(k),SHIPTYPES[sh.t].guns]))}</div></div>
+   <div class="sides"><div class="side"><b>${esc(m.nm)}</b>${fleetLine(m.ships)}</div><div class="vs">VS</div><div class="side"><b>나 (${esc(ON.nm)})</b>${fleetLine(S.fleet.map((sh,k)=>[sh.t,sh.name,Math.round(hpK(k)),hpMaxK(k),ST(sh).guns]))}</div></div>
    ${m.bet>S.gold?`<p class="cd">가진 골드(${Math.floor(S.gold).toLocaleString()})가 내기보다 적어 받을 수 없습니다.</p>`:''}
    <div class="hint">진 쪽도 배는 잃지 않고 선체만 상합니다. 남은 시간 <span class="cd" id="dcd"></span></div>
    <div class="btns"><button id="dno">거절</button><button class="main" id="dok" ${m.bet>S.gold?'disabled':''}>⚔ 수락</button></div>`,true);
