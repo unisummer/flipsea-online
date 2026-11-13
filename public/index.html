@@ -3457,7 +3457,7 @@ window.drawOthers=function(){if(!ON.live)return;const now=performance.now();
     const bob=Math.sin(now/400+(+id))*.6;ctx.translate(0,bob);
     ctx.fillStyle='#2f7d86';ctx.strokeStyle='#123';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(13,0);ctx.quadraticCurveTo(4,-6,-9,-4);ctx.lineTo(-9,4);ctx.quadraticCurveTo(4,6,13,0);ctx.fill();ctx.stroke();
     ctx.fillStyle='#fdf6e3';ctx.strokeStyle='#8a6a44';ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(1,-9);ctx.quadraticCurveTo(5,0,1,9);ctx.lineTo(0,9);ctx.lineTo(0,-9);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
-    const lab=`⚓ ${o.nm}${o.port>=0&&PORTS[o.port]?' · '+PORTS[o.port].name:''}${o.bat?' ⚔':''}${o.ships>1?' · '+o.ships+'척':''}`;ctx.font='bold 11px serif';ctx.lineWidth=3;ctx.strokeStyle='rgba(243,232,207,.95)';ctx.strokeText(lab,s[0]+12,s[1]+17);ctx.fillStyle='#1f5d66';ctx.fillText(lab,s[0]+12,s[1]+17);}};
+    const lab=`⚓ ${o.nm}${o.port>=0&&PORTS[o.port]?' · '+PORTS[o.port].name:''}${o.bat?' ⚔':''}${o.ships>1?' · '+o.ships+'척':''}${typeof duelWhyNot==='function'&&S&&!duelWhyNot(o)?' · 눌러서 결투':''}`;ctx.font='bold 11px serif';ctx.lineWidth=3;ctx.strokeStyle='rgba(243,232,207,.95)';ctx.strokeText(lab,s[0]+12,s[1]+17);ctx.fillStyle='#1f5d66';ctx.fillText(lab,s[0]+12,s[1]+17);}};
 window.drawOthersMini=function(x,y,f){if(!ON.live)return;const now=performance.now();for(const id in OGH){const [la,lo]=ghostPos(OGH[id],now),p=proj(la,lo);ctx.fillStyle='#2f7d86';ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.beginPath();ctx.arc(x+p[0]*f,y+p[1]*f,3,0,7);ctx.fill();ctx.stroke();}};
 // ---------- 대화·접속·순위 창 ----------
 (()=>{const c=document.createElement('button');c.id='onchip';document.body.appendChild(c);const p=document.createElement('div');p.id='onpanel';document.body.appendChild(p);
@@ -3773,6 +3773,19 @@ function igPvpEnd(m){const me=m.a===ON.id?'A':'B',won=m.win===me;S.dlog=S.dlog||
 {const dq0=duelResult;duelResult=function(m){if(m&&m.type==='ige')return igPvpEnd(m);return dq0.apply(this,arguments);};}
 {const dh0=duelHTML;duelHTML=function(){const h=dh0(),me=igrRec(ON.id),L=Object.keys(ON.W.ig||{}).map(u=>({id:+u,nm:(ON.W.nm||{})[u]||'?',...ON.W.ig[u]})).filter(x=>x.w+x.l>0).sort((a,b)=>b.r-a.r).slice(0,20);
   return h+`<b>🗡 검객 순위 (일기토)</b> <small class="hint">나: ${me.w}승 ${me.l}패 · 점수 ${Math.round(me.r)}</small>${L.length?`<table class="mt"><tr><th>#</th><th>선장</th><th class="n">점수</th><th class="n">승·패</th></tr>${L.map((x,i)=>`<tr${x.id===ON.id?' style="background:#efe2c4"':''}><td>${i+1}</td><td>${esc(x.nm)}</td><td class="n">${Math.round(x.r)}</td><td class="n">${x.w}·${x.l}</td></tr>`).join('')}</table>`:'<p class="hint">아직 일기토 대전을 한 선장이 없습니다.</p>'}`;};}
+
+// ---- 결투를 찾기 쉽게: 지도에서 다른 선장 배를 누르면 결투 신청, 화면에 「⚔ 결투」 버튼 ----
+function otherAt(sx,sy){if(!ON.live)return null;const now=performance.now();let best=null,bd=22;
+  for(const id in OGH){const [la,lo]=ghostPos(OGH[id],now),s=toScr(...proj(la,lo)),d=Math.hypot(s[0]-sx,s[1]-sy);if(d<bd){bd=d;best=+id;}}return best;}
+{const c0=clickAt;clickAt=function(sx,sy){if(!B&&S&&ON.live){const id=otherAt(sx,sy);if(id!=null){const o=ON.players.find(x=>x.id===id);if(o){const why=duelWhyNot(o);
+  if(why)toast(`${o.nm} 선장과는 지금 결투할 수 없습니다: ${why}`);else duelAsk(id);return;}}}return c0(sx,sy);};}
+(()=>{const f=document.createElement('button');f.id='duelfab';f.innerHTML='⚔ 결투';document.body.appendChild(f);
+  const st=document.createElement('style');st.textContent=`#duelfab{position:fixed;right:280px;bottom:52px;z-index:8;display:none;padding:8px 16px;border-radius:999px;border:2px solid #7a2a1a;background:#b5452c;color:#fff;font-weight:bold;font-size:14px;box-shadow:0 3px 10px rgba(0,0,0,.35);cursor:pointer}
+  #duelfab small{font-weight:normal;opacity:.9}body.mob #duelfab{right:auto;left:8px;bottom:auto;top:calc(env(safe-area-inset-top,0px) + 84px);font-size:13px;padding:6px 12px}body.battle #duelfab{display:none!important}`;document.head.appendChild(st);
+  f.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();ON.open=true;ON.tab='duel';panelUI();if(typeof chipUI==='function')chipUI();},true);
+  setInterval(()=>{const show=ON.live&&S&&duelOn()&&!B&&!IG&&!ON.open&&inPort<0&&!S.car&&$('title').style.display!=='flex'&&ON.players.some(o=>o.id!==ON.id);
+    f.style.display=show?'block':'none';if(!show)return;const n=ON.players.filter(o=>o.id!==ON.id&&!duelWhyNot(o)).length;
+    const h=n?`⚔ 결투 신청 <small>· 가능 ${n}명</small>`:`⚔ 결투 <small>· 600km 안에 선장 없음</small>`;if(f.innerHTML!==h)f.innerHTML=h;},800);})();
 
 </script>
 </body></html>
