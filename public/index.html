@@ -3509,16 +3509,11 @@ function bindTavern(box){const id=inPort,p=PORTS[id];
     const t=`'${GOODS[c.i][0]}'은(는) ${q.id===id?'바로 이 항구':dirName(Math.sin(b*DEG),Math.cos(b*DEG))+'쪽 '+Math.round(c.d)+' km의 '+q.name}에서 난다고 합니다. 기준가 ${GOODS[c.i][2]}골드.`;
     tavMsg={p:id,t:'산지 소문: '+t};save();drawPort();toast('산지 소문: '+t,true);};}
 // ---------- 조합 ----------
-function guildHome(){const un=Object.keys(S.df).filter(i=>!S.df[i].rep).length,bk=BOSS.filter((b,i)=>S.bk[i]&&!S.bd[i]).length,bd=BOSS.filter((b,i)=>S.bd[i]).length;
+function guildHome(){const un=Object.keys(S.df).filter(i=>!S.df[i].rep).length,G=gangsAt(inPort).map(o=>o.g),bk=allGangs().filter(g=>gTaken(g)&&!gDone(g)).length,bd=allGangs().filter(gDone).length,here=G.filter(g=>!gDone(g)).length;
   return `<p class="greet">조합장이 두꺼운 장부를 펼칩니다. "새로운 것을 보았다면 들려주시오. 바다를 어지럽히는 자들의 수배서도 여기 있소."</p>
    <div class="grid"><b>명성</b><span>${(S.fame||0).toLocaleString()}</span><b>발견물</b><span>${Object.keys(S.df).length} / ${DISC.length}</span></div>
    <div class="agrid">${act('📜','발견물 보고',un?`<b class="tw">보고할 발견물 ${un}개</b>`:'보고할 발견물이 없음','data-go="grep"')}
-    ${act('🏴‍☠️','현상 수배',`수배 중 ${bk}명 · 잡은 두목 ${bd}/${BOSS.length}`,'data-go="gbnt"')}</div>`;}
-function bountyBody(){const H=bossHomes();
-  return `<p class="hint">수배서를 받으면 두목의 근거지가 지도에 붉은 점선으로 나타납니다. 근거지 가까이 가면 두목의 함대가 나타납니다.</p><div class="cgrid">${BOSS.map((b,i)=>`<div class="card poster${S.bd[i]?' done':''}"><img class="pt" src="${bossPortrait(i)}" width="88" height="88" alt="">
-    <div class="cn"><b>${b.n}</b> <small>${'★'.repeat(b.lv)}</small></div><div class="cs">현상금 <b>${b.b.toLocaleString()}</b>골드</div>
-    <details><summary>자세히</summary><div class="hint">${b.d}</div></details><div class="hint">${S.bk[i]?`근거지: ${regionName(regionOf(H[i][0],H[i][1]))} · ${PORTS[H.near[i]].name} 앞바다`:'근거지 모름'}</div>
-    <div class="cb">${S.bd[i]?'<b class="tok">✔ 잡음</b>':S.bk[i]?'<small>수배 중</small>':`<button data-bk="${i}">📜 수배서 받기</button>`}</div></div>`).join('')}</div>`;}
+    ${act('🏴‍☠️','현상 수배',`이 항구 수배서 ${here}장 · 수배 중 ${bk} · 토벌 ${bd}`,'data-go="gbnt"')}</div>`;}
 
 // ---------- 항구 관리소: 함대 배치 (배를 누르면 그 배의 사람들) · 거느린 항해자 ----------
 let fleetSel=0;
@@ -3556,7 +3551,7 @@ function drawBld(){const id=inPort,b=townOf(portTab),box=$('portbox');
   if(b.k==='hidden')bindHidden(box);
   if(b.k==='tavern')bindTavern(box);
   if(b.k==='office'){bindFleet(box,drawPort);box.querySelectorAll('[data-fsel]').forEach(x=>x.onclick=()=>{fleetSel=+x.dataset.fsel;drawPort();});box.querySelectorAll('[data-flag]').forEach(x=>{const f=x.onclick;x.onclick=()=>{f&&f();fleetSel=0;drawPort();};});}
-  if(b.k==='guild'){bindBounty(box,drawPort);const rb=box.querySelector('#rep');if(rb)rb.onclick=()=>{reportAll();drawPort();};}}
+  if(b.k==='guild'){bindGangs(box);const rb=box.querySelector('#rep');if(rb)rb.onclick=()=>{reportAll();drawPort();};}}
 
 // ---------- 마을 ----------
 function townStat(b,id){try{
@@ -3651,6 +3646,80 @@ body.mob .tscene{height:120px}body.mob .tname h2{font-size:20px}body.mob .tname 
 body.mob .tgrid{grid-template-columns:repeat(3,1fr);gap:7px}body.mob .tb{min-height:92px;padding:8px 4px}body.mob .tb .ti{font-size:30px}body.mob .tb .tn{font-size:13px}body.mob .tb .tn kbd{display:none}body.mob .tb .ts{font-size:10.5px}
 body.mob .tfoot .main{width:100%}body.mob .bhead{gap:8px}body.mob .bhead h2{font-size:17px}body.mob .bhead h2 small{display:none}body.mob .bgold span{display:none}
 body.mob .mcards{grid-template-columns:1fr}body.mob .igrid{grid-template-columns:repeat(3,1fr)}body.mob .cgrid{grid-template-columns:1fr 1fr}body.mob .idet{flex-direction:column;align-items:center}body.mob .fdh{flex-direction:column}body.mob .mrow{grid-template-columns:repeat(3,1fr)}body.mob .agrid{grid-template-columns:1fr 1fr;gap:7px}body.mob .atile{min-height:100px;padding:10px 4px}body.mob .atile .ai{font-size:32px}`;document.head.appendChild(st);}
+
+// ===== 해적단 수배 =====
+// 바다 지역 12곳마다 그 바다의 해적단(약함)이 있고, 해적 두목 8명의 해적단(강함)이 있다.
+// 수배서는 해적단 근거지에서 가까운 항구부터 붙고, 강한 해적단일수록(그리고 날이 갈수록) 먼 항구까지 퍼진다.
+// 그 해적단의 함대를 10번 무찌르면 11번째로 두목이 근거지에 나타나고, 두목을 잡아야 토벌이 끝난다.
+const GANG_KILLS=10;
+const NOTO_KM=[0,1500,2500,3500,5000,7000,10000];
+let LGANG=null;
+function localGangs(){if(LGANG)return LGANG;const H=PORTS[HOME],hr=regionOf(H.lat,H.lon);LGANG=[];
+  for(let r=0;r<12;r++){const ps=SEAPORTS.filter(p=>regionOf(p.lat,p.lon)===r&&Math.abs(p.lat)<66&&p.id!==HOME);if(!ps.length)continue;
+    const p=ps.slice().sort((a,b)=>hash3(a.id,91,r)-hash3(b.id,91,r))[0];let pt=[p.lat,p.lon];
+    found:for(const R of [1.4,2,1,2.8])for(let a=0;a<16;a++){const la=p.lat+R*Math.cos(a*Math.PI/8),lo=p.lon+R*Math.sin(a*Math.PI/8)/Math.max(.3,Math.cos(p.lat*DEG));
+      if(!isLand(la,lo)&&!isLand(la+.4,lo)&&!isLand(la-.4,lo)&&!isLand(la,lo+.5)&&!isLand(la,lo-.5)){pt=[la,wrapLon(lo)];break found;}}
+    const d=gcDist(H.lat,H.lon,pt[0],pt[1]),lv=r===hr||d<4500?1:d<10000?2:3;
+    LGANG.push({key:'L'+r,r,n:PIR_NAMES[r],lv,b:[0,1500,3000,5000][lv],home:pt,near:p.id,local:1,d:`${regionName(r)}를 떠도는 해적단. 상선을 털고 작은 항구를 위협한다.`});}
+  return LGANG;}
+function allGangs(){const H=bossHomes();return localGangs().concat(BOSS.map((b,i)=>({key:'B'+i,i,n:b.n+'의 해적단',boss:b.n,lv:b.lv,b:b.b,home:H[i],near:H.near[i],d:b.d})));}
+const gangBy=k=>allGangs().find(g=>g.key===k);
+const gKills=k=>(S.gk&&S.gk[k])||0;
+let GHIDE=new Set();
+const gDone=g=>g.local?!!(S.bd&&S.bd[g.key]):!!(S.bd&&S.bd[g.i])&&!GHIDE.has(g.i);
+const gTaken=g=>g.local?!!(S.bk&&S.bk[g.key]):!!(S.bk&&S.bk[g.i]);
+function notoKm(g){return NOTO_KM[g.lv]*Math.min(2,1+(S.day||0)/400);} // 날이 갈수록 수배가 멀리 퍼진다
+function gangsAt(pid){const P=PORTS[pid];return allGangs().map(g=>({g,d:gcDist(P.lat,P.lon,g.home[0],g.home[1])})).filter(o=>o.d<=notoKm(o.g)||gTaken(o.g)).sort((a,b)=>a.d-b.d);}
+function gangPic(g,sz){if(!g.local)return `<img class="pt" src="${bossPortrait(g.i)}" width="${sz}" height="${sz}" alt="">`;
+  const u=typeof IGART!=='undefined'&&IGART.pi&&IGART.pi.ready&&IGART.pi.ready.u;return u?`<span class="gpic" style="width:${sz}px;height:${sz}px"><img src="${u}" alt=""></span>`:`<span class="eico" style="font-size:${sz*.7}px">☠</span>`;}
+
+// 떠도는 해적에게 해적단 이름 붙이기: 근처 두목 해적단의 부하이거나, 그 바다의 해적단
+{const sp0=spawnPir;spawnPir=function(lv,ships,boss,at){const p=sp0.apply(this,arguments);if(!p||p.boss!=null||p.chief)return p;
+  try{const near=allGangs().filter(g=>!g.local&&!gDone(g)&&gcDist(p.lat,p.lon,g.home[0],g.home[1])<1800);
+    if(near.length&&Math.random()<.5){const g=near[Math.floor(Math.random()*near.length)];p.g=g.key;p.name=g.boss+'의 부하';const L=Math.max(p.lv,g.lv-2);if(L!==p.lv){p.lv=Math.min(5,L);p.ships=pirShipsFor(p.lv);}}
+    else{const g=localGangs().find(x=>x.r===regionOf(p.lat,p.lon));if(g&&!gDone(g)){p.g=g.key;p.name=g.n;}else{p.g=null;p.name='떠돌이 해적';}}}catch(e){}return p;};}
+// 두목은 수배서를 받고 그 해적단 함대를 10번 무찌른 뒤에야 근거지에 나타난다
+{const pd0=pirDaily;pirDaily=function(){if(!S||!S.pir)return pd0.apply(this,arguments);
+  // 원래 코드는 두목을 근거지 근처에서 바로 띄우므로, 아직 때가 안 된 두목은 잠시 '잡은 것'으로 가려 둔다
+  const hide=[];BOSS.forEach((b,i)=>{if(!S.bd[i]&&!(S.bk[i]&&gKills('B'+i)>=GANG_KILLS)){S.bd[i]=1;hide.push(i);}});GHIDE=new Set(hide);
+  const keep=S.pir.filter(p=>p.chief);let r;try{r=pd0.apply(this,arguments);}finally{hide.forEach(i=>delete S.bd[i]);GHIDE=new Set();}
+  keep.forEach(p=>{if(!S.pir.includes(p))S.pir.push(p);});
+  if(inPort<0&&!S.car)for(const g of localGangs()){if(gDone(g)||!gTaken(g)||gKills(g.key)<GANG_KILLS||S.pir.some(p=>p.chief===g.key))continue;
+    if(gcDist(S.lat,S.lon,g.home[0],g.home[1])<1100){const L=Math.min(5,g.lv+1),p=sp0spawn(L,g.home);if(p){p.chief=g.key;p.g=g.key;p.name=g.n+' 두목';}}}
+  return r;};}
+function sp0spawn(lv,at){const p=spawnPir(lv,pirShipsFor(lv),null,at);return p;}
+{const pv0=pirVisible;pirVisible=function(p){return pv0(p)||(p.chief&&S.bk&&S.bk[p.chief]);};}
+// 전투 결과: 해적단 토벌 횟수, 수배금, 두목 토벌
+{const fb0=finishBattle;finishBattle=function(kind){const p=B&&B.p;const r=fb0.apply(this,arguments);
+  try{if(kind==='win'&&p){S.gk=S.gk||{};let msg='';
+    if(p.chief){const g=gangBy(p.chief);S.bd[p.chief]=1;S.gold+=g.b;S.fame=(S.fame||0)+Math.round(g.b/10);S.st.boss=(S.st.boss||0)+1;
+      msg=`<b>🏴‍☠️ ${g.n} 토벌 완료!</b> 두목을 잡았습니다. 수배금 ${g.b.toLocaleString()}골드 · 명성 +${Math.round(g.b/10)}`;}
+    else if(p.boss!=null){msg=`<b>🏴‍☠️ ${BOSS[p.boss].n}의 해적단 토벌 완료!</b>`;}
+    else if(p.g){const g=gangBy(p.g),n=(S.gk[p.g]=(S.gk[p.g]||0)+1);
+      if(g&&gTaken(g)&&!gDone(g)){const pay=Math.round(g.b*.04);S.gold+=pay;msg=`📜 ${g.n} 토벌 ${Math.min(n,GANG_KILLS)}/${GANG_KILLS} · 수배 보상 ${pay.toLocaleString()}골드`;
+        if(n===GANG_KILLS)msg+=`<br><b>☠ ${g.local?g.n+' 두목':g.boss}이(가) 근거지(${PORTS[g.near].name} 앞바다)에 나타났습니다!</b>`;}
+      else if(g&&!gDone(g))msg=`${g.n}의 함대를 무찔렀습니다 (${Math.min(n,GANG_KILLS)}/${GANG_KILLS}). 조합에서 수배서를 받으면 보상을 받습니다.`;}
+    if(msg){save();const bx=$('batbox'),h=bx&&bx.querySelector('h2');if(h)h.insertAdjacentHTML('afterend',`<div class="note" style="border-left:4px solid #a8322a">${msg}</div>`);}}}catch(e){console.error(e);}
+  return r;};}
+// 지도: 수배서를 받은 해적단 근거지
+{const dp0=drawPirates;drawPirates=function(){const r=dp0.apply(this,arguments);if(!S||!S.bk)return r;
+  for(const g of localGangs()){if(!gTaken(g)||gDone(g))continue;const s=toScr(...proj(g.home[0],g.home[1]));ctx.strokeStyle='rgba(168,50,42,.7)';ctx.setLineDash([3,4]);ctx.lineWidth=1.3;ctx.beginPath();ctx.arc(s[0],s[1],13,0,7);ctx.stroke();ctx.setLineDash([]);
+    ctx.font='bold 11px serif';ctx.textAlign='center';ctx.lineWidth=3;ctx.strokeStyle='rgba(243,232,207,.95)';const tx=`☠ ${g.n} ${gKills(g.key)>=GANG_KILLS?'두목 출현':gKills(g.key)+'/'+GANG_KILLS}`;ctx.strokeText(tx,s[0],s[1]+25);ctx.fillStyle='#a8322a';ctx.fillText(tx,s[0],s[1]+25);ctx.textAlign='left';}
+  return r;};}
+// 조합 현상 수배 게시판 (이 항구에 붙은 수배서만)
+function bountyBody(){const pid=inPort,L=gangsAt(pid);
+  if(!L.length)return '<p class="hint">이 항구에는 붙은 수배서가 없습니다.</p>';
+  return `<p class="hint">이 항구에 붙은 수배서입니다. 가까운 바다의 해적단부터 붙고, 악명 높은 해적단일수록 먼 항구까지 수배가 퍼집니다. 수배서를 받고 그 해적단 함대를 <b>${GANG_KILLS}번</b> 무찌르면 두목이 근거지에 나타나고, 두목을 잡아야 토벌이 끝납니다.</p>
+   <div class="cgrid">${L.map(({g,d})=>{const k=gKills(g.key),done=gDone(g),tk=gTaken(g);return `<div class="card poster${done?' done':''}">${gangPic(g,88)}
+    <div class="cn"><b>${g.n}</b> <small>${'★'.repeat(g.lv)}</small></div><div class="cs">수배금 <b>${g.b.toLocaleString()}</b>골드 <small class="hint">+ 부하 1척당 ${Math.round(g.b*.04).toLocaleString()}</small></div>
+    <div class="hint">${regionName(regionOf(g.home[0],g.home[1]))} · 여기서 ${Math.round(d/100)*100}km</div>
+    <div class="gbar"><i style="width:${Math.min(1,k/GANG_KILLS)*100}%"></i><span>${done?'토벌 완료':k>=GANG_KILLS?'두목 출현!':`부하 토벌 ${k}/${GANG_KILLS}`}</span></div>
+    <details><summary>자세히</summary><div class="hint">${g.d}</div>${tk?`<div class="hint">근거지: ${PORTS[g.near].name} 앞바다</div>`:''}</details>
+    <div class="cb">${done?'<b class="tok">✔ 토벌 완료</b>':tk?'<small>수배 중</small>':`<button data-bk2="${g.key}">📜 수배서 받기</button>`}</div></div>`;}).join('')}</div>`;}
+function bindGangs(box){box.querySelectorAll('[data-bk2]').forEach(b=>b.onclick=()=>{const g=gangBy(b.dataset.bk2);if(!g)return;S.bk=S.bk||{};if(g.local)S.bk[g.key]=1;else S.bk[g.i]=1;
+  toast(`📜 ${g.n} 수배서를 받았습니다. 근거지: ${PORTS[g.near].name} 앞바다. 이 해적단 함대를 ${GANG_KILLS}번 무찌르면 두목이 나타납니다. (지금 ${gKills(g.key)}/${GANG_KILLS})`,true);checkMissions();save();drawPort();});}
+{const st=document.createElement('style');st.textContent=`.gpic{display:inline-block;overflow:hidden;border-radius:8px;border:2px solid #8a6a44;background:#d9c49a}.gpic img{height:150%;margin-top:-4%;transform:scaleX(-1)}
+.gbar{position:relative;width:100%;height:18px;background:#e3d3b0;border-radius:9px;overflow:hidden}.gbar i{display:block;height:100%;background:#a8322a}.gbar span{position:absolute;left:0;right:0;top:0;font-size:11px;line-height:18px;color:#2a1a0a;font-weight:bold}`;document.head.appendChild(st);}
 
 // ===== 온라인 (Render 서버용) — ONLINE 빌드에서만 들어간다 =====
 const ON={live:false,id:0,nm:'',tok:'',ws:null,wsOk:false,W:{mk:{},dev:{},disc:{},inv:{},nm:{}},players:[],chat:[],unread:0,tab:'chat',qmk:{},qdev:{},rank:null,rankT:0,open:false,retry:0,posT:0};
