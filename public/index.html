@@ -2667,14 +2667,15 @@ function tutDraw(force){if(!S)return;let el=$('tut');if(!el){el=document.createE
       else if(a==='skip'){t.f={};t.i++;if(t.i>=TUT.length)t.done=1;save();tutDraw(true);}
       else if(a==='fold'){t.fold=t.fold?0:1;tutDraw(true);}
       else if(a==='quit'){if(confirm('튜토리얼을 그만둘까요? 남은 보상과 캐러벨은 받지 못합니다. (Y로 다시 열 수 있습니다)')){t.done=1;t.quit=1;save();tutDraw(true);}}
-      else if(a==='close'){uiToggle('tut',false);}});}
-  const t=tutT();const hide=$('title').style.display==='flex'||(MOB?t.done&&!tutDraw.mobOpen:uiHidden('tut'))||B||storyOpen;el.style.display=hide?'none':'';if(hide)return;
+      else if(a==='close'||a==='hide'){if(MOB||a==='hide'){S.opt.tutHide=1;save();toast('튜토리얼 창을 닫았습니다. 설정(⚙)에서 다시 열 수 있습니다.');tutDraw(true);}else uiToggle('tut',false);}});}
+  const t=tutT();if(MOB&&t.fold==null)t.fold=1;
+  const hide=$('title').style.display==='flex'||(S.opt&&S.opt.tutHide)||(MOB?t.done&&!tutDraw.mobOpen:uiHidden('tut'))||B||storyOpen;el.style.display=hide?'none':'';if(hide)return;
   el.classList.toggle('fold',!!t.fold);
   let h;if(t.done){h=`<div class="th"><span>📘 튜토리얼 ${t.quit?'(그만둠)':'완료'}</span></div><div class="tb"><p>${t.quit?'튜토리얼을 그만두었습니다.':'모든 단계를 마쳤습니다. 수고했어요!'}</p>
       <p class="hint">기억할 단축키: ${Kb('U 상태판 · H 조작법 · P 가까운 항구 · N 판매 조언 · K 과제 · T 함대 · I 상품 정보 · J 일지 · M 세계 지도 · Q 조사','아래 메뉴')}</p>
       <div class="btns">${t.quit?'<button data-tt="restart">처음부터 다시</button>':''}<button data-tt="close">닫기 (Y)</button></div></div>`;}
   else{const st=TUT[t.i],ok=st.ok&&st.ok(t),need=st.need?st.need():true;
-    h=`<div class="th"><span>📘 튜토리얼 ${t.i}/${TUT.length-1}</span><span><button data-tt="fold" style="font-size:11px;padding:0 6px">${t.fold?'▸ 펼치기':'▾ 접기'}</button></span></div>
+    h=`<div class="th"><span>📘 튜토리얼 ${t.i}/${TUT.length-1}</span><span><button data-tt="fold" style="font-size:11px;padding:0 6px">${t.fold?'▸ 펼치기':'▾ 접기'}</button>${MOB?' <button data-tt="hide" style="font-size:11px;padding:0 6px" title="튜토리얼 창 닫기">✕</button>':''}</span></div>
      <div class="tp"><i style="width:${(t.i/(TUT.length-1)*100).toFixed(0)}%"></i></div>
      <div class="tb"><h4>${st.t}</h4>${st.b()}
      ${st.goal?`<div class="goal ${ok?'ok':''}">${ok?'✔':'🎯'} ${st.goal()}</div>`:''}
@@ -2706,18 +2707,21 @@ UIW.push(['opts','설정','0',0]);UI_SHORT.opts='설정';
 function optsHTML(){const c=pirCfg(),pc=v=>Math.round(v*100);
   const row=(k,label,v,desc)=>`<div class="optr"><div><b>${label}</b> <span class="optv" id="ov_${k}">${pc(v)}%</span></div>
     <input type="range" min="10" max="200" step="10" value="${pc(v)}" data-opt="${k}" ${c.lock?'disabled':''}><div class="hint">${desc}</div></div>`;
-  return `${c.lock?'<p class="hint">🌐 온라인 모드에서는 <b>선생님이 관리 페이지에서</b> 정합니다. 모든 선장에게 같은 값이 적용됩니다.</p>':''}
+  const tutOn=!(S.opt&&S.opt.tutHide)&&!(typeof MOB!=='undefined'&&!MOB&&uiHidden('tut'));
+  return `<div class="optr"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" data-tutopt="1" ${tutOn?'checked':''}> <b>📘 튜토리얼 창 보이기</b></label><div class="hint">끄면 튜토리얼 창이 사라집니다. 튜토리얼 진행과 보상은 그대로 이어집니다.</div></div>
+   <h4 style="margin:8px 0 4px">☠ 해적</h4>${c.lock?'<p class="hint">🌐 온라인 모드에서는 <b>선생님이 관리 페이지에서</b> 정합니다. 모든 선장에게 같은 값이 적용됩니다.</p>':''}
    ${row('pf','☠ 해적 빈도',c.f,'바다에 해적이 나타나는 정도와 한꺼번에 돌아다니는 수 (100%면 최대 3무리, 10%면 1무리)')}
    ${row('pp','⚔ 해적 세기',c.p,'해적 배의 선체·대포·선원 (100%가 원래 값). 약하면 덜 쫓아오고 더 잘 도망칩니다')}
    ${row('ps','💨 해적 배 속도',c.s,'바다에서 쫓아오거나 달아나는 빠르기와 해전에서 움직이는 빠르기. 낮추면 피하기 쉽고, 높이면 도망치는 해적을 잡기 어렵습니다')}
    ${c.lock?'':'<div class="btns"><button data-opt-reset="1">원래대로 (100%)</button></div>'}<p class="hint" style="font-size:11px">해적 두목은 빈도와 상관없이 제자리에 있습니다.</p>`;}
 function optsBind(root){root.querySelectorAll('[data-opt]').forEach(r=>{r.oninput=()=>{const v=+r.value/100;S.opt[r.dataset.opt]=v;const l=root.querySelector('#ov_'+r.dataset.opt);if(l)l.textContent=r.value+'%';};r.onchange=()=>{save();toast(`${({pf:'해적 빈도',pp:'해적 세기',ps:'해적 배 속도'})[r.dataset.opt]} ${r.value}%`);};});
+  const tc=root.querySelector('[data-tutopt]');if(tc)tc.onchange=()=>{S.opt.tutHide=tc.checked?0:1;if(tc.checked){if(!MOB)uiToggle('tut',true);else tutDraw.mobOpen=1;}save();tutDraw(true);toast(tc.checked?'튜토리얼 창을 엽니다.':'튜토리얼 창을 닫았습니다.');};
   const z=root.querySelector('[data-opt-reset]');if(z)z.onclick=()=>{S.opt.pf=1;S.opt.pp=1;S.opt.ps=1;save();optsDraw(true);};}
 let optsLast='';
 function optsDraw(force){if(!S||MOB)return;let el=$('opts');if(!el){el=document.createElement('div');el.id='opts';el.className='panel';document.body.appendChild(el);}
   const h=`<h3>⚙ 설정 <small style="font-weight:400">(0키)</small></h3>`+optsHTML();if(h!==optsLast||force){optsLast=h;el.innerHTML=h;optsBind(el);uiApply();}}
 setInterval(()=>{try{if(S&&!MOB&&uiShown('opts'))optsDraw();}catch(e){}},1500);
-{const ot=window.onUiToggle;window.onUiToggle=(id,now)=>{if(id==='opts'&&now)optsDraw(true);if(ot)ot(id,now);};}
+{const ot=window.onUiToggle;window.onUiToggle=(id,now)=>{if(id==='opts'&&now)optsDraw(true);if(id==='tut'&&now&&S&&S.opt&&S.opt.tutHide){S.opt.tutHide=0;save();tutDraw(true);}if(id==='tut'&&uiShown('opts'))optsDraw(true);if(ot)ot(id,now);};}
 // 휴대폰: 메뉴에 설정 넣기
 {const dm=drawMenu;drawMenu=function(){const r=dm.apply(this,arguments);const b=$('mmBody');if(b&&S){const d=document.createElement('div');d.innerHTML='<h4>⚙ 설정</h4>'+optsHTML();b.appendChild(d);optsBind(d);}return r;};}
 (()=>{const st=document.createElement('style');st.textContent=`#opts{right:290px;top:260px;width:300px;padding:10px 14px;font-size:13px}#opts h3{margin:0 0 6px}
