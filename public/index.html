@@ -3429,6 +3429,17 @@ function bindMarket(box){const id=inPort;
   const O=luxOffers(id);box.querySelectorAll('[data-lb]').forEach(b=>b.onclick=()=>luxBuy(O.find(o=>o.i===+b.dataset.lb),+b.dataset.n));
   box.querySelectorAll('[data-ls]').forEach(b=>b.onclick=()=>luxSell(+b.dataset.ls,+b.dataset.n));}
 
+function luxBody(p){const lv=mktLv(p),mine=S.lux||[];let h='';
+  if(lv>=2){const O=luxOffers(p);h+=`<div class="tbar"><span>✨ 오늘의 명품 <small class="hint">(시장 투자 ${lv}등급 · ${10-Math.floor(S.day)%10}일 뒤 바뀜 · 화물칸 남은 자리 ${freeT()}톤)</small></span></div>
+    <div class="cgrid">${O.map(o=>`<div class="card gcard lux${o.qty?'':' sold'}">${gi(o.g,72)}<div class="cn"><b>${o.G[0]} ${GOODS[o.g][0]}</b></div><div class="cs">남은 물량 ${o.qty}톤</div>
+     <div class="gp"><b>${o.price}</b>골드</div><div class="hint">어디서 팔든 원가의 <b>${Math.round(o.G[2]*100)}%</b> 이상 · 보통 값의 ${o.G[1]}배</div>
+     <div class="cb">${o.qty?`<button data-lb="${o.i}" data-n="10">10</button><button class="main" data-lb="${o.i}" data-n="999">최대</button>`:'<small>다 팔림</small>'}</div></div>`).join('')}</div>
+    <p class="hint">명품은 산 항구에서 되팔면 보장이 없습니다. 다른 항구로 가져가 파세요.</p>`;}
+  else h+=`<div class="note">✨ 이 항구의 <b>시장 투자 2등급</b>(${IVLV[2].toLocaleString()}골드)부터 <b>명품 상품</b>이 나옵니다. 어디서 팔아도 원가보다 비싸게 팔리는 특별한 물건입니다. (지금 ${lv}등급 · 투자는 시장의 집에서)</div>`;
+  if(mine.length)h+=`<h4>✨ 내 명품 짐</h4><div class="cgrid">${mine.map((l,i)=>{const v=luxHere(l,p),r=v/l.c;return `<div class="card gcard lux">${gi(l.g,72)}<div class="cn"><b>${l.gr} ${GOODS[l.g][0]}</b></div><div class="cs">내 짐 <b>${l.q}</b>톤 · 원가 ${Math.round(l.c)}${l.from===p?' · <span class="tw">산 곳</span>':''}</div>
+     <div class="gp"><b>${v}</b>골드 <span class="rec" style="background:${r>=1?'#3b7a3b':'#a8322a'}">원가의 ${Math.round(r*100)}%</span></div>
+     <div class="cb"><button data-ls="${i}" data-n="10">10</button><button class="main" data-ls="${i}" data-n="999">전부 팔기</button></div></div>`;}).join('')}</div>`;
+  return h;}
 // ---------- 조선소 ----------
 function ybuyBody(id){const L=yardTypes(id),lv=yardLv(id),left=spLeft(id),full=S.fleet.length>=5;
   const rv=yardReveal&&yardReveal.p===id?`<div class="note" style="background:#fff3cf;border:2px solid #e0a21a"><b style="font-size:16px">🎉 새 배: ${yardReveal.name} — ${yardReveal.full}</b><br>${modTxt(yardReveal.x)}</div>`:'';
@@ -3529,7 +3540,7 @@ function crewBody(){const ids=hiredIds(),wait=ids.filter(i=>!seatOf(i)&&!MATES[i
    ids.sort((a,b)=>(MATES[b].hero?1:0)-(MATES[a].hero?1:0)).map(i=>mateCard(i,` ${!MATES[i].story?`<button data-fire="${i}">내보내기</button>`:''}`)).join('');}
 
 // ---------- 건물 화면 ----------
-const BODY={mkt:mktBody,buy:buyBody,sell:sellBody,lux:id=>luxHTML(id),ybuy:ybuyBody,ysell:ysellBody,yup:yupBody,yrep:yrepBody,fleet:fleetBody,crew:crewBody,tav:tavHome,hire:id=>tavernHire(id),near:tavNear,guild:guildHome,grep:()=>guildHTML(),gbnt:bountyBody,yinv:yinvBody,
+const BODY={mkt:mktBody,buy:buyBody,sell:sellBody,lux:luxBody,ybuy:ybuyBody,ysell:ysellBody,yup:yupBody,yrep:yrepBody,fleet:fleetBody,crew:crewBody,tav:tavHome,hire:id=>tavernHire(id),near:tavNear,guild:guildHome,grep:()=>guildHTML(),gbnt:bountyBody,yinv:yinvBody,
   sw:id=>shopKindBody(id,'w'),sa:id=>shopKindBody(id,'a'),st:id=>shopKindBody(id,'t'),ssell:ssellBody,hidden:hiddenBody};
 function bName(b,id){if(b.k!=='hidden')return [b.ic,b.n];const c=hidCond(id),H=HID[c.k];return c.ok?[H.ic,H.n]:['❓','???'];}
 function bHead(b){const [ic,n]=bName(b,inPort);return `<div class="bhead"><button id="tback" title="마을로 돌아가기 (Esc)">← 마을</button><h2><span>${ic}</span> ${n} <small>${PORTS[inPort].name}</small></h2><div class="bgold"><b>${S.gold.toLocaleString()}</b> 골드<br><span>화물칸 ${Math.round(cargoT())}/${holdT()}톤</span></div></div>`;}
@@ -3628,6 +3639,7 @@ tr.cmpr td{font-size:12px;color:#6a5030;background:#f7eedb;padding-top:2px;paddi
 .uprow{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px;border-top:1px dashed #d8c8a0;padding-top:4px}.pips{color:#b07a2e;letter-spacing:1px}
 .hpb{display:block;width:100%;height:8px}.card.hurt img{filter:sepia(.4) saturate(.8)}
 .card.poster{align-items:center;text-align:center}.card.poster img.pt{border-radius:8px;border:2px solid #8a6a44}.card.poster.done img.pt{filter:grayscale(1)}
+.card.lux{border-color:#d9a83a;background:linear-gradient(#fffbea,#fff3d0)}.card.lux.sold{opacity:.55}
 .gcard{align-items:center;text-align:center}.gcard img.gi{margin:4px auto}.gcard .cb{justify-content:center}.gp{font-size:14px}.gp b{font-size:20px}.rec{color:#fff;border-radius:6px;padding:1px 7px;font-size:12px;font-weight:bold;margin-left:4px}
 .cmpc{font-size:12px;color:#6a5030;background:#f7eedb;border-radius:6px;padding:5px 7px;text-align:left;width:100%;box-sizing:border-box}
 .fcard{cursor:pointer;align-items:center;text-align:center;font:inherit}.fcard.on{border:3px solid #2f5d73;background:#eef5f8}
