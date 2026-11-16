@@ -816,7 +816,7 @@ function checkMissions(){if(!S)return;MISSIONS.forEach((m,i)=>{if(!S.mis[i]&&m.o
 // ===== 항구 =====
 let inPort=-1;
 function nearPort(){let best=-1,bd=1e9;for(const id of S.found){const p=PORTS[id];let dl=p.lon-S.lon;if(dl>180)dl-=360;if(dl<-180)dl+=360;const d=Math.hypot(p.lat-S.lat,dl*Math.cos(S.lat*DEG));if(d<bd){bd=d;best=id;}}return bd<.7?best:-1;}
-function enterPort(id){storyArrive(id);if(S.fleet.some((sh,k)=>hpK(k)<hpMaxK(k)*.6)&&!PORTS[id].inland)setTimeout(()=>toast('배가 상했습니다. 조선소 탭에서 고칠 수 있습니다.'),400);if(anchorAt>=0){anchorAt=-1;showArrive();}inPort=id;paused=true;const p=PORTS[id];if(!p.inland){S.lat=p.lat;S.lon=p.lon;}S.sail=0;route=null;autop=false;
+function enterPort(id){storyArrive(id);if(S.fleet.some((sh,k)=>hpK(k)<hpMaxK(k)*.6)&&!PORTS[id].inland)setTimeout(()=>toast('배가 상했습니다. 마을의 조선소에서 고칠 수 있습니다.'),400);if(anchorAt>=0){anchorAt=-1;showArrive();}inPort=id;paused=true;const p=PORTS[id];if(!p.inland){S.lat=p.lat;S.lon=p.lon;}S.sail=0;route=null;autop=false;
   if(!p.inland&&!S.entered.includes(id)){S.entered.push(id);} recordPrices(id); checkLeave(); portTab='trade'; sfx('port'); if(!p.inland)engineRefill(); checkMissions(); save(); drawPort();
   document.getElementById('port').style.display='flex';}
 // ===== 상품과 교역 =====
@@ -1017,10 +1017,10 @@ function yardHTML(p){const L=yardTypes(p);
       return `<td title="${U.d}">${U.n} ${'●'.repeat(n)}${'○'.repeat(U.max-n)}<br>${n>=U.max?'<small>끝까지 개조함</small>':lock?`<small>투자 ${U.need}단계 항구에서</small>`:`<button data-up="${k}" data-w="${w}" ${S.gold<c?'disabled':''}>+${Math.round(U.per*100)}% (${c.toLocaleString()})</button>`}</td>`;}).join('')+'</tr>';}).join('')+'</table>';
   const nx=SHIPTYPES.map((T,t)=>T.need&&!L.includes(t)?`${T.n}(투자 ${T.need}단계)`:'').filter(x=>x);
   if(nx.length)h+=`<p class="hint">이 항구에서 투자 단계를 올리면 더 빠른 배를 살 수 있습니다: ${nx.join(' · ')}</p>`;
-  h+=`<div class="note">함대 속도는 배들의 평균입니다. 가로돛은 순풍에, 세로돛은 맞바람에 강합니다. 새 배에는 선원이 없으니 '보급' 탭에서 선원을 채우세요. 선원이 정원의 3분의 2보다 적으면 느려집니다.</div>`;return h;}
+  h+=`<div class="note">함대 속도는 배들의 평균입니다. 가로돛은 순풍에, 세로돛은 맞바람에 강합니다. 새 배에는 선원이 없으니 항구 관리소의 '보급'에서 선원을 채우세요. 선원이 정원의 3분의 2보다 적으면 느려집니다.</div>`;return h;}
 function bindYard(root,redraw){
   root.querySelectorAll('[data-bs]').forEach(b=>b.onclick=()=>{const t=+b.dataset.bs,T=SHIPTYPES[t],pc=shipCost(t);if(S.gold<pc||S.fleet.length>=5)return;S.gold-=pc;
-    const nm=SHIPNAMES.find(n=>!S.fleet.some(f=>f.name===n))||('배 '+(S.fleet.length+1));S.fleet.push({t,name:nm,as:[],hp:T.hp});sfx('ship');toast(`${T.n} '${nm}'을(를) 샀습니다. 선원을 채우고 선장을 앉히세요. 함대 탭에서 기함으로 삼을 수도 있습니다.`,true);checkMissions();save();redraw();});
+    const nm=SHIPNAMES.find(n=>!S.fleet.some(f=>f.name===n))||('배 '+(S.fleet.length+1));S.fleet.push({t,name:nm,as:[],hp:T.hp});sfx('ship');toast(`${T.n} '${nm}'을(를) 샀습니다. 선원을 채우고 선장을 앉히세요. 항구 관리소의 함대 배치에서 기함으로 삼을 수도 있습니다.`,true);checkMissions();save();redraw();});
   root.querySelectorAll('[data-up]').forEach(b=>b.onclick=()=>{const k=+b.dataset.up,w=b.dataset.w,sh=S.fleet[k],T=SHIPTYPES[sh.t],U=UPG[w],n=upLv(sh,w),c=U.cost(T,n);
     if(n>=U.max||S.gold<c)return;S.gold-=c;sh.up=Object.assign({s:0,h:0},sh.up);sh.up[w]=n+1;sfx('ship');toast(`${sh.name}: ${U.n} ${n+1}단계. 이 배가 ${Math.round(U.per*100)}% 빨라졌습니다.`,true);save();redraw();});
   root.querySelectorAll('[data-ss]').forEach(b=>b.onclick=()=>{const k=+b.dataset.ss,sh=S.fleet[k],T=ST(sh);
@@ -2617,14 +2617,14 @@ const TUT=[
    <p>이 튜토리얼은 <b>${TUT.length-1}단계</b>로 기본 조작부터 첫 장사까지 함께 해 봅니다. 단계를 마칠 때마다 <b>조합이 보수를 줍니다</b>. 끝까지 하면 <b>캐러벨 1척</b>을 선물로 받습니다.</p>
    <p class="hint">${isOnl()?'온라인에서는 다른 선장들의 거래로 시세가 계속 바뀝니다. 그래서 튜토리얼 보수는 시세와 상관없이 조합이 <b>정해진 금액</b>으로 줍니다.':'튜토리얼 보수는 시세와 상관없이 조합이 정해진 금액으로 줍니다.'}</p>`,btn:'시작하기',rw:0},
  {t:'부산 항구에 들어가기',b:()=>`<p>배는 지금 부산 앞바다에 있습니다. 항구 가까이 있으면 ${Kb('<kbd>E</kbd>나 <kbd>Enter</kbd>를 누르거나 화면의 「부산 입항」 버튼을 누르면','화면의 「⚓ 부산 입항」 버튼을 누르면')} 들어갑니다.</p><p class="hint">항구가 멀리 있을 때는 지도에서 항구 표시를 누르면 그곳까지 자동으로 갑니다.</p>`,goal:()=>'부산 입항',ok:()=>inPort===HOME,rw:100},
- {t:'시장 읽는 법',b:()=>{const r=tutRoute();return `<p>항구의 <b>교역소</b> 탭이 시장입니다. 위 표는 <b>이 항구에서 살 수 있는 물건</b>, 아래 표는 <b>내 배의 짐</b>입니다.</p>
+ {t:'시장 읽는 법',b:()=>{const r=tutRoute();return `<p>항구 마을의 <b>교역소</b>가 시장입니다. 위 표는 <b>이 항구에서 살 수 있는 물건</b>, 아래 표는 <b>내 배의 짐</b>입니다.</p>
    <table><tr><td><b>값</b></td><td>지금 사는 값. ▲가 붙으면 평소보다 비싸진 것 (많이 사면 오릅니다)</td></tr><tr><td><b>재고</b></td><td>한 번에 살 수 있는 양</td></tr><tr><td><b>가장 비싸게 본 곳</b></td><td>내가 가 본 항구 중 이 물건을 제일 비싸게 사 주는 곳</td></tr>
    <tr><td><b>원가 대비</b></td><td>(짐 표) 여기서 팔면 산 값의 몇 %를 받는지. 100%를 넘으면 이익</td></tr><tr><td><b>추천</b></td><td>지금 팔기 · 들고 가기 · 손해를 알려 줍니다</td></tr></table>
    <p><b>돈 버는 기본</b>: 특산품은 나는 곳에서 싸고, <b>멀고 기후가 다른 곳</b>일수록 비싸게 팔립니다. 지금 부산의 <b>${tg()}</b>는 약 ${r.b}골드인데, ${r.d.toLocaleString()}km 떨어진 <b>${tq().name}</b>에서는 약 ${r.s}골드에 팔립니다.</p>`;},
-   goal:()=>'부산 교역소 탭을 열고 표를 읽어 보기',ok:()=>false,btn:'다 읽었어요',need:()=>inPort>=0&&portTab==='trade',needTxt:'부산 항구의 교역소 탭을 여세요 (항구 밖이면 부산으로 가서 E로 입항)',rw:100},
+   goal:()=>'부산 마을에서 교역소에 들어가 표를 읽어 보기',ok:()=>false,btn:'다 읽었어요',need:()=>inPort>=0&&portTab==='trade',needTxt:'부산 마을에서 교역소를 누르세요 (항구 밖이면 부산으로 가서 E로 입항)',rw:100},
  {t:'첫 장사: 사기',b:()=>`<p>부산 교역소에서 <b>${tg()}</b>를 <b>10개 이상</b> 사세요. 버튼 <b>10</b>을 누르면 10개를 삽니다.</p><p class="hint">한 번에 너무 많이 사면 값이 오릅니다. 처음엔 10~20개로 충분합니다. 화물칸 남은 자리도 보세요.</p>`,
    goal:()=>`${tg()} 10개 이상 사기 (지금 ${(S.cargo[tutRoute().g]||{q:0}).q}개)`,ok:()=>(S.cargo[tutRoute().g]||{q:0}).q>=10,rw:500,rwTxt:'조합 지원금'},
- {t:'보급 채우기',b:()=>`<p>항해 중에는 날마다 <b>물과 식량</b>이 줄어듭니다. 다 떨어지면 선원이 쓰러지고, 결국 배가 난파합니다.</p><p><b>보급</b> 탭에서 물과 식량을 채우세요. 화물칸과 따로 싣습니다.</p>`,
+ {t:'보급 채우기',b:()=>`<p>항해 중에는 날마다 <b>물과 식량</b>이 줄어듭니다. 다 떨어지면 선원이 쓰러지고, 결국 배가 난파합니다.</p><p><b>항구 관리소</b>의 보급에서 물과 식량을 채우세요. 화물칸과 따로 싣습니다.</p>`,
    goal:()=>`물·식량을 거의 가득 (${Math.floor(S.water)}/${supMaxT()}, ${Math.floor(S.food)}/${supMaxT()})`,ok:()=>S.water>=supMaxT()*.85&&S.food>=supMaxT()*.85,rw:100},
  {t:'출항하기',b:()=>`<p>장사 준비가 끝났습니다. ${Kb('<kbd>E</kbd>나 오른쪽 위 「출항」 버튼','「출항」 버튼')}으로 항구를 나서세요. 바다에 나가면 날마다 물과 식량이 줄고, 선원 월급이 나갑니다.</p>`,goal:()=>'항구에서 나가기',ok:()=>inPort<0,rw:100},
  {t:'화면의 창 다루기',b:()=>MOB?`<p>아래 메뉴 버튼으로 정보 창을 열고 닫을 수 있습니다. 위쪽 띠에는 날짜와 돈이 보입니다.</p>`:`<p>위쪽 가운데 <b>단축키 바</b>가 화면의 모든 창을 다룹니다. 처음엔 다 열어 두고, 익숙해지면 닫았다가 필요할 때만 단축키로 부르세요.</p>
@@ -2643,14 +2643,14 @@ const TUT=[
  {t:'첫 장사: 팔기',b:()=>`<p>교역소 아래 <b>내 짐 팔기</b> 표에서 ${tg()}를 파세요. <b>원가 대비</b>가 100%를 넘으면 이익입니다. 「추천대로 팔기」 버튼도 있습니다.</p>
    <p class="hint">실제 판매값은 그때 시세를 따릅니다. 하지만 이 단계를 마치면 조합이 <b>1,500골드</b>를 따로, 정해진 금액으로 줍니다.</p>`,
    goal:()=>{const t=tutT();return `${tg()} 팔기${t.f.profit!=null?` · 이번 장사 이익 ${Math.round(t.f.profit).toLocaleString()}골드`:''}`;},ok:t=>(t.f.soldG||0)>=1,rw:1500,rwTxt:'조합 의뢰 보수'},
- {t:'주점에서 항해자 영입',b:()=>`<p><b>주점</b> 탭에는 일거리를 찾는 항해자가 있습니다. 항해자는 배의 <b>자리</b>에 앉아야 힘을 냅니다. 처음엔 이런 사람이 좋습니다:</p>
+ {t:'주점에서 항해자 영입',b:()=>`<p><b>주점</b>에는 일거리를 찾는 항해자가 있습니다. 항해자는 배의 <b>자리</b>에 앉아야 힘을 냅니다. 처음엔 이런 사람이 좋습니다:</p>
    <table><tr><td><b>회계사</b></td><td>사는 값 −8%, 파는 값 +8%까지. 장사에 바로 도움</td></tr><tr><td><b>항해사</b></td><td>배 속도 최대 +25%. 멀리 갈수록 이득</td></tr><tr><td><b>갑판장</b></td><td>필요한 선원 수 −25%, 바다에서 선체를 고침</td></tr>
    <tr><td>측량사</td><td>보이는 범위가 넓어져 항구·발견물을 잘 찾음</td></tr><tr><td>포술장</td><td>해전 포격이 강해짐</td></tr><tr><td>의사</td><td>항해 중 선원을 덜 잃음</td></tr><tr><td>학자</td><td>발견물 조사(Q)가 잘 됨</td></tr></table>
    <p class="hint">카드의 막대가 그 일을 얼마나 잘하는지 보여 줍니다. 영입비와 날마다 월급이 듭니다. 이 항구에 사람이 없으면 다른 항구 주점에서 영입해도 됩니다.</p>`,
    goal:()=>'항해자 한 명 영입하기',ok:t=>hiredIds().length>(t.f.h0??99),rw:800,rwTxt:'조합 계약금 지원',skip:1},
  {t:'항해자를 자리에 앉히기',b:()=>`<p>${Kb('<kbd>T</kbd>','함대 버튼')}로 <b>함대와 항해자</b> 창을 엽니다. 영입한 항해자를 배의 자리(항해사, 회계사 …)에 앉히세요. 앉히지 않으면 데리고만 다닐 뿐 힘을 쓰지 않습니다.</p>`,goal:()=>'영입한 항해자를 자리에 앉히기',ok:t=>seatedN()>(t.f.s0??99),rw:300,skip:1},
  {t:'조선소와 배의 속도',b:()=>`<p>항구의 <b>조선소</b>에서 배를 고치고, 새 배를 사고, <b>개조</b>로 더 빠르게 만들 수 있습니다. 그 항구에 투자 단계가 높을수록 빠른 배(슬루프 → 스쿠너 → 클리퍼 → 증기 클리퍼)를 팝니다.</p>
-   <p>함대 창(${Kb('<kbd>T</kbd>','함대')}) 맨 위의 <b>⛵ 함대 최고 속도</b> 표가 무엇이 속도를 올리는지 보여 줍니다.</p>`,goal:()=>'아무 항구에서 조선소 탭 열어 보기',ok:t=>t.f.yard,rw:200},
+   <p>함대 창(${Kb('<kbd>T</kbd>','함대')}) 맨 위의 <b>⛵ 함대 최고 속도</b> 표가 무엇이 속도를 올리는지 보여 줍니다.</p>`,goal:()=>'아무 항구 마을에서 조선소에 들어가 보기',ok:t=>t.f.yard,rw:200},
  {t:'이제 혼자 항해할 차례',b:()=>`<p><b>돈 버는 길</b></p><table><tr><td>①</td><td>특산품을 싸게 사서 <b>멀고 기후가 다른 곳</b>에 판다 (판매 조언 창 <kbd>N</kbd>)</td></tr><tr><td>②</td><td>자주 가는 항구의 <b>시장의 집</b>에 투자하면 그 항구에서 물건이 많아지고 질이 좋아진다</td></tr>
    <tr><td>③</td><td>바다의 <b>발견물</b>을 조사(Q)해 조합에 보고하면 보상</td></tr><tr><td>④</td><td><b>이야기·과제</b> 창(<kbd>K</kbd>)의 과제를 하나씩</td></tr>${isOnl()?'<tr><td>⑤</td><td>온라인: 투자 1위가 되면 영주, 실시간 순위(<kbd>L</kbd>), 선장끼리 결투(내기 골드)</td></tr>':''}</table>
    <p>마지막 선물로 <b>캐러벨 1척</b>을 드립니다. 배가 늘면 짐을 더 싣고 항해자를 더 데려갈 수 있습니다.</p>`,btn:'캐러벨 받고 마치기',rw:0,ship:1},
@@ -2937,7 +2937,7 @@ let shopReveal=null;
 function shopHTML(p){gearInit();const L=shopList(p),c=culOf(p),lv=yardLv(p),left=isLeft(p),inv=S.inv2;
   const kinds=[['w','⚔ 무기'],['a','🛡 방어구'],['t','🧭 항해도구']];
   let h=`<p>도구점 주인이 반깁니다. "${CUL[c]} 물건이라면 우리 가게가 제일이지요."</p>
-   <div class="note" style="border-left:4px solid #b07a2e"><b>🏗 공업 투자 ${lv}등급</b> <small>(조선소 탭에서 투자)</small> · ${lv>=3?`<b>✨ 특별 주문</b> 이번 달 ${left}개 남음 — 수식어가 붙은, 능력이 무작위로 더 좋은 물건 (값 1.6배)`:'3등급이 되면 수식어가 붙은 ✨ 특별한 물건을 주문할 수 있습니다'}</div>`;
+   <div class="note" style="border-left:4px solid #b07a2e"><b>🏗 공업 투자 ${lv}등급</b> <small>(조선소에서 투자)</small> · ${lv>=3?`<b>✨ 특별 주문</b> 이번 달 ${left}개 남음 — 수식어가 붙은, 능력이 무작위로 더 좋은 물건 (값 1.6배)`:'3등급이 되면 수식어가 붙은 ✨ 특별한 물건을 주문할 수 있습니다'}</div>`;
   if(shopReveal&&shopReveal.p===p)h+=`<div class="note" style="background:#fff3cf;border:2px solid #e0a21a"><b style="font-size:15px">🎉 ${shopReveal.name}</b><br>${shopReveal.desc}</div>`;
   for(const[k,kn]of kinds){const its=L.map(id=>IT[id]).filter(x=>x.k===k).sort((a,b)=>a.price-b.price);if(!its.length)continue;
     h+=`<h4>${kn}</h4><table class="mt">${its.map(b=>{const fake={b:b.id};return `<tr><td><b>${b.n}</b>${b.cul!=='*'&&!/^reg/.test(b.cul)?` <small class="hint">${CUL[b.cul]}</small>`:''}<div class="hint">${itDesc(fake)} — ${b.d}</div></td><td class="n">${b.price.toLocaleString()}</td>
@@ -3324,6 +3324,81 @@ function igFromBattle(){if(!B||B.end)return;gearInit();if(B.igDone){toast('이�
   return bd0.apply(this,arguments);};}
 {const sb0=startBattle;startBattle=function(p,mode){const r=sb0.apply(this,arguments);try{if(p&&p.boss!=null&&!injured())setTimeout(()=>{if(B&&!B.igDone)toast(`☠ ${p.name}: "배 위에서 칼로 겨뤄 보자!" — 두목 배 옆으로 붙어 T키로 일기토를 받으세요. 이기면 추가 현상금!`,true);},1500);}catch(e){}return r;};}
 
+// ===== 마을 화면 (대항해시대 4 방식) =====
+// 입항하면 마을 풍경과 건물 아이콘이 나오고, 건물을 누르면 그 건물 화면만 보인다.
+// 건물 화면은 예전 탭 내용을 그대로 쓰고, 위쪽에 「← 마을」 버튼과 건물 이름만 둔다.
+const TOWN_B=[
+  {k:'market',n:'교역소',ic:'⚖️',tabs:[['trade','사고팔기'],['info','상품 정보']],d:'상품 사고팔기·명품'},
+  {k:'office',n:'항구 관리소',ic:'⚓',tabs:[['supply','보급'],['fleet','함대 배치']],d:'물·식량·선원 보급, 함대 배치',sea:1},
+  {k:'tavern',n:'주점',ic:'🍺',tabs:[['tavern','주점']],d:'항해자 고용, 소문 듣기',sea:1},
+  {k:'yard',n:'조선소',ic:'🔨',tabs:[['yard','조선소']],d:'배 사기·팔기, 수리, 개조',sea:1},
+  {k:'shop',n:'도구점',ic:'🗡️',tabs:[['shop','도구점']],d:'무기·방어구·항해도구'},
+  {k:'guild',n:'조합',ic:'📜',tabs:[['guild','조합']],d:'해적 현상금, 발견 보고',sea:1},
+  {k:'invest',n:'시장의 집',ic:'🏛️',tabs:[['invest','투자']],d:'도시 투자, 공업·시장 투자'},
+  {k:'caravan',n:'대상 숙소',ic:'🐫',tabs:[['caravan','대상']],d:'내륙 도시로 짐 보내기',sea:1,need:id=>citiesNear(id).length>0},
+  {k:'road',n:'교역로',ic:'🛤️',tabs:[['road','교역로']],d:'다른 내륙 도시로 가는 길',land:1}];
+function townList(id){const inl=PORTS[id].inland;return TOWN_B.filter(b=>(inl?!b.sea:!b.land)&&(!b.need||b.need(id)));}
+function townOf(tab){return TOWN_B.find(b=>b.tabs.some(t=>t[0]===tab));}
+// 건물마다 한 줄 상태: 지금 들어가 볼 만한지 알려 준다
+function townStat(b,id){try{
+  if(b.k==='market'){const n=Object.keys(S.cargo).length;return `특산품 ${prodList(id).length}종 · 내 짐 ${n?n+'종':'없음'}`;}
+  if(b.k==='office'){const lw=S.water<supMaxT()*.35,lf=S.food<supMaxT()*.35;return (lw||lf)?`<b class="tw">${lw?'물':''}${lw&&lf?'·':''}${lf?'식량':''} 부족</b>`:`물 ${Math.floor(S.water)} · 식량 ${Math.floor(S.food)}`;}
+  if(b.k==='tavern'){const N5=near5(id),u=N5.filter(o=>!known(o.q.id)&&!rumored(o.q.id)).length;return u?`새 소문 ${u}개`:'소문은 다 들음';}
+  if(b.k==='yard'){const dmg=S.fleet.some((sh,k)=>hpK(k)<hpMaxK(k)*.95);return dmg?'<b class="tw">수리할 배 있음</b>':`배 ${S.fleet.length}척`;}
+  if(b.k==='invest'){const v=(S.inv&&S.inv[id])||0;return v?`내 투자 ${v.toLocaleString()}골드`:`${stageOf(id)}단계 도시`;}
+  }catch(e){}return b.d;}
+let TOWN_LAST='';
+function drawTown(){const id=inPort,p=PORTS[id],dt=dateOf(S.day),L=townList(id);
+  const box=$('portbox');
+  box.innerHTML=`<div class="town">
+   <div class="tscene"><img src="${portBanner(id)}" alt=""><div class="tname"><h2>${p.name}${id0(id)}</h2><div>${stageOf(id)}단계 ${stageName(id)} · 옛 ${p.old} 자리 · ${dt.y}년 ${dt.m}월 ${dt.d}일</div></div>
+    <div class="tgold"><b>${S.gold.toLocaleString()}</b> 골드</div></div>
+   ${p.inland?`<div class="sub tperk">선물: ${CITY_PERK[cityIdx(id)][1]} — ${PERK_DEF[CITY_PERK[cityIdx(id)][0]][0]}${perkLv(cityIdx(id))>1?' (×2)':''}</div>`:''}
+   <div class="tgrid">${L.map((b,i)=>`<button class="tb" data-tb="${b.k}" title="${b.d} (${i+1})"><span class="ti">${b.ic}</span><span class="tn">${b.n}<kbd>${i+1}</kbd></span><span class="ts">${townStat(b,id)}</span></button>`).join('')}</div>
+   <div class="tfoot"><span class="hint">화물칸 ${Math.round(cargoT())}/${holdT()}톤 · 물 ${Math.floor(S.water)}/${supMaxT()} · 식량 ${Math.floor(S.food)}/${supMaxT()}</span>
+    <button class="main" id="px">${p.inland?'항구로 돌아가기':'⛵ 출항'}</button></div></div>`;
+  $('px').onclick=p.inland?leaveCity:leavePort;
+  box.querySelectorAll('[data-tb]').forEach(el=>el.onclick=()=>townGo(el.dataset.tb));
+  box.scrollTop=0;}
+function townGo(k){const b=TOWN_B.find(x=>x.k===k);if(!b)return;portTab=b.tabs[0][0];if(portTab==='info')S.st.info=1;TOWN_LAST=k;checkMissions();drawPort();}
+function townBack(){portTab='town';drawPort();}
+{const dp0=drawPort;drawPort=function(){if(inPort<0)return dp0.apply(this,arguments);
+  if(portTab==='town'){drawTown();return;}
+  const r=dp0.apply(this,arguments);
+  try{const box=$('portbox'),b=townOf(portTab)||{n:'',ic:'',tabs:[]};
+    const ban=box.querySelector('img.pban');if(ban)ban.remove();
+    const hd=box.querySelector('.phead');if(hd)hd.outerHTML=`<div class="bhead"><button id="tback" title="마을로 돌아가기 (Esc)">← 마을</button><h2><span>${b.ic}</span> ${b.n} <small>${PORTS[inPort].name}</small></h2><div class="bgold"><b>${S.gold.toLocaleString()}</b> 골드<br><span>화물칸 ${Math.round(cargoT())}/${holdT()}톤</span></div></div>`;
+    const tb=box.querySelector('.tabs');if(tb){if(b.tabs.length>1){tb.innerHTML=b.tabs.map(t=>`<button data-tab="${t[0]}" class="${portTab===t[0]?'on':''}">${t[1]}</button>`).join('');
+        tb.querySelectorAll('[data-tab]').forEach(x=>x.onclick=()=>{portTab=x.dataset.tab;if(portTab==='info')S.st.info=1;checkMissions();drawPort();});}else tb.remove();}
+    $('tback').onclick=townBack;
+  }catch(e){console.error(e);}return r;};}
+// 입항하면 마을부터
+{const ep0=enterPort;enterPort=function(){const r=ep0.apply(this,arguments);if(inPort>=0){portTab='town';drawPort();}return r;};}
+// 열쇠: 마을에서 1~9로 건물, 건물 안에서 Esc·Backspace로 마을
+addEventListener('keydown',e=>{if(inPort<0||!S||$('port').style.display==='none')return;const t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'))return;
+  if(typeof infoOpen!=='undefined'&&infoOpen)return;
+  if(portTab==='town'&&/^[1-9]$/.test(e.key)){const L=townList(inPort),b=L[+e.key-1];if(b){e.preventDefault();e.stopImmediatePropagation();townGo(b.k);}return;}
+  if(portTab!=='town'&&(e.key==='Escape'||e.key==='Backspace')){e.preventDefault();e.stopImmediatePropagation();townBack();}},true);
+{const st=document.createElement('style');st.textContent=`
+.town{display:flex;flex-direction:column;gap:12px}
+.tscene{position:relative;border-radius:10px;overflow:hidden;border:2px solid #8a6a44;height:190px;box-shadow:inset 0 0 30px rgba(0,0,0,.15)}
+.tscene img{width:100%;height:100%;object-fit:cover;display:block}
+.tname{position:absolute;left:14px;top:10px;color:#2a1a0a;text-shadow:0 0 6px #fff8e8,0 0 3px #fff8e8}.tname h2{margin:0;font-size:26px}.tname div{font-size:13px}
+.tgold{position:absolute;right:12px;top:12px;background:rgba(255,248,232,.92);border:1px solid #8a6a44;border-radius:8px;padding:5px 10px;font-size:13px}.tgold b{font-size:17px}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.tb{display:flex;flex-direction:column;align-items:center;gap:3px;padding:12px 8px 10px;border-radius:12px;border:2px solid #b8955f;background:linear-gradient(#fffaf0,#f1e2c2);cursor:pointer;min-height:112px;transition:transform .08s}
+.tb:hover{transform:translateY(-2px);border-color:#7a5a30;background:linear-gradient(#fffdf6,#f6e8cc)}
+.tb .ti{font-size:38px;line-height:1.1}.tb .tn{font-weight:bold;font-size:16px}.tb .tn kbd{margin-left:5px;font-size:10px;opacity:.55;font-weight:normal}
+.tb .ts{font-size:12px;color:#6a5030;text-align:center}.tw{color:#a8322a}
+.tfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.tfoot .main{font-size:17px;padding:10px 26px}
+.tperk{color:#a8322a;margin-top:-4px}
+.bhead{display:flex;align-items:center;gap:12px;border-bottom:2px solid var(--edge);padding-bottom:8px;margin-bottom:6px}
+.bhead h2{margin:0;flex:1;font-size:22px}.bhead h2 small{font-size:13px;color:#7a5f40;font-weight:normal}
+.bhead #tback{font-size:15px;padding:7px 14px;white-space:nowrap}.bgold{text-align:right;font-size:12px}.bgold b{font-size:16px}
+body.mob .tscene{height:120px}body.mob .tname h2{font-size:20px}body.mob .tname div{font-size:11px}
+body.mob .tgrid{grid-template-columns:repeat(3,1fr);gap:7px}body.mob .tb{min-height:92px;padding:8px 4px}body.mob .tb .ti{font-size:30px}body.mob .tb .tn{font-size:13px}body.mob .tb .tn kbd{display:none}body.mob .tb .ts{font-size:10.5px}
+body.mob .tfoot .main{width:100%}body.mob .bhead{gap:8px}body.mob .bhead h2{font-size:17px}body.mob .bhead h2 small{display:none}body.mob .bgold span{display:none}`;document.head.appendChild(st);}
+
 // ===== 온라인 (Render 서버용) — ONLINE 빌드에서만 들어간다 =====
 const ON={live:false,id:0,nm:'',tok:'',ws:null,wsOk:false,W:{mk:{},dev:{},disc:{},inv:{},nm:{}},players:[],chat:[],unread:0,tab:'chat',qmk:{},qdev:{},rank:null,rankT:0,open:false,retry:0,posT:0};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -3560,7 +3635,7 @@ function lordHTML(){const lords={},mine=[];for(const p in ON.W.inv){const I=ivIn
   mine.sort((a,b)=>a[1].rk-b[1].rk||b[1].sh-a[1].sh);
   return `<p class="hint">항구에 투자한 몫에 따라 작위를 받습니다. 도시마다 투자 1위가 영주입니다.</p>
   <b>👑 영주 순위</b>${R.length?`<table class="mt"><tr><th>#</th><th>선장</th><th class="n">다스리는 도시</th></tr>${R.map(([n,ps],i)=>`<tr${n===ON.nm?' style="background:#efe2c4"':''}><td>${i+1}</td><td>${esc(n)}<br><small class="hint">${ps.slice(0,4).map(p=>PORTS[p]?PORTS[p].name:'').join(', ')}${ps.length>4?' 외':''}</small></td><td class="n">${ps.length}</td></tr>`).join('')}</table>`:'<p class="hint">아직 영주가 없습니다.</p>'}
-  <b>나의 작위</b>${mine.length?`<table class="mt"><tr><th>도시</th><th>작위</th><th class="n">몫</th></tr>${mine.map(([p,x])=>`<tr><td>${PORTS[p]?PORTS[p].name:p}</td><td>${x.t[1]} ${x.t[2]}</td><td class="n">${(x.sh*100).toFixed(1)}%</td></tr>`).join('')}</table>`:`<p class="hint">아직 작위가 없습니다. 항구의 투자 탭에서 ${IV_MIN.toLocaleString()}골드 이상 투자해 보세요.</p>`}`;}
+  <b>나의 작위</b>${mine.length?`<table class="mt"><tr><th>도시</th><th>작위</th><th class="n">몫</th></tr>${mine.map(([p,x])=>`<tr><td>${PORTS[p]?PORTS[p].name:p}</td><td>${x.t[1]} ${x.t[2]}</td><td class="n">${(x.sh*100).toFixed(1)}%</td></tr>`).join('')}</table>`:`<p class="hint">아직 작위가 없습니다. 항구 마을의 시장의 집에서 ${IV_MIN.toLocaleString()}골드 이상 투자해 보세요.</p>`}`;}
 {const om1=onlineMode;onlineMode=function(on){om1(on);STAGES.forEach((s,i)=>s[1]=on?IV_STAGE[i]:STAGE0[i]);if(on&&S)invSync(true);};}
 
 // ---------- 선장 결투 ----------
