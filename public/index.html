@@ -1177,7 +1177,8 @@ function setMood(key,inPort){if(!ac)return;const k=key+(inPort?'+port':'');if(cu
 function startNext(t){if(trackG){const g=trackG;g.gain.setValueAtTime(g.gain.value,t);g.gain.linearRampToValueAtTime(0,t+2.5);setTimeout(()=>g.disconnect(),4000);}
   trackG=ac.createGain();trackG.gain.setValueAtTime(0,t);trackG.gain.linearRampToValueAtTime(1,t+2);trackG.connect(musG);cur=next.k;port=next.inPort;want=next.key;next=null;bar=0;barT=t+.05;}
 function tick(){if(!ac)return;const now=ac.currentTime;if(next&&(!trackG||now>barT-.1))startNext(Math.max(now,barT));if(!want||!trackG)return;
-  while(barT<now+.4){playBar(barT);const M=MOODS[want],spb=60/(M.bpm*(port?1.15:1))*(M.beats===6?.5:1);barT+=spb*M.beats;bar++;}}
+  while(barT<now+.4){const S2=SCORES[port?want+'+port':want];if(S2){playScore(barT,S2,trackG,bar,Math.floor(bar/S2.nb));barT+=60/S2.bpm*(S2.eighth?.5:1)*S2.beats;bar++;continue;}
+    playBar(barT);const M=MOODS[want],spb=60/(M.bpm*(port?1.15:1))*(M.beats===6?.5:1);barT+=spb*M.beats;bar++;}}
 function playBar(t){const song=compose(want),M=song.M,sc=song.sc,o=trackG,spb=60/(M.bpm*(port?1.15:1))*(M.beats===6?.5:1);
   const b=bar%16,phrase=Math.floor(bar/8)%2,ch=M.prog[b%8],notes=song.bars[b%8],root=M.root+(port?0:0);
   const chord=[deg(sc,root-12,ch),deg(sc,root-12,ch+2),deg(sc,root-12,ch+4)];
@@ -1197,6 +1198,110 @@ function playBar(t){const song=compose(want),M=song.M,sc=song.sc,o=trackG,spb=60
   if(D==='doum'){I.frame(o,t,1);I.tek(o,t+spb,.8);I.tek(o,t+spb*1.5,.5);I.frame(o,t+spb*2,.7);I.tek(o,t+spb*3,.8);if(port)I.tek(o,t+spb*3.5,.6);}
   if(D==='timp'&&b%2===0){I.timp(o,t,root-24);I.timp(o,t+spb*3,root-17,.6);}
   if(D==='none'&&port){I.frame(o,t,.5);}}
+// ---- 악보로 쓴 곡 (대항해시대 2처럼 관현악 느낌의 새 곡들) ----
+// 선율은 'D5:1.5 E5:.5 r:1'처럼 음이름:박 길이, 화음은 소절마다 '|'로 나누고 한 소절에 둘이면 띄어 쓴다.
+const NOTE={C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+function nm(s){const m=/^([A-G])(#|b)?(\d)$/.exec(s);return 12*(+m[3]+1)+NOTE[m[1]]+(m[2]==='#'?1:m[2]==='b'?-1:0);}
+function chordNotes(s){const m=/^([A-G])(#|b)?(m)?(7)?$/.exec(s);let r=48+NOTE[m[1]]+(m[2]==='#'?1:m[2]==='b'?-1:0);if(r>=54)r-=12;
+  const n=[r,r+(m[3]?3:4),r+7];if(m[4])n.push(r+10);return n;}
+function parseScore(D){const beats=D.beats,mel=[],bars=[];let t=0;
+  for(const tok of D.mel.trim().split(/\s+/)){const [p,d]=tok.split(':');const du=+d;if(p!=='r')mel.push([t,nm(p),du]);t+=du;}
+  const nb=Math.round(t/beats);for(let b=0;b<nb;b++)bars.push(mel.filter(n=>n[0]>=b*beats-1e-6&&n[0]<(b+1)*beats-1e-6).map(n=>[n[0]-b*beats,n[1],n[2]]));
+  const ch=D.ch.split('|').map(x=>x.trim().split(/\s+/).map(chordNotes));return Object.assign({},D,{bars,ch,nb});}
+const SCD={
+ title:{bpm:92,beats:4,style:'march',lead:'horn',lead2:'strings',dbl:1,drum:'march',
+  ch:'D|D|G|A|Bm|G|Em A|D|G|D|Em|A|Bm|F#m|G A|D',
+  mel:'A4:1.5 D5:.5 F#5:1 A5:1 A5:1.5 G5:.5 F#5:1 E5:1 D5:1 B4:1 G5:1.5 F#5:.5 E5:3 r:1 F#5:1.5 G5:.5 A5:1 B5:1 B5:1 A5:1 G5:1 D5:1 E5:1.5 F#5:.5 G5:1 C#5:1 D5:3 r:1 '+
+      'B5:1.5 A5:.5 G5:1 D5:1 A5:1.5 G5:.5 F#5:1 D5:1 G5:1 F#5:1 E5:1 B4:1 C#5:1 E5:1 A5:2 D6:1.5 C#6:.5 B5:1 F#5:1 A5:1.5 G5:.5 F#5:1 C#5:1 D5:1 E5:1 F#5:1 E5:1 D5:4'},
+ temperate:{bpm:96,beats:3,style:'harp',lead:'strings',lead2:'oboe',drum:'none',
+  ch:'G|Em|C|D|G|Bm|C|D|Em|C|G|D|C|G|Am D|G',
+  mel:'D5:2 G5:1 B5:2 A5:.5 G5:.5 E5:2 G5:1 F#5:3 D5:2 G5:1 B5:1.5 C6:.5 D6:1 E6:1 D6:1 C6:1 A5:3 '+
+      'B5:2 G5:1 E5:2 C6:1 B5:1 A5:1 G5:1 F#5:2 A5:1 E5:1.5 F#5:.5 G5:1 B5:1 A5:1 G5:1 A5:1.5 B5:.5 F#5:1 G5:3'},
+ tropical:{bpm:100,beats:4,style:'calypso',lead:'marimba',lead2:'flute',drum:'shaker',
+  ch:'F|Bb|C|F|Dm|Bb|C|F|Bb|F|Gm|C|Am|Dm|Gm C|F',
+  mel:'C5:.5 F5:1 A5:.5 G5:1 F5:1 D5:.5 F5:1 Bb5:.5 A5:1 G5:1 E5:.5 G5:1 C6:.5 Bb5:1 G5:1 A5:3 r:1 D5:.5 F5:1 A5:.5 D6:1 C6:1 Bb5:.5 A5:1 G5:.5 F5:1 D5:1 E5:1 G5:1 C6:1 E5:1 F5:3 r:1 '+
+      'F5:.5 Bb5:1 D6:.5 C6:1 Bb5:1 A5:.5 C6:1 A5:.5 F5:2 G5:.5 Bb5:1 D6:.5 C6:1 Bb5:1 C6:3 r:1 A5:.5 C6:1 E6:.5 D6:1 C6:1 D6:.5 A5:1 F5:.5 D5:2 G5:1 Bb5:1 E5:1 G5:1 F5:4'},
+ arid:{bpm:84,beats:4,style:'drone',lead:'oud',lead2:'flute',drum:'doum',
+  ch:'D|D|Gm|D|Eb|D|Cm D|D|Gm|D|Eb|D|Gm|Cm|Eb D|D',
+  mel:'D5:1 Eb5:.5 F#5:.5 G5:1 A5:1 Bb5:.5 A5:.5 G5:1 F#5:1 Eb5:1 D5:.5 Eb5:.5 F#5:1 G5:2 A5:3 r:1 Bb5:1 C6:.5 Bb5:.5 A5:1 G5:1 A5:.5 Bb5:.5 A5:1 F#5:2 G5:1 F#5:.5 Eb5:.5 F#5:1 Eb5:1 D5:3 r:1 '+
+      'G5:1 A5:.5 Bb5:.5 C6:1 D6:1 D6:.5 C6:.5 Bb5:1 A5:2 Bb5:1 G5:1 Eb5:1 G5:1 F#5:3 r:1 D6:1 C6:.5 Bb5:.5 A5:1 G5:1 C6:1 Bb5:.5 A5:.5 G5:1 Eb5:1 F#5:1 G5:1 Eb5:1 F#5:1 D5:4'},
+ cold:{bpm:72,beats:3,style:'pad',lead:'bell',lead2:'strings',drum:'none',
+  ch:'Am|F|C|G|Am|F|Dm E|Am|F|C|G|Am|F|Dm|E|Am',
+  mel:'E5:2 A5:1 C6:2 B5:1 G5:2 E5:1 D5:3 E5:2 A5:1 C6:1 D6:1 E6:1 D6:1.5 C6:.5 B5:1 A5:3 '+
+      'F5:2 A5:1 G5:2 E5:1 D5:1 E5:1 G5:1 E5:3 C6:2 A5:1 F5:1 A5:1 D6:1 B5:2 G#5:1 A5:3'},
+ 'temperate+port':{bpm:138,beats:3,style:'waltz',lead:'harpsi',lead2:'flute',drum:'waltz',
+  ch:'A|A|D|E|A|F#m|B7|E|D|A|E|A|D|A|E7|A',
+  mel:'E5:1 A5:1 C#6:1 B5:1 A5:1 E5:1 F#5:1.5 G#5:.5 A5:1 B5:2 G#5:1 A5:1 C#6:1 E6:1 D6:1 C#6:1 A5:1 D#6:1 C#6:1 B5:1 B5:3 '+
+      'A5:1 F#5:1 D5:1 E5:1 A5:1 C#6:1 B5:1 G#5:1 E5:1 A5:2 C#6:1 D6:1.5 C#6:.5 B5:1 C#6:1 B5:1 A5:1 G#5:1 F#5:1 B5:1 A5:3'},
+ 'tropical+port':{bpm:112,beats:4,style:'calypso',lead:'marimba',lead2:'flute',drum:'shaker',
+  ch:'C|F|G|C|Am|F|G|C|F|C|Dm|G|Em|Am|Dm G|C',
+  mel:'G5:.5 C6:.5 r:.5 C6:.5 E6:.5 D6:.5 C6:1 A5:.5 C6:.5 r:.5 C6:.5 F6:.5 E6:.5 D6:1 B5:.5 D6:.5 r:.5 D6:.5 G6:.5 F6:.5 D6:1 E6:3 r:1 '+
+      'E6:.5 C6:.5 r:.5 A5:.5 C6:.5 E6:.5 A6:1 F6:.5 E6:.5 r:.5 C6:.5 A5:1 F5:1 G5:.5 B5:.5 r:.5 D6:.5 F6:.5 E6:.5 D6:1 C6:3 r:1 '+
+      'C6:.5 F6:.5 r:.5 A6:.5 G6:.5 F6:.5 C6:1 E6:.5 G6:.5 r:.5 E6:.5 C6:2 D6:.5 F6:.5 r:.5 A6:.5 G6:.5 F6:.5 D6:1 B5:3 r:1 '+
+      'E6:.5 G6:.5 r:.5 B6:.5 A6:.5 G6:.5 E6:1 C6:.5 E6:.5 r:.5 A6:.5 G6:1 E6:1 F6:1 D6:1 G6:1 B5:1 C6:4'},
+ 'arid+port':{bpm:104,beats:4,style:'pluck',lead:'oud',lead2:'flute',drum:'doum',
+  ch:'D|Gm|D|Eb|D|Cm|Eb|D|Gm|Cm|D|D|Gm|Eb|Cm D|D',
+  mel:'A5:.5 Bb5:.5 A5:.5 G5:.5 F#5:1 A5:1 G5:.5 A5:.5 Bb5:1 D6:1 Bb5:1 A5:.5 G5:.5 F#5:.5 Eb5:.5 D5:2 Eb5:1 F#5:1 G5:1 Eb5:1 '+
+      'F#5:.5 G5:.5 A5:1 D6:1 A5:1 C6:.5 Bb5:.5 A5:1 G5:1 Eb5:1 G5:1 Eb5:1 F#5:1 Eb5:1 D5:3 r:1 '+
+      'D6:1 Bb5:.5 G5:.5 Bb5:1 D6:1 Eb6:1 C6:.5 G5:.5 C6:1 Eb6:1 D6:.5 C6:.5 Bb5:.5 A5:.5 G5:1 F#5:1 A5:3 r:1 '+
+      'G5:.5 A5:.5 Bb5:1 G5:1 D5:1 Eb5:.5 G5:.5 Bb5:1 Eb6:1 D6:1 C6:1 Bb5:.5 A5:.5 G5:1 F#5:1 D5:4'},
+ 'cold+port':{bpm:88,beats:3,style:'waltzsoft',lead:'bell',lead2:'flute',drum:'none',
+  ch:'G|C|D|G|Em|C|Am D|G|C|G|D|Em|C|G|Am D|G',
+  mel:'B4:1 D5:1 G5:1 E5:2 G5:1 F#5:1 A5:1 D5:1 G5:3 B5:1 G5:1 E5:1 E5:1 G5:1 C6:1 B5:1 A5:1 F#5:1 G5:3 '+
+      'G5:1 E5:1 C5:1 D5:1 G5:1 B5:1 A5:1 F#5:1 D5:1 E5:2 B4:1 C5:1 E5:1 G5:1 B4:1 D5:1 G5:1 A5:1 C6:1 F#5:1 G5:3'},
+ battle:{bpm:144,beats:4,style:'ostinato',lead:'horn',lead2:'strings',dbl:1,drum:'battle',
+  ch:'Dm|Dm|Bb|C|Dm|Gm|A|A|Dm|F|Bb|C|Gm|Dm|A|A',
+  mel:'D5:1.5 A4:.5 D5:1 F5:1 E5:1.5 D5:.5 C5:1 A4:1 Bb4:1 D5:1 F5:1 Bb5:1 A5:2 G5:2 F5:1.5 E5:.5 D5:1 A5:1 Bb5:1.5 A5:.5 G5:1 D5:1 E5:1 F5:1 G5:1 C#5:1 A4:4 '+
+      'A5:1.5 F5:.5 D5:1 A5:1 C6:1.5 A5:.5 F5:1 C6:1 D6:1 C6:1 Bb5:1 F5:1 G5:2 E5:2 G5:1 Bb5:1 D6:1 Bb5:1 A5:1 F5:1 D5:1 F5:1 E5:1 G5:1 C#6:1 E5:1 D5:2 A4:2'},
+ duel:{bpm:160,beats:4,style:'ostinato',lead:'flute',lead2:'horn',drum:'taiko',
+  ch:'Em|Em|C|D|Em|Em|C B|Em',
+  mel:'E5:.5 r:.5 E5:.5 G5:.5 B5:2 A5:.5 G5:.5 F#5:1 E5:2 G5:.5 r:.5 G5:.5 A5:.5 C6:2 B5:.5 A5:.5 G5:1 F#5:2 '+
+      'E5:.5 r:.5 E5:.5 G5:.5 B5:1 E6:1 D6:.5 B5:.5 A5:1 G5:2 C6:1 B5:1 A5:1 D#5:1 E5:4'},
+ tavern:{bpm:126,beats:6,eighth:1,style:'oompah',lead:'fiddle',lead2:'flute',drum:'jig',
+  ch:'D|D|G|A|D|Bm|Em A|D|G|D|G|A|D|Bm|G A|D',
+  mel:'A4:1 D5:1 F#5:1 A5:2 F#5:1 G5:1 F#5:1 E5:1 D5:2 A4:1 B4:1 D5:1 G5:1 B5:2 G5:1 A5:1 G5:1 F#5:1 E5:3 F#5:1 A5:1 D6:1 A5:2 F#5:1 D5:1 F#5:1 B5:1 A5:2 F#5:1 G5:1 F#5:1 E5:1 A5:1 G5:1 E5:1 D5:5 r:1 '+
+      'B5:1 A5:1 G5:1 D5:2 G5:1 F#5:1 A5:1 D6:1 A5:3 G5:1 B5:1 D6:1 B5:2 G5:1 A5:1 B5:1 C#6:1 A5:3 D6:1 C#6:1 B5:1 A5:2 F#5:1 B5:1 A5:1 F#5:1 D5:2 F#5:1 G5:1 B5:1 G5:1 E5:1 C#5:1 E5:1 D5:5 r:1'},
+ mystery:{bpm:60,beats:4,style:'pad',lead:'bell',lead2:'flute',drum:'none',
+  ch:'Cm|Ab|Fm|G|Cm|Db|Fm G|Cm',
+  mel:'G5:3 Eb5:1 C6:2 Ab5:2 F5:3 Ab5:1 G5:4 Eb6:2 D6:1 C6:1 Db6:3 Ab5:1 F5:2 B4:2 C5:4'}};
+const SCORES={};for(const k in SCD)SCORES[k]=parseScore(SCD[k]);
+// 관현악 악기 몇 가지를 더 둔다
+I.strings=(o,m,t,dur,v=1)=>{const f=hz(m),fl=ac.createBiquadFilter();fl.type='lowpass';fl.frequency.value=2600;fl.connect(o);fl.connect(revIn);
+  for(const d of [-9,0,8]){const x=tone(fl,'sawtooth',f,t,Math.min(.18,dur*.3),.03*v,dur*.75,.35,false,d);const l=ac.createOscillator(),lg=ac.createGain();l.frequency.value=5+Math.random();lg.gain.value=f*.004;l.connect(lg);lg.connect(x.frequency);l.start(t+.1);l.stop(t+dur+.5);}};
+I.harp=(o,m,t,v=1)=>{const f=hz(m);tone(o,'triangle',f,t,.002,.1*v,0,1.4,true);tone(o,'sine',f*2,t,.002,.03*v,0,.5);};
+I.harpsi=(o,m,t,v=1)=>{const f=hz(m),fl=ac.createBiquadFilter();fl.type='highpass';fl.frequency.value=f*.7;fl.connect(o);fl.connect(revIn);tone(fl,'sawtooth',f,t,.001,.07*v,0,.55);tone(fl,'square',f*2,t,.001,.025*v,0,.3);};
+I.oboe=(o,m,t,dur,v=1)=>{const f=hz(m),fl=ac.createBiquadFilter();fl.type='bandpass';fl.frequency.value=f*3;fl.Q.value=1.2;fl.connect(o);fl.connect(revIn);
+  const x=tone(fl,'sawtooth',f,t,.05,.16*v,dur*.8,.12);const l=ac.createOscillator(),lg=ac.createGain();l.frequency.value=5.2;lg.gain.value=f*.005;l.connect(lg);lg.connect(x.frequency);l.start(t+.15);l.stop(t+dur+.3);};
+I.accord=(o,ms,t,dur,v=1)=>{const fl=ac.createBiquadFilter();fl.type='lowpass';fl.frequency.value=1800;fl.connect(o);ms.forEach(m=>{tone(fl,'square',hz(m),t,.02,.012*v,dur*.6,.08,false,-6);tone(fl,'square',hz(m),t,.02,.012*v,dur*.6,.08,false,6);});};
+I.cello=(o,m,t,dur,v=1)=>{const fl=ac.createBiquadFilter();fl.type='lowpass';fl.frequency.value=900;fl.connect(o);tone(fl,'sawtooth',hz(m),t,.06,.06*v,dur*.7,.2);tone(fl,'triangle',hz(m),t,.02,.12*v,dur*.6,.15);};
+I.snare=(o,t,v=1)=>{nz(o,t,.14,.09*v,'bandpass',2200,.8);tone(o,'triangle',190,t,.001,.04*v,0,.06);};
+I.taiko=(o,t,v=1)=>{const x=ac.createOscillator(),g=ac.createGain();x.frequency.setValueAtTime(90,t);x.frequency.exponentialRampToValueAtTime(48,t+.25);x.connect(g);g.connect(o);g.connect(revIn);env(g,t,.003,.45*v,0,.5);x.start(t);x.stop(t+.6);nz(o,t,.08,.06*v,'lowpass',600);};
+function leadPlay(o,L,m,t,du,v){if(L==='strings')I.strings(o,m,t,du,v);else if(L==='horn')I.horn(o,m-12,t,du,v);else if(L==='flute')I.flute(o,m,t,du,v);else if(L==='oboe')I.oboe(o,m-12,t,du,v);
+  else if(L==='fiddle')I.fiddle(o,m,t,du,v);else if(L==='bell')I.bell(o,m+12,t,v*.9);else I[L](o,m,t,v);}
+function playScore(t,S2,o,bi,pass){const spb=60/S2.bpm*(S2.eighth?.5:1),B=S2.beats,b=bi%S2.nb,chs=S2.ch[b],per=B/chs.length;
+  // 선율: 두 번째 돌 때는 다른 악기가 받고, 첫 악기가 한 옥타브 아래에서 받쳐 준다
+  const L=pass%2?S2.lead2:S2.lead;
+  for(const n of S2.bars[b]){const tt=t+n[0]*spb,du=n[2]*spb;leadPlay(o,L,n[1],tt,du,.9);if(S2.dbl&&!(pass%2))I.strings(o,n[1]-12,tt,du,.45);
+    if(pass%2&&S2.lead!=='bell'&&S2.lead!=='marimba'&&n[2]>=1)leadPlay(o,S2.lead,n[1]-(S2.lead==='strings'?12:0),tt,du,.35);}
+  chs.forEach((c,ci)=>{const t0=t+ci*per*spb,d=per*spb,st=S2.style;
+    if(st==='harp'){const ar=[c[0]+12,c[1]+12,c[2]+12,c[0]+24,c[2]+12,c[1]+12];const n=Math.round(per*2);for(let k=0;k<n;k++)I.harp(o,ar[k%6],t0+k*spb/2,.7);I.cello(o,c[0]-12,t0,d,.8);}
+    else if(st==='march'){I.cello(o,c[0]-12,t0,spb,.9);if(per>=2)I.cello(o,c[2]-12,t0+2*spb,spb,.7);for(let k=1;k<per;k+=2)c.forEach(m=>I.strings(o,m+12,t0+k*spb,spb*.5,.35));}
+    else if(st==='waltz'||st==='waltzsoft'){I.cello(o,c[0]-12,t0,spb,st==='waltz'?.9:.6);for(let k=1;k<per;k++)c.forEach(m=>st==='waltz'?I.pluck(o,m+12,t0+k*spb,.5):I.harp(o,m+12,t0+k*spb,.4));if(st==='waltzsoft')I.pad(o,c.map(m=>m+12),t0,d,.6);}
+    else if(st==='calypso'){I.bass(o,c[0]-12,t0,spb*1.4,.9);I.bass(o,c[2]-12,t0+spb*1.5,spb,.7);I.bass(o,c[0]-12,t0+spb*2.5,spb,.6);for(let k=0;k<per;k++)c.forEach(m=>I.pluck(o,m+12,t0+(k+.5)*spb,.35));}
+    else if(st==='drone'){I.drone(o,c[0]-12,t0,d,1);I.strings(o,c[0],t0,d,.35);}
+    else if(st==='pluck'){I.bass(o,c[0]-12,t0,spb,.9);for(let k=0;k<per*2;k++)if(k%2)I.oud(o,c[k%3]+12,t0+k*spb/2,.4);}
+    else if(st==='pad'){I.pad(o,c.map(m=>m+12),t0,d,1);I.cello(o,c[0]-12,t0,d,.5);}
+    else if(st==='ostinato'){for(let k=0;k<per*2;k++)I.strings(o,(k%2?c[2]:c[0]),t0+k*spb/2,spb*.4,.45);I.cello(o,c[0]-12,t0,d,.8);if(per>=2)c.forEach(m=>I.horn(o,m,t0,spb*.8,.25));}
+    else if(st==='oompah'){for(let k=0;k<per;k+=3){I.bass(o,c[0]-12,t0+k*spb,spb,.9);I.accord(o,c.map(m=>m+12),t0+(k+1)*spb,spb*1.5,1);}}});
+  const D=S2.drum;
+  if(D==='march'){I.timp(o,t,S2.ch[b][0][0]-12,.7);I.snare(o,t+spb,.6);I.snare(o,t+spb*3,.6);if(b%4===3)for(let k=0;k<4;k++)I.snare(o,t+spb*3+k*spb/4,.4+k*.1);}
+  if(D==='battle'){I.timp(o,t,S2.ch[b][0][0]-12,.9);I.timp(o,t+spb*2,S2.ch[b][0][0]-5,.6);for(let k=0;k<8;k++)if(k%2)I.snare(o,t+k*spb/2,.5);}
+  if(D==='taiko'){I.taiko(o,t,1);I.taiko(o,t+spb*1.5,.6);I.taiko(o,t+spb*2,.9);if(b%2)I.taiko(o,t+spb*3.5,.7);I.tek(o,t+spb*3,.6);}
+  if(D==='waltz'){I.tamb(o,t,.7);}
+  if(D==='shaker'){for(let k=0;k<B*2;k++)I.shaker(o,t+k*spb/2,k%2?.6:1);I.kick(o,t,.5);I.kick(o,t+spb*2.5,.35);}
+  if(D==='doum'){I.frame(o,t,1);I.tek(o,t+spb,.8);I.tek(o,t+spb*1.5,.5);I.frame(o,t+spb*2,.7);I.tek(o,t+spb*3,.8);}
+  if(D==='jig'){I.frame(o,t,.7);I.frame(o,t+spb*3,.5);I.tamb(o,t+spb*2,.4);I.tamb(o,t+spb*5,.4);}}
+
 // ---- 바람과 파도 ----
 let ambT=0;function amb(wind,sail,inPort,moving){if(!ac)return;const t=ac.currentTime;
   const w=inPort?0:Math.min(1,wind)*(.25+.35*(sail/2));windG.gain.setTargetAtTime(w*.5,t,.6);windF.frequency.setTargetAtTime(380+w*900+Math.sin(t*.7)*120,t,.4);
@@ -1228,7 +1333,23 @@ function fx(k){if(!ac||!opt.sfx)return;const t=ac.currentTime,o=sfxG;
   case 'horn':I.horn(o,50,t,1.3,1.6);I.horn(o,57,t,1.3,1.2);I.horn(o,62,t+.4,.9,1);break;
   case 'win':[60,64,67,72,76,79].forEach((m,i)=>I.horn(o,m,t+i*.12,i===5?1:.15,1));I.timp(o,t,36);I.timp(o,t+.6,43);break;
   case 'lose':[57,53,50,45].forEach((m,i)=>I.horn(o,m,t+i*.3,.4,1));break;
-  case 'chug':I.kick(o,t,.25);nz(o,t,.15,.04,'lowpass',500);break;}}
+  case 'chug':I.kick(o,t,.25);nz(o,t,.15,.04,'lowpass',500);break;
+  // 일기토: 칼이 부딪침, 막음, 베기·찌르기·치기 맞음
+  case 'clash':{const f=nz(o,t,.06,.1,'bandpass',900,1);f.frequency.exponentialRampToValueAtTime(3000,t+.06);[1840,2770,3910,5230].forEach((h,i)=>tone(o,'sine',h*(.97+Math.random()*.06),t+.06,.001,.07/(i+1),0,.6+.3*Math.random(),true));break;}
+  case 'block':{nz(o,t,.05,.08,'bandpass',1400,1);tone(o,'triangle',170,t+.04,.002,.12,0,.12);[2100,3300].forEach(h=>tone(o,'sine',h,t+.04,.001,.035,0,.25));break;}
+  case 'slash':{const f=nz(o,t,.16,.12,'bandpass',600,1.2);f.frequency.exponentialRampToValueAtTime(3200,t+.14);nz(o,t+.13,.12,.1,'bandpass',1100,1.5);tone(o,'triangle',150,t+.13,.002,.08,0,.12);break;}
+  case 'stab':{const f=nz(o,t,.08,.08,'bandpass',2400,2);f.frequency.exponentialRampToValueAtTime(900,t+.08);I.kick(o,t+.07,.5);nz(o,t+.07,.1,.08,'bandpass',800,2);break;}
+  case 'thud':{nz(o,t,.1,.06,'lowpass',800);I.kick(o,t+.08,1.2);nz(o,t+.08,.3,.14,'lowpass',260,1);break;}
+  // 마을과 건물
+  case 'door':{const f=nz(o,t,.35,.05,'bandpass',260,9);f.frequency.linearRampToValueAtTime(420,t+.3);tone(o,'triangle',95,t+.36,.002,.1,0,.12);break;}
+  case 'mug':[2400,3100].forEach((h,i)=>{tone(o,'sine',h,t+i*.09,.001,.06,0,.35,true);tone(o,'sine',h*1.5,t+i*.09,.001,.02,0,.2);});nz(o,t+.25,.5,.012,'bandpass',900,.6);break;
+  case 'hammer':[0,.22,.44].forEach((d,i)=>{tone(o,'square',1250+i*40,t+d,.001,.035,0,.09);tone(o,'sine',2900,t+d,.001,.03,0,.25,true);nz(o,t+d,.05,.05,'highpass',3000);});break;
+  case 'paper':{nz(o,t,.09,.05,'highpass',3500);nz(o,t+.1,.14,.04,'bandpass',5000,1);break;}
+  case 'whisper':{const f=nz(o,t,.9,.03,'bandpass',1800,3);f.frequency.linearRampToValueAtTime(2600,t+.8);I.bell(o,81,t+.5,.4);break;}
+  case 'rumble':nz(o,t,2.2,.18,'lowpass',160,1);I.timp(o,t+.2,33,.9);I.timp(o,t+.9,31,.7);break;
+  case 'equip':tone(o,'sine',1320,t,.001,.05,0,.25,true);tone(o,'triangle',660,t+.06,.002,.05,0,.15);nz(o,t,.05,.04,'highpass',4000);break;
+  case 'levelup':[67,71,74,79,83].forEach((m,i)=>I.flute(o,m,t+i*.09,.25,.9));I.bell(o,91,t+.45,.6);break;
+  case 'tab':tone(o,'triangle',660,t,.001,.025,0,.05);break;}}
 function setOpt(k,v){opt[k]=v;saveOpt();if(!ac)return;musG.gain.setTargetAtTime(opt.mus?.85:0,ac.currentTime,.3);sfxG.gain.value=opt.sfx?.8:0;ambG.gain.setTargetAtTime(opt.sfx?.5:0,ac.currentTime,.3);master.gain.value=opt.vol;}
 return {init,setMood,amb,fx,opt,setOpt,get on(){return !!ac;},_tap(){return {ac,master};}};})();
 const CULT={'열대':'tropical','아열대·건조':'arid','온대':'temperate','냉대':'cold','한대':'cold'};
@@ -1640,8 +1761,8 @@ function update(dtReal){
 let tipT=0;
 const ZONE_TIP={'적도 무풍대':'적도 무풍대에 들어왔습니다. 바람이 거의 없어 배가 느려집니다.','무역풍대':'무역풍대: 동쪽에서 적도 쪽으로 꾸준한 바람이 붑니다.','중위도 무풍대':'중위도 무풍대: 바람이 약하고 방향이 바뀝니다.','편서풍대':'편서풍대: 서쪽에서 강한 바람이 붑니다. 동쪽으로 가기 좋습니다.','극동풍대':'극동풍대: 차가운 동풍이 붑니다.','몬순 해역':'몬순 해역: 계절마다 바람 방향이 뒤바뀝니다.'};
 function loop(now){const dt=Math.min(.1,(now-last)/1000);last=now;
-  if(S&&B){battleUpdate(dt);drawBattle();if(MOB)bctlTick();sndT-=dt;if(sndT<=0&&Snd.on){sndT=.5;Snd.setMood('battle',false);Snd.amb(B.ws,2,false,true);}}
-  else if(S){update(dt);computeNav();render();sndT-=dt;if(sndT<=0&&Snd.on){sndT=.5;const pl=inPort>=0?PORTS[inPort]:{lat:S.lat};Snd.setMood(CULT[bandOf(pl.lat)],inPort>=0);Snd.amb(nav.w?nav.w.s:0,paused?0:S.sail,inPort>=0||paused,Math.hypot(nav.ve,nav.vn)>20&&!paused);}hudT+=dt;if(hudT>.15){hudT=0;updateHud();}saveT+=dt;if(saveT>8&&!paused){saveT=0;save();}}
+  if(S&&B){battleUpdate(dt);drawBattle();if(MOB)bctlTick();sndT-=dt;if(sndT<=0&&Snd.on){sndT=.5;Snd.setMood((typeof musicOverride==='function'&&musicOverride())||'battle',false);Snd.amb(B.ws,2,false,true);}}
+  else if(S){update(dt);computeNav();render();sndT-=dt;if(sndT<=0&&Snd.on){sndT=.5;const pl=inPort>=0?PORTS[inPort]:{lat:S.lat},mo=typeof musicOverride==='function'&&musicOverride();if(mo)Snd.setMood(mo,false);else Snd.setMood(CULT[bandOf(pl.lat)],inPort>=0);Snd.amb(nav.w?nav.w.s:0,paused?0:S.sail,inPort>=0||paused,Math.hypot(nav.ve,nav.vn)>20&&!paused);}hudT+=dt;if(hudT>.15){hudT=0;updateHud();}saveT+=dt;if(saveT>8&&!paused){saveT=0;save();}}
   requestAnimationFrame(loop);}
 // ===== 시작 =====
 function start(cont){
@@ -3238,9 +3359,9 @@ const IGS=(()=>{let cv,cx,W=640,H=230,raf=0,act=null,endS=null,fx=[],t0=0,hpShow
   function impacts(t){const R=act.R;for(const [side,c] of [['A',R.ca],['B',R.cb]])c.a.forEach((a,i)=>{const key=side+i;if(act.hit[key]||t<ST(i)+.2)return;act.hit[key]=1;
     const other=side==='A'?'B':'A',dir=side==='A'?1:-1,ox=W/2+dir*(ART?OFF()*.55:Math.min(60,W*.1)),y=LV(a.h);
     const e=R.ev.find(e=>e.k==='clash'&&e.h===a.h&&!e.used)||R.ev.find(e=>e.k!=='clash'&&e.by===side&&e.h===a.h&&!e.used);if(!e)return;e.used=1;
-    if(e.k==='clash'){spark(W/2,y,'#fff3b0');pop(W/2,y-14,'쨍!','#fff3b0');sfx('board');act.push={A:e.w>=0?6:16,B:e.w<=0?6:16};}
-    else if(e.k==='block'){spark(ox-dir*6,y,'#cfe6ff');pop(ox,y-16,e.t==='bash'?'막았지만 흔들!':'막았다!','#cfe6ff');sfx('coin');act.push=Object.assign(act.push||{},{[other]:e.t==='bash'?14:6});if(e.t==='bash')act.wob=other;}
-    else{spark(ox,y,'#ff7a5a');pop(ox,y-18,(e.kill?'필살! ':'')+(e.h===0?'머리!':e.h===2?'다리!':'명중!'),'#ffb199',e.kill);sfx('hit');act.flash=Object.assign(act.flash||{},{[other]:1});act.push=Object.assign(act.push||{},{[other]:e.kill?30:18});if(e.h===0)act.wob=other;}
+    if(e.k==='clash'){spark(W/2,y,'#fff3b0');pop(W/2,y-14,'쨍!','#fff3b0');sfx('clash');act.push={A:e.w>=0?6:16,B:e.w<=0?6:16};}
+    else if(e.k==='block'){spark(ox-dir*6,y,'#cfe6ff');pop(ox,y-16,e.t==='bash'?'막았지만 흔들!':'막았다!','#cfe6ff');sfx(e.t==='bash'?'thud':'block');act.push=Object.assign(act.push||{},{[other]:e.t==='bash'?14:6});if(e.t==='bash')act.wob=other;}
+    else{spark(ox,y,'#ff7a5a');pop(ox,y-18,(e.kill?'필살! ':'')+(e.h===0?'머리!':e.h===2?'다리!':'명중!'),'#ffb199',e.kill);sfx(e.t==='thr'?'stab':e.t==='bash'?'thud':'slash');act.flash=Object.assign(act.flash||{},{[other]:1});act.push=Object.assign(act.push||{},{[other]:e.kill?30:18});if(e.h===0)act.wob=other;}
     // 피해 숫자와 체력 막대는 첫 맞닿음 때 반영
     if(!act.dmgShown){act.dmgShown=1;if(R.dA)pop(W/2-OFF(),TOPY(),'−'+R.dA,'#ff9a8a',true);if(R.dB)pop(W/2+OFF(),TOPY(),'−'+R.dB,'#ff9a8a',true);act.hpT=t;}});}
   let last=0;
@@ -3667,6 +3788,20 @@ body.mob .tscene{height:120px}body.mob .tname h2{font-size:20px}body.mob .tname 
 body.mob .tgrid{grid-template-columns:repeat(3,1fr);gap:7px}body.mob .tb{min-height:92px;padding:8px 4px}body.mob .tb .ti{font-size:30px}body.mob .tb .tn{font-size:13px}body.mob .tb .tn kbd{display:none}body.mob .tb .ts{font-size:10.5px}
 body.mob .tfoot .main{width:100%}body.mob .bhead{gap:8px}body.mob .bhead h2{font-size:17px}body.mob .bhead h2 small{display:none}body.mob .bgold span{display:none}
 body.mob .mcards{grid-template-columns:1fr}body.mob .igrid{grid-template-columns:repeat(3,1fr)}body.mob .cgrid{grid-template-columns:1fr 1fr}body.mob .idet{flex-direction:column;align-items:center}body.mob .fdh{flex-direction:column}body.mob .mrow{grid-template-columns:repeat(3,1fr)}body.mob .agrid{grid-template-columns:1fr 1fr;gap:7px}body.mob .atile{min-height:100px;padding:10px 4px}body.mob .atile .ai{font-size:32px}`;document.head.appendChild(st);}
+
+// ---- 소리: 건물마다 들어갈 때 소리, 주점·숨은 곳·일기토 음악 ----
+function musicOverride(){try{if(typeof IG!=='undefined'&&IG&&!IG.done)return 'duel';
+  if(inPort>=0&&S&&$('port').style.display!=='none'){if(['tav','hire','near'].includes(portTab))return 'tavern';if(portTab==='hidden'){const c=hidCond(inPort);if(c&&c.ok)return 'mystery';}}}catch(e){}return null;}
+const BLD_SND={market:'coin',office:'door',tavern:'mug',yard:'hammer',shop:'equip',guild:'paper',invest:'door',caravan:'door',road:'door',hidden:'whisper'};
+{const tg0=townGo;townGo=function(k){const was=portTab;tg0.apply(this,arguments);if(portTab!==was&&BLD_SND[k])sfx(BLD_SND[k]);};}
+{const tb0=townBack;townBack=function(){sfx('door');return tb0.apply(this,arguments);};}
+{const bb0=bBind;bBind=function(box){bb0(box);box.querySelectorAll('.tabs [data-tab]').forEach(x=>x.addEventListener('click',()=>sfx('tab')));
+  box.querySelectorAll('[data-up],[data-rep],#repAll').forEach(x=>x.addEventListener('click',()=>sfx('hammer')));
+  box.querySelectorAll('[data-act]').forEach(x=>x.addEventListener('click',()=>sfx('whisper')));
+  box.querySelectorAll('[data-bk2]').forEach(x=>x.addEventListener('click',()=>sfx('paper')));
+  const rg=box.querySelector('#ruinGo');if(rg)rg.addEventListener('click',()=>sfx('rumble'),true);};}
+{const eq0=equip;equip=function(){sfx('equip');return eq0.apply(this,arguments);};}
+{const hg0=hsGain;hsGain=function(){const lv=S&&S.hs?S.hs.lv:0;const r=hg0.apply(this,arguments);if(S&&S.hs&&S.hs.lv>lv)setTimeout(()=>sfx('levelup'),400);return r;};}
 
 // ===== 해적단 수배 =====
 // 바다 지역 12곳마다 그 바다의 해적단(약함)이 있고, 해적 두목 8명의 해적단(강함)이 있다.
