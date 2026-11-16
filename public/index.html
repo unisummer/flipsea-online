@@ -1176,7 +1176,7 @@ let cur=null,next=null,barT=0,bar=0,trackG=null,port=false,want=null;
 function setMood(key,inPort){if(!ac)return;const k=key+(inPort?'+port':'');if(cur===k)return;next={key,inPort,k};}
 function startNext(t){if(trackG){const g=trackG;g.gain.setValueAtTime(g.gain.value,t);g.gain.linearRampToValueAtTime(0,t+2.5);setTimeout(()=>g.disconnect(),4000);}
   trackG=ac.createGain();trackG.gain.setValueAtTime(0,t);trackG.gain.linearRampToValueAtTime(1,t+2);trackG.connect(musG);cur=next.k;port=next.inPort;want=next.key;next=null;bar=0;barT=t+.05;}
-function tick(){if(!ac)return;const now=ac.currentTime;if(next&&(!trackG||now>barT-.1))startNext(Math.max(now,barT));if(!want||!trackG)return;
+function tick(){if(!ac)return;const now=ac.currentTime;if(next)startNext(Math.max(now+.05,barT));if(!want||!trackG)return;
   while(barT<now+.4){const S2=SCORES[want];if(S2){const tm=port?1.06:(['title','battle','duel','tavern','mystery'].includes(want)?1:.94);playScore(barT,S2,trackG,bar,Math.floor(bar/S2.nb),want,port);barT+=60/(S2.bpm*tm)*(S2.eighth?.5:1)*S2.beats;bar++;continue;}
     playBar(barT);const M=MOODS[want],spb=60/(M.bpm*(port?1.15:1))*(M.beats===6?.5:1);barT+=spb*M.beats;bar++;}}
 function playBar(t){const song=compose(want),M=song.M,sc=song.sc,o=trackG,spb=60/(M.bpm*(port?1.15:1))*(M.beats===6?.5:1);
@@ -1400,7 +1400,7 @@ function fx(k){if(!ac||!opt.sfx)return;const t=ac.currentTime,o=sfxG;
   case 'levelup':[67,71,74,79,83].forEach((m,i)=>I.flute(o,m,t+i*.09,.25,.9));I.bell(o,91,t+.45,.6);break;
   case 'tab':tone(o,'triangle',660,t,.001,.025,0,.05);break;}}
 function setOpt(k,v){opt[k]=v;saveOpt();if(!ac)return;musG.gain.setTargetAtTime(opt.mus?.85:0,ac.currentTime,.3);sfxG.gain.value=opt.sfx?.8:0;ambG.gain.setTargetAtTime(opt.sfx?.5:0,ac.currentTime,.3);master.gain.value=opt.vol;}
-return {init,setMood,amb,fx,opt,setOpt,get on(){return !!ac;},_tap(){return {ac,master};}};})();
+return {init,setMood,amb,fx,opt,setOpt,get on(){return !!ac;},get mood(){return [want,cur,port,bar];},_tap(){return {ac,master};}};})();
 const CULT={'열대':'tropical','아열대·건조':'arid','온대':'temperate','냉대':'cold','한대':'cold'};
 
 // ===== 내륙: 대상과 교역로 =====
