@@ -460,7 +460,7 @@ const SHIPNAMES=['샛별호','바람꽃호','물푸레호','갈매기호','은�
 const FT_SQ=[[0,1],[30,1],[60,.98],[90,.9],[110,.78],[125,.64],[135,.55],[150,.4],[180,.3]];
 const FT_FA=[[0,.82],[30,.9],[60,.97],[90,1],[110,.92],[125,.8],[135,.68],[150,.48],[180,.34]];
 function rigF(rig,rel){if(rig==='증기 겸용')return .72+.28*rigF('가로돛',rel);const T=rig==='가로돛'?FT_SQ:FT_FA;for(let i=1;i<T.length;i++)if(rel<=T[i][0]){const a=T[i-1],b=T[i],t=(rel-a[0])/(b[0]-a[0]);return a[1]+(b[1]-a[1])*t;}return T[T.length-1][1];}
-function shipRole(k,r){let v=0;for(const a of S.fleet[k].as)if(a.r===r)v+=a.aux?curSt(a.m,r)*.5:curSt(a.m,r);return Math.min(120,v);}
+function shipRole(k,r){let v=0;for(const a of S.fleet[k].as)if(a.r===r)v+=a.aux?curSt(a.m,r)*.5:curSt(a.m,r);if(r===4&&typeof traitV==='function')v+=traitV('gun');if(r===5&&typeof traitV==='function')v+=traitV('rep');return Math.min(120,v);}
 const hasCap=k=>k===0||S.fleet[k].as.some(a=>a.r===0&&!a.aux);
 function shipF(k,rel){const T=ST(S.fleet[k]);return T.spd*rigF(T.rig,rel)*upMulK(k)*(1+.25*shipRole(k,1)/100)*(hasCap(k)?1:.9)*(.75+.25*Math.min(1,hpK(k)/hpMaxK(k)));}
 function fleetSail(rel){let t=0;for(let k=0;k<S.fleet.length;k++)t+=shipF(k,rel);return t/S.fleet.length;} // 함대 속도 = 배들의 평균
@@ -478,7 +478,24 @@ const ROLES=['선장','항해사','측량사','회계사','포술장','갑판장
 const STATK=['통솔','항해','측량','교역','포술','수리','의술','학식'];
 const ROLE_USE=['이 배를 이끈다. 선장 없는 배는 10% 느림 (기함은 호연)','이 배의 속도를 올림','지도가 드러나는 범위, 항구·발견물 발견 (함대에 한 명)','사고팔 때 값, 판매 조언 (함대에 한 명)','이 배의 대포 (7단계)','이 배에 필요한 선원 수를 최대 25% 줄임, 해전 뒤 수리 (7단계)','물·식량이 떨어졌을 때 선원을 덜 잃음 (함대에 한 명)','발견물 조사 성공률, 보고 보상, 작동 유물 알아보기 (함대에 한 명)'];
 const SHIP_ROLES=[0,1,4,5],FLEET_ROLES=[2,3,6,7];
-const TRAITS=[['바람 읽기','함대 속도 +4%'],['흥정 달인','파는 값 +4%'],['별 읽기','지도 드러나는 범위 넓음'],['절약가','물·식량 10% 절약'],['대식가','물·식량 8% 더 먹음'],['약초꾼','선원 손실 30% 줄임'],['인기쟁이','다른 항해자 충성 유지'],['명사수','해전에서 활약 (7단계)'],['손재주','배 수리에 능함 (7단계)'],['이야기꾼','발견물 이야기를 잘 앎 (4단계)']];
+const TRAITS=[['바람 읽기','함대 속도 +4%','speed',.04],['흥정 달인','파는 값 +4%','sell',.04],['별 읽기','지도 드러나는 범위 넓음','reveal',.6],['절약가','물·식량 10% 절약','supply',.1],['대식가','물·식량 8% 더 먹음','glut',.08],
+ ['약초꾼','선원 손실 30% 줄임','loss',.3],['인기쟁이','월급날 모두의 충성 +2','loy',2],['명사수','해전 포격 +15','gun',15],['손재주','해전 중 배 수리 +15','rep',15],['이야기꾼','발견물 조사 성공률 +8%','lore',.08],
+ ['해류 타기','함대 속도 +3%','speed',.03],['값 깎기','사는 값 3% 싸짐','buy',.03],['밝은 눈','발견물을 더 멀리서 알아챔','detect',.5],['노련한 키잡이','자동 항해도 직접 몰 때만큼 빠름','auto',1],['검소함','함대 월급 5% 줄임','salary',.05],
+ ['배움이 빠름','자기 능력이 50% 더 빨리 자람','grow',.5],['싸움꾼','호연의 일기토 공격 +8%','duel',.08],['목수 출신','조선소 수리비 15% 할인','repc',.15]];
+// 특별한 항해자만 가진 특기 (가장 뛰어난 능력에 따라 정해짐, 등급이 높을수록 세짐)
+const SPTR=[['바다의 지휘자',[['speed',.04],['loy',3]]],['순풍의 축복',[['speed',.07]]],['천리안',[['reveal',1.2],['detect',.8]]],['황금 손',[['buy',.04],['sell',.05]]],
+ ['백발백중',[['gun',35]]],['무쇠 손',[['rep',30],['repc',.25]]],['기적의 손',[['loss',.45],['supply',.08]]],['옛 글 해독',[['lore',.15],['detect',.4]]]];
+const TR_CAP={speed:.18,sell:.15,buy:.12,reveal:2.5,detect:2,supply:.3,glut:.08,loss:.65,loy:6,gun:60,rep:60,lore:.3,auto:1,salary:.2,duel:.25,repc:.5,grow:1};
+const TR_TXT={speed:v=>`함대 속도 +${Math.round(v*100)}%`,sell:v=>`파는 값 +${Math.round(v*100)}%`,buy:v=>`사는 값 ${Math.round(v*100)}% 싸짐`,reveal:v=>`지도 범위 +${v.toFixed(1)}`,detect:v=>`발견 거리 +${v.toFixed(1)}`,
+ supply:v=>`물·식량 ${Math.round(v*100)}% 절약`,loss:v=>`선원 손실 ${Math.round(v*100)}% 줄임`,loy:v=>`월급날 충성 +${Math.round(v)}`,gun:v=>`해전 포격 +${Math.round(v)}`,rep:v=>`해전 수리 +${Math.round(v)}`,
+ lore:v=>`조사 성공률 +${Math.round(v*100)}%`,repc:v=>`수리비 ${Math.round(v*100)}% 할인`,salary:v=>`월급 ${Math.round(v*100)}% 줄임`,duel:v=>`일기토 공격 +${Math.round(v*100)}%`,auto:()=>'자동 항해 감속 없음',grow:v=>`성장 +${Math.round(v*100)}%`};
+const spDesc=m=>m.tr2?SPTR[m.tr2.i][1].map(([k,v])=>TR_TXT[k](v*m.tr2.k)).join(', '):'';
+// 같은 일반 특기끼리는 겹치지 않고(가장 큰 값), 특별한 항해자의 특기는 더해진다. 종류마다 상한이 있다.
+let TRV_C=null,TRV_T=-1;
+function traitV(k){const key=hiredIds().join(',');if(TRV_C&&TRV_T===key)return TRV_C[k]||0;const mx={},sp={};
+  for(const i of hiredIds()){const m=MATES[i];if(!m)continue;const a=TRAITS[m.tr];if(a&&a[2]!=='grow')mx[a[2]]=Math.max(mx[a[2]]||0,a[3]);
+    if(m.tr2)for(const [kk,v] of SPTR[m.tr2.i][1])sp[kk]=(sp[kk]||0)+v*m.tr2.k;}
+  const o={};for(const kk in TR_CAP)o[kk]=Math.min(TR_CAP[kk],(mx[kk]||0)+(sp[kk]||0));TRV_C=o;TRV_T=key;return o[k]||0;}
 const PERS=['용감함','신중함','욕심 많음','온화함','수다쟁이','과묵함','낙천적','꼼꼼함'];
 const NAMEP={'열대':[['마누','레이','카이','아로하','타네','말리아','누이','코아','시나','파레','오나','테바','라니','하우','미오'],['카후','로아','테레','바이','누쿠','파타']],
  '아열대·건조':[['사이드','야스민','하산','오마르','누르','자이드','파리다','카림','살마','타릭','아미라','라시드'],['알바르','이븐하산','사디','알누르','카시미']],
@@ -501,8 +518,8 @@ const MATES=[];
   let id=STORY.length,seed=1;const R=()=>hash3(seed++,77,13);
   const gen=p=>{for(let k=0;k<3;k++){const b=bandOf(p.lat),pool=NAMEP[b];let nm;
       for(let t=0;t<20;t++){nm=pool[0][Math.floor(R()*pool[0].length)]+' '+pool[1][Math.floor(R()*pool[1].length)];if(!MATES.some(m=>m.name===nm))break;}
-      const st=STATK.map(()=>15+Math.floor(R()*30));const a=Math.floor(R()*8);let b2=Math.floor(R()*8);if(b2===a)b2=(a+3)%8;
-      st[a]+=30+Math.floor(R()*25);st[b2]+=15+Math.floor(R()*20);
+      const st=STATK.map(()=>22+Math.floor(R()*30));const a=Math.floor(R()*8);let b2=Math.floor(R()*8);if(b2===a)b2=(a+3)%8;
+      st[a]+=32+Math.floor(R()*24);st[b2]+=18+Math.floor(R()*20);for(let q=0;q<8;q++)st[q]=Math.min(99,st[q]);
       MATES.push({id:id++,name:nm,home:p.id,st,tr:Math.floor(R()*TRAITS.length),per:Math.floor(R()*PERS.length)});}};
   PORTS.slice(0,40).forEach(gen);
   MATES.push({id:id,name:'호연',home:0,st:[62,52,48,55,40,42,30,45],tr:6,per:6,story:1,hero:1,bio:'이 이야기의 주인공. 세상을 모두 둘러보고 큰돈을 벌어 모두가 잘 먹고 잘살게 하겠다는 꿈을 꾼다.'});id++;
@@ -518,9 +535,9 @@ function makeFlag(k){if(k<=0)return;const sh=S.fleet[k],old=S.fleet[0];const cap
   if(cap){if(seatsUsed(old)<SHIPTYPES[old.t].seats)old.as.push({m:cap.m,r:0,aux:0});else toast(`${MATES[cap.m].name}은(는) 자리가 없어 대기합니다.`);}
   S.fleet.splice(k,1);S.fleet.unshift(sh);ensureHero();toast(`${sh.name}이(가) 새 기함이 되었습니다. 호연이 선장으로 옮겨 탔습니다.`,true);save();}
 const bestRole=id=>{let b=1,v=-1;for(let r=0;r<8;r++){const x=curSt(id,r);if(x>v){v=x;b=r;}}return b;};
-const salaryNow=i=>MATES[i].hero?0:Math.round(mateSalary(MATES[i])*(seatOf(i)?1:.5));
-const mateSalary=m=>{const s=[...m.st].sort((a,b)=>b-a);return Math.round(8+(s[0]+s[1]+s[2])/10+(m.story?8:0));};
-const mateFee=m=>mateSalary(m)*4;
+const salaryNow=i=>MATES[i].hero?0:Math.round(mateSalary(MATES[i])*(seatOf(i)?1:.5)*(1-traitV('salary')));
+const mateSalary=m=>{const s=[...m.st].sort((a,b)=>b-a);return Math.round(8+(s[0]+s[1]+s[2])/10+(m.story?8:0)+[0,15,35,70][m.sp||0]);};
+const mateFee=m=>mateSalary(m)*4*[1,3,5,8][m.sp||0];
 const mt=id=>S.mt[id];
 const curSt=(id,r)=>Math.min(99,(MATES[id].st[r]||0)+((S.mt[id]&&S.mt[id].g&&S.mt[id].g[r])||0));
 function hiredIds(){return Object.keys(S.mt).map(Number).filter(i=>S.mt[i].h);}
@@ -529,11 +546,12 @@ function roleVal(r){if(FLEET_ROLES.includes(r)){let m=0,ax=0;for(const sh of S.f
   let best=0;for(const sh of S.fleet){let v=0;for(const a of sh.as)if(a.r===r)v+=a.aux?curSt(a.m,r)*.5:curSt(a.m,r);best=Math.max(best,v);}return Math.min(120,best);}
 const eR=r=>roleVal(r)/100;
 function traitOn(t){for(const i of hiredIds())if(MATES[i].tr===t)return true;return false;}
-function navMul(){let m=(traitOn(0)?1.04:1)*(hasRelic('sail')?1.08:1)*(1+.03*perkSum('speed'))*seaMul();return m;for(let k=1;k<S.fleet.length;k++)if(!S.fleet[k].as.some(a=>a.r===0&&!a.aux))m*=.95;return m;}
-const supplyMul=()=>(traitOn(3)?.9:1)*(traitOn(4)?1.08:1)*(hasRelic('fridge')?.7:1);
-const lossMul=()=>(1-.6*eR(6))*(traitOn(5)?.7:1)*(typeof toolPct==='function'?1-toolPct('med'):1);
-const tradeBuyMul=()=>1-.08*eR(3), tradeSellMul=()=>(1+.08*eR(3))*(traitOn(1)?1.04:1)*(1+.03*perkSum('sell'));
-const revealR=()=>3+1.5*eR(2)+(traitOn(2)?.6:0)+(hasRelic('scope')?1.5:0);
+const trMine=(i,k)=>{const m=MATES[i];let v=TRAITS[m.tr]&&TRAITS[m.tr][2]===k?TRAITS[m.tr][3]:0;if(m.tr2)for(const [kk,x] of SPTR[m.tr2.i][1])if(kk===k)v+=x*m.tr2.k;return v;};
+function navMul(){let m=(1+traitV('speed'))*(hasRelic('sail')?1.08:1)*(1+.03*perkSum('speed'))*seaMul();return m;for(let k=1;k<S.fleet.length;k++)if(!S.fleet[k].as.some(a=>a.r===0&&!a.aux))m*=.95;return m;}
+const supplyMul=()=>(1-traitV('supply'))*(1+traitV('glut'))*(hasRelic('fridge')?.7:1);
+const lossMul=()=>(1-.6*eR(6))*(1-traitV('loss'))*(typeof toolPct==='function'?1-toolPct('med'):1);
+const tradeBuyMul=()=>(1-.08*eR(3))*(1-traitV('buy')), tradeSellMul=()=>(1+.08*eR(3))*(1+traitV('sell'))*(1+.03*perkSum('sell'));
+const revealR=()=>3+1.5*eR(2)+traitV('reveal')+(hasRelic('scope')?1.5:0);
 const mateCap=()=>seatsT()+1+6+2*S.fleet.length;
 function hire(id){const m=MATES[id],f=mateFee(m);if(S.gold<f)return;if(hiredIds().length>=mateCap()){toast('더 데려갈 수 없습니다. 배를 늘리세요.');return;}
   sfx('hire');S.gold-=f;S.mt[id]={h:1,loy:70,g:[0,0,0,0,0,0,0,0],xp:[0,0,0,0,0,0,0,0],since:S.day};toast(`${m.name}이(가) 함대에 합류했습니다. 자리에 앉히면 더 빨리 성장합니다.`,true);
@@ -546,10 +564,10 @@ function assign(id,k,r,aux){const s=seatOf(id);if(s)S.fleet[s.k].as.splice(S.fle
   sh.as.push({m:id,r,aux:aux?1:0});S.st['role'+r]=1;checkMissions();save();return true;}
 function unassign(id){if(MATES[id].hero)return;const s=seatOf(id);if(s)S.fleet[s.k].as.splice(S.fleet[s.k].as.indexOf(s.a),1);save();}
 const XPN=20;
-function gainXp(i,r,v){const x=S.mt[i];if(!x)return;x.xp[r]+=v;if(x.xp[r]>=XPN){x.xp[r]-=XPN;if(curSt(i,r)<99){x.g[r]++;S.st.grow=(S.st.grow||0)+1;toast(`${MATES[i].name}의 ${STATK[r]}이(가) ${curSt(i,r)}(으)로 올랐습니다.`);}}}
+function gainXp(i,r,v){const x=S.mt[i];if(!x)return;v*=1+trMine(i,'grow');x.xp[r]+=v;if(x.xp[r]>=XPN){x.xp[r]-=XPN;if(curSt(i,r)<99){x.g[r]++;S.st.grow=(S.st.grow||0)+1;toast(`${MATES[i].name}의 ${STATK[r]}이(가) ${curSt(i,r)}(으)로 올랐습니다.`);}}}
 function mateDaily(){for(const i of hiredIds()){const s=seatOf(i);if(s)gainXp(i,s.a.r,s.a.aux?.6:1);else gainXp(i,bestRole(i),.25);}
   if(Math.floor(S.day)%30===0)payday();}
-function payday(){const ids=hiredIds().filter(i=>!MATES[i].hero);if(!ids.length)return;const sum=ids.reduce((a,i)=>a+salaryNow(i),0);const pop=traitOn(6)?2:0;
+function payday(){const ids=hiredIds().filter(i=>!MATES[i].hero);if(!ids.length)return;const sum=ids.reduce((a,i)=>a+salaryNow(i),0);const pop=Math.round(traitV('loy'));
   if(S.gold>=sum){S.gold-=sum;ids.forEach(i=>S.mt[i].loy=Math.min(100,S.mt[i].loy+3+pop));toast(`항해자 월급 ${sum}골드를 냈습니다.`);}
   else{ids.forEach(i=>S.mt[i].loy=Math.max(0,S.mt[i].loy-15+pop));toast(`월급 ${sum}골드를 내지 못했습니다! 항해자들의 충성이 떨어집니다.`,true);}}
 function checkLeave(){for(const i of hiredIds())if(S.mt[i].loy<25&&!MATES[i].story){toast(`${MATES[i].name}이(가) 밀린 월급에 실망해 배에서 내렸습니다.`,true);fire(i);}}
@@ -679,7 +697,7 @@ function computeNav(){
   const w=windAt(S.lat,S.lon,S.day), hx=Math.sin(S.hd*DEG), hy=Math.cos(S.hd*DEG);
   const dot=Math.max(-1,Math.min(1,hx*w.u+hy*w.v)), rel=Math.acos(dot)/DEG; // 0=바람을 등짐
   const crewF=Math.min(1,S.crew/crewNeedT())*(S.thirst?0.6:1)*(S.hunger?0.8:1);
-  let sp=SHIP.base*(window.SAILF||[0,.5,1])[S.sail]*fleetSail(rel)*(.4+.6*Math.min(1.3,w.s))*crewF*(autop&&!hasRelic('chrono')?.9:1)*navMul();
+  let sp=SHIP.base*(window.SAILF||[0,.5,1])[S.sail]*fleetSail(rel)*(.4+.6*Math.min(1.3,w.s))*crewF*(autop&&!hasRelic('chrono')&&!traitV('auto')?.9:1)*navMul();
   if(S.sail)sp=Math.max(sp,(window.SAILMIN||[0,30,55])[S.sail]*crewF); // 아무리 나빠도 조금씩은 나아간다
   if(S.engine)sp*=boostMul(); // 부스터: 증기기관이면 2배, 없으면 1.5배
   sp=Math.min(sp,SHIP.base*SPCAP);
@@ -977,7 +995,7 @@ const bars=(id)=>STATK.map((k,r)=>{const v=curSt(id,r);return `<span class="sb" 
 const USED_NOW=[1,1,1,1,1,1,1,1];
 function mateCard(id,extra){const m=MATES[id],x=S.mt[id];const br=bestRole(id),seat=x&&seatOf(id);
   const prog=seat?`<span class="xpb" title="다음 성장까지"><i style="width:${Math.round(x.xp[seat.a.r]/XPN*100)}%"></i></span>`:'';
-  return `<div class="mc mcp">${ptImg(id,76)}<div class="mcb"><div class="mh"><b>${m.name}</b>${m.hero?' <span class="chip" style="background:#2f5d73">주인공</span>':m.story?' <span class="chip" style="background:#a8322a">동료</span>':''} <small>${PORTS[m.home].name} 출신 · ${PERS[m.per]} · 특기 <b>${TRAITS[m.tr][0]}</b>: ${TRAITS[m.tr][1]}</small></div>
+  return `<div class="mc mcp${m.sp?' spg'+m.sp:''}">${ptImg(id,76)}<div class="mcb"><div class="mh">${m.sp?`<span class="chip spc${m.sp}">${['','✦ 뛰어난 인재','★ 영웅급','👑 전설'][m.sp]}</span> `:''}<b>${m.name}</b>${m.hero?' <span class="chip" style="background:#2f5d73">주인공</span>':m.story?' <span class="chip" style="background:#a8322a">동료</span>':''} <small>${PORTS[m.home].name} 출신 · ${PERS[m.per]} · 특기 <b>${TRAITS[m.tr][0]}</b>: ${TRAITS[m.tr][1]}</small>${m.tr2?`<div class="sptr">✨ 특별 특기 <b>${SPTR[m.tr2.i][0]}</b>: ${spDesc(m)}</div>`:''}</div>
    ${m.bio?`<div class="hint">${m.bio}</div>`:''}<div class="sbars">${bars(id)}</div>
    <div class="mf"><small>추천 자리: <b>${ROLES[br]}</b> (${STATK[br]} ${curSt(id,br)})${USED_NOW[br]?'':' <i>· 해전 단계부터 쓰임</i>'} · 월급 ${m.hero?'-':(x?salaryNow(id):mateSalary(m))+'골드'}${x&&!m.hero?` · 충성 ${x.loy}`:''}${seat?` · 지금 ${seat.a.aux?'보조 ':''}${ROLES[seat.a.r]} ${prog}`:x?' · <b style="color:#a8322a">대기 중</b> (성장 느림, 월급 절반)':''}</small>${extra||''}</div></div></div>`;}
 function fleetHTML(inPortNow){
@@ -1045,14 +1063,14 @@ const REGIONS=[['은빛바다','안개바다','고래바다','별빛바다'],['�
 function regionOf(lat,lon){const r=lat>23.5?0:lat>-23.5?1:2,c=Math.min(3,Math.floor((wrapLon(lon)+30)/90));return r*4+c;}
 const regionName=k=>REGIONS[Math.floor(k/4)][k%4];
 const hasRelic=f=>!!(S.relic&&S.relic[f]);
-const detectR=()=>1.6+.8*eR(2)+(hasRelic('lamp')?1:0);
+const detectR=()=>1.6+.8*eR(2)+(hasRelic('lamp')?1:0)+traitV('detect');
 function scanDisc(){for(const d of DISC){if(S.dd[d.id])continue;let dl=d.lon-S.lon;if(dl>180)dl-=360;if(dl<-180)dl+=360;
   if(Math.hypot(d.lat-S.lat,dl*Math.cos(S.lat*DEG))<detectR()){S.dd[d.id]=1;slowDown();sfx('discover');toast(`무언가 눈에 띕니다 (${d.t}). 가까이 가서 Q 키로 조사하세요.`,true);}}}
 function nearDisc(){let best=-1,bd=1e9;for(const id in S.dd){if(S.df[id])continue;const d=DISC[id];let dl=d.lon-S.lon;if(dl>180)dl-=360;if(dl<-180)dl+=360;const x=Math.hypot(d.lat-S.lat,dl*Math.cos(S.lat*DEG));if(x<bd){bd=x;best=+id;}}return bd<1.2?best:-1;}
 function investigate(){const id=nearDisc();if(id<0){toast('조사할 만한 것이 근처에 없습니다.');return;}const d=DISC[id],sch=roleVal(7);
   if(S.cool&&S.cool[id]>S.day){toast(`다시 조사하려면 ${Math.ceil(S.cool[id]-S.day)}일을 기다려야 합니다.`);return;}
   if(d.q&&sch<d.q){toast(`이상한 기계가 있지만 무엇인지 알 수 없습니다. 학자의 학식이 ${d.q} 이상이어야 합니다 (지금 ${Math.round(sch)}).`,true);S.cool[id]=S.day+1;return;}
-  const ch=Math.min(.95,.35+sch/120+(d.r===1?.15:0)-(d.r===3?.1:0));
+  const ch=Math.min(.95,.35+sch/120+traitV('lore')+(d.r===1?.15:0)-(d.r===3?.1:0));
   for(const i of hiredIds()){const s=seatOf(i);if(s&&s.a.r===7)gainXp(i,7,2);}
   if(Math.random()>ch){S.cool[id]=S.day+1;sfx('fail');toast(`조사했지만 정체를 알아내지 못했습니다 (성공률 ${Math.round(ch*100)}%). 하루 뒤 다시 해 보세요. 학자가 있으면 쉬워집니다.`);return;}
   S.df[id]={d:S.day,rep:0};if(window.onDisc)onDisc(id);sfx(d.f?'relic':'found');if(d.f==='engine')S.engDays=ENG_MAX;if(d.f){S.relic[d.f]=1;if(d.f==='gps'){S.found.forEach(gpsNear);toast('스스로 위치를 아는 판: 지금까지 가 본 항구마다 가까운 항구 5곳이 지도에 나타납니다. 앞으로 들르는 항구마다 그 주변 5곳이 저절로 드러납니다.',true);}}
@@ -2222,7 +2240,7 @@ function drawBattleUI(){const F=B.flag,p=B.p;
   ctx.textAlign='center';ctx.font='11px serif';ctx.fillStyle='rgba(243,232,207,.85)';ctx.fillText('배 둘레 고리: 초록 쪽으로 뱃머리(흰 점)를 두면 빠름 · W/S 돛 · A/D 키 · 적 클릭: 목표 지정 · 휠 확대 · P 멈춤 · 점선 밖으로 나가면 달아남',VW/2,VH-12);ctx.textAlign='left';
   if(B.pause){ctx.fillStyle='rgba(20,14,8,.45)';ctx.fillRect(0,0,VW,VH);ctx.fillStyle='#f3e8cf';ctx.font='bold 28px serif';ctx.textAlign='center';ctx.fillText('잠깐 멈춤 (P)',VW/2,VH/2);ctx.textAlign='left';}}
 // ----- 조선소 수리 · 조합 현상 수배 -----
-const repCostK=k=>{const T=ST(S.fleet[k]);return Math.round((hpMaxK(k)-hpK(k))*T.price/T.hp*.15);};
+const repCostK=k=>{const T=ST(S.fleet[k]);return Math.round((hpMaxK(k)-hpK(k))*T.price/T.hp*.15*(1-traitV('repc')));};
 function repairHTML(){const tot=S.fleet.reduce((a,sh,k)=>a+repCostK(k),0);
   return `<h4>배 고치기</h4><table class="mt">${S.fleet.map((sh,k)=>{const m=hpMaxK(k),h=Math.round(hpK(k)),c=repCostK(k);return `<tr><td><b>${sh.name}</b> <small>${ST(sh).n} · 대포 ${ST(sh).guns}문</small></td><td class="n">선체 ${h}/${m}</td><td><span class="xpb" style="width:90px"><i style="width:${h/m*100}%;background:${h/m>.5?'#4f7f5a':'#b8342b'}"></i></span></td><td class="b">${c?`<button data-rep="${k}" ${S.gold<c?'disabled':''}>고치기 (${c.toLocaleString()})</button>`:'멀쩡함'}</td></tr>`;}).join('')}</table>
    ${tot?`<button class="main" id="repAll" ${S.gold<tot?'disabled':''}>모두 고치기 (${tot.toLocaleString()}골드)</button>`:''}`;}
@@ -3299,7 +3317,7 @@ function faceFlip(id){const m=MATES[id];if(!m||m.story||m.hero||typeof FACES==='
 // ===== 일기토 화면과 해적전 연결 =====
 // 주인공 능력: 무예(mu) 체력(hp) 담력(dam). 약하게 시작해 크게 자란다.
 function heroFighter(fair){gearInit();const hs=S.hs,w=S.eq.w&&S.inv2.find(i=>i.id===S.eq.w),a=S.eq.a&&S.inv2.find(i=>i.id===S.eq.a);
-  const F={nm:MATES[HY].name,hpMax:Math.round(60+hs.hp*1.2+((a&&a.x&&a.x.hp)||0)),atk:6+hs.mu*.25+(w?itAtk(w):3),wt:w?itB(w).wt:'bash',tb:w?itTB(w):1,q:w?itQ(w):0,
+  const F={nm:MATES[HY].name,hpMax:Math.round(60+hs.hp*1.2+((a&&a.x&&a.x.hp)||0)),atk:(6+hs.mu*.25+(w?itAtk(w):3))*(1+traitV('duel')),wt:w?itB(w).wt:'bash',tb:w?itTB(w):1,q:w?itQ(w):0,
     def:a?itDef(a):0,res:a?{cut:itRes(a,'cut'),thr:itRes(a,'thr'),bash:itRes(a,'bash')}:{},hv:a?itHv(a):0,dam:hs.dam,blk:(w&&w.x&&w.x.blk)||0,ki:0,stag:0,leg:0,
     wn:w?itName(w):'맨주먹',an:a?itName(a):'평상복',pt:portrait(HY)};F.hp=F.hpMax;if(fair)igFair(F);return F;}
 const PIR_PERS=['용감함','신중함','욕심 많음','교활함'];
@@ -3992,6 +4010,78 @@ function bindGangs(box){box.querySelectorAll('[data-bk2]').forEach(b=>b.onclick=
   toast(`📜 ${g.n} 수배서를 받았습니다. 근거지: ${PORTS[g.near].name} 앞바다. 이 해적단 함대를 ${GANG_KILLS}번 무찌르면 두목이 나타납니다. (지금 ${gKills(g.key)}/${GANG_KILLS})`,true);checkMissions();save();drawPort();});}
 {const st=document.createElement('style');st.textContent=`.gpic{display:inline-block;overflow:hidden;border-radius:8px;border:2px solid #8a6a44;background:#d9c49a}.gpic img{height:150%;margin-top:-4%;transform:scaleX(-1)}
 .gbar{position:relative;width:100%;height:18px;background:#e3d3b0;border-radius:9px;overflow:hidden}.gbar i{display:block;height:100%;background:#a8322a}.gbar span{position:absolute;left:0;right:0;top:0;font-size:11px;line-height:18px;color:#2a1a0a;font-weight:bold}`;document.head.appendChild(st);}
+
+// ===== 주점 항해자: 항구마다 3명 + 한 달에 한 번 특별한 항해자 수소문 =====
+// 일반 항해자는 10일마다 얼굴이 바뀐다. 아주 가끔(6%) 뛰어난 인재가 그 3명에 섞여 들어온다.
+// 수소문(150골드)은 항구마다 한 달에 한 번: 대개 '뛰어난' 인재, 가끔 영웅급, 아주 드물게 전설의 항해자.
+const SP0=MATES.length,SPQ_COST=150,TAV_DAYS=10;
+// 일반 항해자의 특기를 늘어난 특기 목록에서 다시 고르게 나눠 준다 (이야기 동료는 그대로)
+MATES.forEach(m=>{if(!m.story&&!m.hero)m.tr=Math.floor(hash3(m.id,5,9)*TRAITS.length);});
+const SP_RMOD=[['노련한','듬직한'],['날렵한','바람 같은'],['눈 밝은','길 잃지 않는'],['셈 빠른','수완 좋은'],['정확한','불꽃 같은'],['손 빠른','솜씨 좋은'],['따뜻한 손의','자비로운'],['영리한','박식한']];
+const SP_EMOD=['불굴의','폭풍을 가르는','천리안의','황금 손의','백발백중의','무쇠 손의','기적의','현자라 불리는'];
+const SP_BIO=[
+ a=>`이 근처 항구에서 꽤 알려진 ${ROLES[a]}. 실력에 비해 몸값이 싸다는 평이 있다.`,
+ a=>`여러 바다에 이름이 퍼진 ${ROLES[a]}. 그가 탄 배는 운이 좋다는 소문이 돈다.`,
+ a=>`뱃사람들이 이름만 들어도 고개를 숙이는 전설의 ${ROLES[a]}. 평생 한 번 만날까 말까 한 사람이다.`];
+function strH(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0)%2147483647;}
+function spFace(p,fem,r){const c=culOf(p),P=c2=>Object.keys(FACES).filter(k=>k.replace(/[A-D]\d$/,'')===c2&&FACE_F[k]==fem);
+  let pool=P(c);if(!pool.length&&FACE_FB[c])pool=P(FACE_FB[c]);if(!pool.length)pool=P('sea');return pool.length?pool[Math.floor(r()*pool.length)]:null;}
+// 저장된 특별 항해자들을 MATES 뒤에 다시 붙인다 (불러오기·새 게임마다)
+function spSync(){if(!S)return;if(!S.sp)S.sp=[];if(!S.spq)S.spq={};if(!S.sid)S.sid=1+Math.floor(Math.random()*99999);
+  let ok=MATES.length===SP0+S.sp.length;for(let i=0;ok&&i<S.sp.length;i++)if(MATES[SP0+i].spk!==S.sp[i].spk)ok=false;if(ok)return;
+  MATES.length=SP0;S.sp.forEach((o,i)=>{MATES.push(Object.assign({},o,{id:SP0+i}));if(typeof PT_C!=='undefined')delete PT_C[SP0+i];});TRV_C=null;}
+{const eh0=ensureHero;ensureHero=function(){spSync();return eh0.apply(this,arguments);};}
+{const ml0=mateLook;mateLook=function(id){const o=ml0(id),m=MATES[id];if(m&&m.sp)o.fem=!!m.fem;return o;};}
+{const fm0=faceMap;faceMap=function(){const M=fm0();if(S&&S.sp)S.sp.forEach((o,i)=>{if(o.fk)M[SP0+i]={k:o.fk,flip:0};});return M;};}
+function spFind(key){spSync();const i=S.sp.findIndex(o=>o.spk===key);return i<0?null:MATES[SP0+i];}
+function genSpecial(p,tier,key){spSync();const r=srand(strH(key+'|'+S.sid));
+  const a=Math.floor(r()*8),b=(a+1+Math.floor(r()*7))%8,rg=(lo,hi)=>lo+Math.floor(r()*(hi-lo+1));
+  const B=[[35,60],[45,70],[60,80]][tier-1],M=[[80,90],[90,96],[97,99]][tier-1],C=[[65,78],[75,88],[88,95]][tier-1];
+  const st=STATK.map(()=>rg(B[0],B[1]));st[a]=rg(M[0],M[1]);st[b]=rg(C[0],C[1]);
+  const pool=NAMEP[bandOf(PORTS[p].lat)];let bn='';for(let t=0;t<30;t++){bn=pool[0][Math.floor(r()*pool[0].length)]+' '+pool[1][Math.floor(r()*pool[1].length)];if(!MATES.some(m=>(m.bn||m.name)===bn))break;}
+  const mod=tier===1?SP_RMOD[a][Math.floor(r()*2)]:tier===2?SP_EMOD[a]:'전설의';
+  const trs=TRAITS.map((x,i)=>i).filter(i=>i!==4),fem=r()<.4?1:0;
+  const o={name:mod+' '+bn,bn,mod,home:p,st,tr:trs[Math.floor(r()*trs.length)],per:Math.floor(r()*PERS.length),sp:tier,tr2:{i:a,k:[1,1.4,2][tier-1]},fem,fk:spFace(p,fem,r),bio:SP_BIO[tier-1](a),spk:key};
+  S.sp.push(o);const m=Object.assign({},o,{id:SP0+S.sp.length-1});MATES.push(m);TRV_C=null;return m;}
+const tavPer=()=>Math.floor(S.day/TAV_DAYS),tavMo=()=>Math.floor(S.day/30);
+// 이 항구 주점의 일반 손님 3명 (+ 이번 달 수소문한 인재)
+function tavRegular(p){const per=tavPer(),r=srand(strH(`t|${p}|${per}|${S.sid}`)),out=[];
+  const rk='r:'+p+':'+per,roll=r(),x=r();let rs=spFind(rk);
+  if(!rs&&roll<.06)rs=genSpecial(p,x<.03?3:x<.18?2:1,rk);
+  if(rs)out.push(rs);
+  const cul=culOf(p),pool=MATES.filter(m=>!m.story&&!m.hero&&!m.sp),pref=pool.filter(m=>culOf(m.home)===cul);
+  for(let g=0;out.length<3&&g<40;g++){const src=(pref.length&&r()<.75)?pref:pool;const m=src[Math.floor(r()*src.length)];if(m&&!out.includes(m))out.push(m);}
+  MATES.filter(m=>m.story&&!m.hero&&m.home===p).forEach(m=>out.unshift(m)); // 이야기 동료는 고향 주점에 늘 있음 (3명과 별도)
+  return out;}
+function tavMonthly(p){spSync();return S.spq[p]===tavMo()?spFind('s:'+p+':'+tavMo()):null;}
+tavernMates=function(p){spSync();const L=tavRegular(p).filter(m=>!S.mt[m.id]),q=tavMonthly(p);if(q&&!S.mt[q.id])L.unshift(q);return L;};
+function spSearch(p){spSync();const mo=tavMo();if(S.spq[p]===mo||S.gold<SPQ_COST)return;S.gold-=SPQ_COST;S.spq[p]=mo;
+  const key='s:'+p+':'+mo,x=srand(strH(key+'#'+S.sid))(),tier=x<.05?3:x<.30?2:1;const m=spFind(key)||genSpecial(p,tier,key);
+  sfx(tier===3?'levelup':'discover');toast(tier===3?`👑 주점 주인이 목소리를 낮춥니다. "전설이 이 항구에 와 있소!" — ${m.name}`:tier===2?`★ 영웅급 인재를 소개받았습니다: ${m.name}`:`✦ 뛰어난 인재를 소개받았습니다: ${m.name}`,true);save();}
+function trSummary(){const L=Object.keys(TR_CAP).filter(k=>k!=='grow'&&k!=='glut'&&traitV(k)>0).map(k=>TR_TXT[k](traitV(k)));if(traitV('glut')>0)L.push('물·식량 8% 더 먹음');
+  return L.length?`<div class="eff trsum"><b>지금 함대 특기 효과</b> ${L.map(t=>`<span>${t}</span>`).join('')}</div>`:'';}
+function spHireBtn(m){const f=mateFee(m),full=hiredIds().length>=mateCap();return ` <button data-hire="${m.id}" ${S.gold<f||full?'disabled':''}>영입 (${f.toLocaleString()}골드)</button>${full?' <small class="hint">자리가 꽉 참</small>':''}`;}
+tavernHire=function(p){spSync();const per=tavPer(),left=TAV_DAYS-(Math.floor(S.day)%TAV_DAYS),mo=tavMo(),reg=tavRegular(p),q=tavMonthly(p);
+  let h=`<h4>오늘 일거리를 찾는 항해자 <small>(지금 ${hiredIds().length}명 · 최대 ${mateCap()}명)</small></h4>
+   <p class="hint">주점 손님은 ${TAV_DAYS}일마다 바뀝니다 (다음 교체까지 ${left}일). 아주 가끔 뛰어난 인재가 섞여 들어옵니다. 특기는 자리에 앉히지 않아도 함대에 있기만 하면 효과가 납니다.</p>${trSummary()}`;
+  const R=reg.filter(m=>!S.mt[m.id]);h+=R.length?R.map(m=>mateCard(m.id,spHireBtn(m))).join(''):'<p class="hint">이 주점의 손님은 모두 함대에 들어왔습니다. 며칠 뒤 새 얼굴이 옵니다.</p>';
+  const nd=30-(Math.floor(S.day)%30);
+  h+=`<div class="spbox"><h4>✨ 특별한 항해자 수소문 <small>(항구마다 한 달에 한 번)</small></h4>`;
+  if(q){h+=S.mt[q.id]?`<p class="hint">이번 달 이 항구의 인재 <b>${q.name}</b>은(는) 이미 함대에 있습니다. 다음 수소문은 ${nd}일 뒤.</p>`:mateCard(q.id,spHireBtn(q))+`<p class="hint">이번 달이 끝나면(${nd}일 뒤) 다른 곳으로 떠납니다.</p>`;}
+  else h+=`<p>주점 주인에게 값을 치르면 이 바다에서 이름난 사람을 한 명 소개해 줍니다. 대개 <b>✦ 뛰어난 인재</b>, 가끔 <b>★ 영웅급</b>, 아주 드물게 <b>👑 전설</b>의 항해자를 만납니다. 능력치가 높고 그 사람만의 <b>특별 특기</b>가 있습니다.</p>
+    <button data-spq="1" ${S.gold<SPQ_COST?'disabled':''}>주점 주인에게 수소문하기 (${SPQ_COST}골드)</button> <small class="hint">다른 항구에서는 또 다른 인재를 찾을 수 있습니다.</small>`;
+  return h+'</div>';};
+{const th0=tavHome;tavHome=function(id){spSync();const s=th0(id),ok=S.spq[id]!==tavMo();
+  return s.replace('<div class="agrid">','<div class="agrid">'+act('✨','특별한 항해자',ok?`이번 달 수소문 가능 · ${SPQ_COST}골드`:'이번 달은 이미 수소문함','data-go="hire"'));};}
+{const bt0=bindTavern;bindTavern=function(box){bt0(box);const b=box.querySelector('[data-spq]');if(b)b.onclick=()=>{spSearch(inPort);drawPort();};
+  box.querySelectorAll('[data-go="hire"]').forEach(x=>{if(!x.onclick)x.onclick=()=>{portTab='hire';drawPort();};});};}
+{const h0=hire;hire=function(id){const was=!!S.mt[id];h0(id);const m=MATES[id];if(!was&&S.mt[id]&&m.sp){if(m.sp>=2)sfx('levelup');toast(`${['','✦','★','👑'][m.sp]} ${m.name}이(가) 함대에 합류했습니다! 특별 특기 '${SPTR[m.tr2.i][0]}': ${spDesc(m)}`,true);}};}
+{const st=document.createElement('style');st.textContent=`.mc.spg1{border:2px solid #4f86b8!important;box-shadow:0 0 0 3px #4f86b822}
+.mc.spg2{border:2px solid #8a4fc0!important;box-shadow:0 0 12px #8a4fc077}
+.mc.spg3{border:2px solid #d4a017!important;background:linear-gradient(135deg,#fff8e0,#fbe9b0)!important;box-shadow:0 0 16px #d4a017aa}
+.chip.spc1{background:#3f6f9a}.chip.spc2{background:#7a3fa8}.chip.spc3{background:#b8860b}
+.sptr{font-size:12.5px;color:#7a4500;margin-top:3px}.spbox{border:1.5px dashed #b8860b;border-radius:10px;padding:8px 10px;margin-top:12px;background:#fffaf0}
+.trsum span{background:#eef4e8;border-radius:6px;padding:1px 6px;margin:2px}`;document.head.appendChild(st);}
 
 // ===== 온라인 (Render 서버용) — ONLINE 빌드에서만 들어간다 =====
 const ON={live:false,id:0,nm:'',tok:'',ws:null,wsOk:false,W:{mk:{},dev:{},disc:{},inv:{},nm:{}},players:[],chat:[],unread:0,tab:'chat',qmk:{},qdev:{},rank:null,rankT:0,open:false,retry:0,posT:0};
