@@ -1177,7 +1177,7 @@ function setMood(key,inPort){if(!ac)return;const k=key+(inPort?'+port':'');if(cu
 function startNext(t){if(trackG){const g=trackG;g.gain.setValueAtTime(g.gain.value,t);g.gain.linearRampToValueAtTime(0,t+2.5);setTimeout(()=>g.disconnect(),4000);}
   trackG=ac.createGain();trackG.gain.setValueAtTime(0,t);trackG.gain.linearRampToValueAtTime(1,t+2);trackG.connect(musG);cur=next.k;port=next.inPort;want=next.key;next=null;bar=0;barT=t+.05;}
 function tick(){if(!ac)return;const now=ac.currentTime;if(next)startNext(Math.max(now+.05,barT));if(!want||!trackG)return;
-  while(barT<now+.4){const S2=SCORES[want];if(S2){const tm=port?1.06:(['title','ending','battle','duel','tavern','mystery'].includes(want)?1:.94);playScore(barT,S2,trackG,bar,Math.floor(bar/S2.nb),want,port);barT+=60/(S2.bpm*tm*(S2.tmp?S2.tmp[bar%S2.nb]:1))*(S2.eighth?.5:1)*S2.beats;bar++;continue;}
+  while(barT<now+.4){const S2=SCORES[want];if(S2){const tm=port?1.06:((['title','ending','battle','duel','tavern','mystery'].includes(want)||want[0]==='v')?1:.94);playScore(barT,S2,trackG,bar,Math.floor(bar/S2.nb),want,port);barT+=60/(S2.bpm*tm*(S2.tmp?S2.tmp[bar%S2.nb]:1))*(S2.eighth?.5:1)*S2.beats;bar++;continue;}
     playBar(barT);const M=MOODS[want],spb=60/(M.bpm*(port?1.15:1))*(M.beats===6?.5:1);barT+=spb*M.beats;bar++;}}
 function playBar(t){const song=compose(want),M=song.M,sc=song.sc,o=trackG,spb=60/(M.bpm*(port?1.15:1))*(M.beats===6?.5:1);
   const b=bar%16,phrase=Math.floor(bar/8)%2,ch=M.prog[b%8],notes=song.bars[b%8],root=M.root+(port?0:0);
@@ -1241,12 +1241,13 @@ I.snare=(o,t,v=1)=>{nz(o,t,.14,.09*v,'bandpass',2200,.8);tone(o,'triangle',190,t
 I.taiko=(o,t,v=1)=>{const x=ac.createOscillator(),g=ac.createGain();x.frequency.setValueAtTime(90,t);x.frequency.exponentialRampToValueAtTime(48,t+.25);x.connect(g);g.connect(o);g.connect(revIn);env(g,t,.003,.45*v,0,.5);x.start(t);x.stop(t+.6);nz(o,t,.08,.06*v,'lowpass',600);};
 I.hat=(o,t,v=1)=>nz(o,t,.035,.05*v,'highpass',7500);
 I.piano=(o,m,t,dur,v=1)=>{const f=hz(m),d=Math.max(.8,Math.min(2.2,dur*1.6));tone(o,'triangle',f,t,.002,.16*v,0,d,true);tone(o,'sine',f*2,t,.002,.05*v,0,d*.5);tone(o,'sine',f*3,t,.001,.02*v,0,.15);nz(o,t,.015,.02*v,'bandpass',f*4,2);};
+I.lute=(o,m,t,v=1)=>{const f=hz(m),fl=ac.createBiquadFilter();fl.type='lowpass';fl.frequency.value=f*5;fl.connect(o);fl.connect(revIn);tone(fl,'sawtooth',f,t,.002,.07*v,0,.7);tone(o,'triangle',f,t,.002,.09*v,0,.9,true);tone(o,'sine',f*2,t,.001,.03*v,0,.3);};
 I.cym=(o,t,v=1)=>nz(o,t,1.6,.06*v,'highpass',5000);
 I.logdrum=(o,t,m,v=1)=>{tone(o,'sine',hz(m),t,.002,.18*v,0,.22,true);tone(o,'sine',hz(m)*2.3,t,.001,.04*v,0,.08);};
 I.bombo=(o,t,v=1)=>{I.kick(o,t,.8*v);nz(o,t,.05,.05*v,'bandpass',1800,1);};
 function leadPlay(o,L,m,t,du,v){if(L==='strings')I.strings(o,m,t,du,v);else if(L==='horn')I.horn(o,m-12,t,du,v);else if(L==='brass')I.brass(o,[m-12,m-24],t,du,v);else if(L==='flute')I.flute(o,m,t,du,v);
   else if(L==='oboe')I.oboe(o,m-12,t,du,v);else if(L==='clar')I.clar(o,m-12,t,du,v);else if(L==='fiddle')I.fiddle(o,m,t,du,v);else if(L==='shaku')I.shaku(o,m,t,du,v);else if(L==='slide')I.slide(o,m,t,du,v);
-  else if(L==='piano')I.piano(o,m,t,du,v);else if(L==='bell')I.bell(o,m+12,t,v*.9);else if(L==='koto')I.koto(o,m,t,v,du>=1.5);else if(L==='charango')I.charango(o,[m-12],t,v*1.4);else I[L](o,m,t,v);}
+  else if(L==='piano')I.piano(o,m,t,du,v);else if(L==='lute')I.lute(o,m,t,v*1.3);else if(L==='bell')I.bell(o,m+12,t,v*.9);else if(L==='koto')I.koto(o,m,t,v,du>=1.5);else if(L==='charango')I.charango(o,[m-12],t,v*1.4);else I[L](o,m,t,v);}
 // ---- 곡마다 다른 반주 ----
 const pick=(arr,i)=>arr[((i%arr.length)+arr.length)%arr.length];
 const ACC={
@@ -1291,6 +1292,21 @@ const ACC={
    I.brass(o,c.map(m=>m+12),t,s*1.2,.9);I.taiko(o,t,1.1);I.taiko(o,t+s*3,.8);if(b%2)I.taiko(o,t+s*5,.5);
    if(p>=1)I.choir(o,c.map(m=>m+12),t,s*6,.5);if(b%4===3)for(let k=0;k<6;k++)I.snare(o,t+k*s,.3+k*.08);if(b%8===0)I.cym(o,t,1);},
  duel(o,t,s,c,b){for(let k=0;k<8;k++)I.lowstr(o,k%2?c[2]:c[0],t+k*s/2,.4);I.taiko(o,t,1);I.taiko(o,t+s*1.5,.6);I.taiko(o,t+s*2,.9);if(b%2)I.taiko(o,t+s*3.5,.7);I.tek(o,t+s*3,.6);},
+ // ---- 바다 위 항해곡: 탐험과 성장에 따라 v1 → v4로 점점 웅장해진다 ----
+ // v1 안개 속 출항: 피아노 홀로, 왼손이 3박 왈츠로 받쳐 줌
+ v1(o,t,s,c,b,p){I.pad(o,c.map(m=>m+12),t,s*3,.22);I.piano(o,c[0]-12,t,s*3,.42);I.piano(o,c[1],t+s,s,.24);I.piano(o,c[2],t+s*2,s,.24);
+   if(p%2)I.piano(o,c[0]+12,t+s*2.5,s*.5,.16);if(b===15)I.bell(o,c[0]+36,t+s*2,.12);},
+ // v2 류트 카프리스: 쉬지 않고 굴러가는 류트 8분음표
+ v2(o,t,s,c,b,p){const ar=[c[0],c[2],c[1]+12,c[2],c[0]+12,c[2],c[1]+12,c[2]];for(let k=0;k<8;k++)I.lute(o,ar[k],t+k*s/2,k%2?.45:.65);
+   I.bass(o,c[0]-12,t,s*1.8,.45);I.bass(o,c[2]-12,t+s*2,s*1.8,.35);I.pad(o,c.map(m=>m+12),t,s*4,.25);if(p%2){I.tamb(o,t+s,.25);I.tamb(o,t+s*3,.25);}},
+ // v3 넓은 바다로: 현악 선율, 하프 아르페지오, 호른이 대선율
+ v3(o,t,s,c,b,p){const ar=[c[0]+12,c[1]+12,c[2]+12,c[0]+24,c[2]+12,c[1]+12,c[0]+12,c[2]];for(let k=0;k<8;k++)I.harp(o,ar[k],t+k*s/2,.45);
+   I.cello(o,c[0]-12,t,s*2,.6);I.cello(o,c[2]-12,t+s*2,s*2,.5);I.horn(o,c[2]-12,t,s*2,.35);I.horn(o,c[1]-12,t+s*2,s*2,.3);I.pad(o,c.map(m=>m+12),t,s*4,.35);
+   I.kick(o,t,.35);if(b%4===0)I.timp(o,t,c[0]-12,.5);if(p%2)I.choir(o,c.map(m=>m+12),t,s*4,.35);},
+ // v4 끝을 향한 항해: 금관과 합창, 낮은 현의 질주, 팀파니 — 벅차오르는 마지막 여정
+ v4(o,t,s,c,b,p){for(let k=0;k<8;k++)I.lowstr(o,k%2?c[2]:c[0],t+k*s/2,.6+(k%4===0?.2:0));I.choir(o,c.map(m=>m+12),t,s*4,.6);I.pad(o,c.map(m=>m+12),t,s*4,.35);
+   I.timp(o,t,c[0]-12,.9);I.timp(o,t+s*2,c[0]-12,.6);I.kick(o,t,.7);I.kick(o,t+s*2,.6);if(b%2)I.snare(o,t+s*3,.35);if(b%8===0)I.cym(o,t,.8);
+   if(p%2){I.brass(o,c.map(m=>m+12),t,s*1.5,.5);for(let k=0;k<4;k++)I.bell(o,c[k%3]+36,t+k*s+s*.5,.12);}},
  mystery(o,t,s,c,b){I.pad(o,c.map(m=>m+12),t,s*4,1);I.cello(o,c[0]-12,t,s*4,.5);if(b%2===0)I.gong(o,c[0]-12,t+s*2,.4);}};
 const SCD={
  title:{bpm:112,beats:4,lead:'piano',
@@ -1365,20 +1381,35 @@ const SCD={
   ch:'Em|Em|C|D|Em|Em|C B|Em',
   mel:'E5:.5 r:.5 E5:.5 G5:.5 B5:2 A5:.5 G5:.5 F#5:1 E5:2 G5:.5 r:.5 G5:.5 A5:.5 C6:2 B5:.5 A5:.5 G5:1 F#5:2 '+
       'E5:.5 r:.5 E5:.5 G5:.5 B5:1 E6:1 D6:.5 B5:.5 A5:1 G5:2 C6:1 B5:1 A5:1 D#5:1 E5:4'},
+ v1:{bpm:66,beats:3,lead:'piano',lead2:'piano',vol:1.5,
+  ch:'Em|C|G|D|Em|C|Am|B|C|G|Am|Em|C|D|B|Em',
+  mel:'B4:1 E5:1 G5:1 E5:2 G5:1 D5:1.5 B4:.5 D5:1 F#5:3 G5:1 B5:1 G5:1 E5:2 C5:1 A4:1 C5:1 E5:1 D#5:3 '+
+      'E5:1 G5:1 C6:1 B5:2 D5:1 C5:1 E5:1 A5:1 G5:2 E5:1 E5:1 G5:1 C6:1 A5:1.5 F#5:.5 D5:1 D#5:1 F#5:1 B5:1 E5:3'},
+ v2:{bpm:92,beats:4,lead:'lute',lead2:'flute',
+  ch:'D|A|Bm|F#m|G|D|Em|A|D|G|A|D|Bm|G|Em A|D',
+  mel:'F#5:1 A5:1 D6:1.5 C#6:.5 B5:1 A5:1 E5:2 F#5:1 B5:1 D6:1 C#6:.5 B5:.5 C#6:3 A5:1 B5:1.5 A5:.5 G5:1 B5:1 A5:1.5 F#5:.5 D5:2 E5:1 G5:1 B5:1 A5:.5 G5:.5 A5:3 r:1 '+
+      'D6:1 C#6:.5 D6:.5 A5:1 F#5:1 G5:1 B5:1 D6:2 C#6:1 B5:.5 C#6:.5 E6:1 C#6:1 D6:3 A5:1 B5:1 D6:1 F#6:1.5 E6:.5 D6:1 B5:1 G5:2 E5:1 G5:1 C#6:1 E6:1 D6:4'},
+ v3:{bpm:100,beats:4,lead:'strings',lead2:'strings',dbl:1,str2:1,
+  ch:'C|G|Am|F|C|G|F G|C|Am|Em|F|C|Dm|G|F G|C',
+  mel:'E5:2 G5:1 C6:1 B5:2 D6:1 B5:1 C6:1.5 B5:.5 A5:1 E5:1 F5:3 A5:1 G5:1.5 E5:.5 C6:1 G5:1 D6:2 B5:1 G5:1 A5:1 C6:1 B5:1 D6:1 C6:4 '+
+      'E6:2 C6:1 A5:1 B5:2 G5:1 E5:1 A5:1.5 C6:.5 F6:1 E6:1 E6:2 G5:2 F5:1 A5:1 D6:1.5 C6:.5 B5:1 D6:1 G6:2 F6:1 E6:1 D6:1 B5:1 C6:4'},
+ v4:{bpm:84,beats:4,lead:'brass',lead2:'brass',dbl:1,str2:1,
+  ch:'D|Bm|G|A|D|F#m|G|A|Bm|G|D|A|G|Em|A|D',
+  mel:'D5:1.5 E5:.5 F#5:1 A5:1 B5:3 A5:1 G5:1.5 A5:.5 B5:1 D6:1 C#6:2 A5:2 D6:1.5 C#6:.5 D6:1 A5:1 F#5:2 A5:1 C#6:1 B5:1.5 A5:.5 G5:1 B5:1 A5:4 '+
+      'B5:1.5 C#6:.5 D6:1 F#6:1 G6:2 D6:2 F#6:1.5 E6:.5 D6:1 A5:1 E6:3 C#6:1 D6:1 B5:1 G5:1 B5:1 E6:2 G6:2 F#6:1 E6:1 C#6:1 E6:1 D6:4'},
  mystery:{bpm:60,beats:4,lead:'bell',lead2:'flute',
   ch:'Cm|Ab|Fm|G|Cm|Db|Fm G|Cm',
   mel:'G5:3 Eb5:1 C6:2 Ab5:2 F5:3 Ab5:1 G5:4 Eb6:2 D6:1 C6:1 Db6:3 Ab5:1 F5:2 B4:2 C5:4'}};
 const SCORES={};for(const k in SCD)SCORES[k]=parseScore(SCD[k]);
 // 항구에서는 조금 빠르고 가득 차게, 바다에서는 조금 느리고 비워서
-function playScore(t,S2,o,bi,pass,key,inPortNow){const tm=inPortNow?1.06:(key==='title'||key==='ending'||key==='battle'||key==='duel'||key==='tavern'||key==='mystery'?1:.94);
-  const spb=60/(S2.bpm*tm*(S2.tmp?S2.tmp[bi%S2.nb]:1))*(S2.eighth?.5:1),B=S2.beats,b=bi%S2.nb,chs=S2.ch[b],per=B/chs.length,sea=!inPortNow&&ACC[key]&&!['title','ending','battle','duel','tavern','mystery'].includes(key);
+function playScore(t,S2,o,bi,pass,key,inPortNow){const tm=inPortNow?1.06:(key==='title'||key==='ending'||key==='battle'||key==='duel'||key==='tavern'||key==='mystery'||key[0]==='v'?1:.94);
+  const spb=60/(S2.bpm*tm*(S2.tmp?S2.tmp[bi%S2.nb]:1))*(S2.eighth?.5:1),B=S2.beats,b=bi%S2.nb,chs=S2.ch[b],per=B/chs.length,sea=!inPortNow&&ACC[key]&&!['title','ending','battle','duel','tavern','mystery','v1','v2','v3','v4'].includes(key);
   let L=pass%2?S2.lead2:S2.lead,lv=1;if(key==='title'){const sec=b<4?0:b<12?1:b<20?2:b<28?3:4;L=sec===3?'brass':'piano';lv=sec===3?1.25:sec===2?1:.8;if(sec===2||sec===3)for(const n of S2.bars[b])I.strings(o,n[1]+(sec===3?0:-12),t+n[0]*spb,n[2]*spb,sec===3?.7:.5);}
   const restSea=sea&&pass%2===1&&b%2===1; // 바다에서는 둘째 돌 때 가끔 선율을 쉬어 바람 소리를 듣게 한다
-  if(!restSea)for(const n of S2.bars[b]){const tt=t+n[0]*spb,du=n[2]*spb;leadPlay(o,L,n[1],tt,du,.9*lv);if(S2.dbl&&!(pass%2))I.strings(o,n[1]-12,tt,du,.4);
+  if(!restSea)for(const n of S2.bars[b]){const tt=t+n[0]*spb,du=n[2]*spb;leadPlay(o,L,n[1],tt,du,.9*lv*(S2.vol||1));if(S2.dbl&&!(pass%2))I.strings(o,n[1]-12,tt,du,.4);
     if(S2.str2&&pass%2)I.strings(o,n[1],tt,du,.35);}
   const f=ACC[key];if(f)f(o,t,spb,chs[0],b,pass,inPortNow,S2.bars[b]);
   for(let ci=1;ci<chs.length;ci++){const t0=t+ci*per*spb,c=chs[ci];I.cello(o,c[0]-12,t0,per*spb,.7);I.pad(o,c.map(m=>m+12),t0,per*spb,.5);}}
-
 // ---- 바람과 파도 ----
 let ambT=0;function amb(wind,sail,inPort,moving){if(!ac)return;const t=ac.currentTime;
   const w=inPort?0:Math.min(1,wind)*(.25+.35*(sail/2));windG.gain.setTargetAtTime(w*.5,t,.6);windF.frequency.setTargetAtTime(380+w*900+Math.sin(t*.7)*120,t,.4);
@@ -3881,7 +3912,10 @@ const BLD_SND={market:'coin',office:'door',tavern:'mug',yard:'hammer',shop:'equi
 {const eq0=equip;equip=function(){sfx('equip');return eq0.apply(this,arguments);};}
 {const hg0=hsGain;hsGain=function(){const lv=S&&S.hs?S.hs.lv:0;const r=hg0.apply(this,arguments);if(S&&S.hs&&S.hs.lv>lv)setTimeout(()=>sfx('levelup'),400);return r;};}
 // 바다 위 음악: 가장 가까운 항구의 문화권 곡 (0.5초마다 묻지 않도록 몇 초 간격으로만 다시 계산)
-let MZ={t:0,z:'eu'};function musicZone(){const n=performance.now();if(n-MZ.t>4000&&S){MZ.t=n;try{MZ.z=culOf(nearestPortId(S.lat,S.lon));}catch(e){}}return MZ.z;}
+// 바다 위 음악은 해역이 아니라 탐험과 성장에 따라 바뀐다 (한 번 올라간 단계는 내려가지 않음). 지역 음악은 항구에서만.
+function voyageStage(){if(!S)return 1;let sc=0;try{sc=.6*(S.found.length/SEAPORTS.length)+.4*Math.min(1,assetNow()/3e6);}catch(e){}
+  const st=sc<.1?1:sc<.28?2:sc<.5?3:4;S.vstage=Math.max(S.vstage||1,st);return S.vstage;}
+let MZ={t:0,z:'v1'};function musicZone(){const n=performance.now();if(n-MZ.t>4000&&S){MZ.t=n;try{MZ.z='v'+voyageStage();}catch(e){}}return MZ.z;}
 {const se0=showEnding;showEnding=function(){ENDING_MUS=1;try{Snd.setMood('ending',false);}catch(e){}return se0.apply(this,arguments);};}
 document.addEventListener('click',e=>{if(e.target&&e.target.id==='endGo')ENDING_MUS=0;},true);
 
