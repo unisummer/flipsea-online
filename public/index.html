@@ -385,17 +385,30 @@ const world=document.createElement('canvas'); world.width=IMW; world.height=IMH;
 const fog=document.createElement('canvas'); fog.width=IMW; fog.height=IMH;
 const fctx=fog.getContext('2d');
 const BAND_COL=[[23.5,[150,172,98]],[35,[214,190,135]],[55,[176,190,128]],[66.5,[160,170,146]],[91,[236,236,226]]];
+// ===== 바다 깊이: 해안에서 몇 칸 떨어졌는지 (얕은 바다는 옥빛, 먼 바다는 짙은 파랑) =====
+let DEP=null;
+function buildDepth(){DEP=new Uint8Array(GW*GH).fill(255);const q=new Int32Array(GW*GH);let h=0,t=0;
+  for(let k=0;k<GW*GH;k++)if(GRID[k]){DEP[k]=0;q[t++]=k;}
+  while(h<t){const k=q[h++],i=(k/GW)|0,j=k%GW,d=DEP[k]+1;if(d>60)continue;for(const [a,b] of [[1,0],[-1,0],[0,1],[0,-1]]){const ii=i+a;if(ii<0||ii>=GH)continue;const kk=ii*GW+((j+b+GW)%GW);if(DEP[kk]>d){DEP[kk]=d;q[t++]=kk;}}}}
+function depthAt(lat,lon){if(!DEP)buildDepth();const fi=(90-lat)*GR-.5,fj=(wrapLon(lon)+30)*GR-.5,i=Math.floor(fi),j=Math.floor(fj),a=fi-i,b=fj-j;
+  const g2=(ii,jj)=>{ii=Math.max(0,Math.min(GH-1,ii));jj=((jj%GW)+GW)%GW;return Math.min(60,DEP[ii*GW+jj]);};
+  return (g2(i,j)*(1-b)+g2(i,j+1)*b)*(1-a)+(g2(i+1,j)*(1-b)+g2(i+1,j+1)*b)*a;}
+// 바다 색: 해안 가까이 옥빛 → 대륙붕 → 먼 바다 짙은 파랑, 해안선 바로 앞에는 옅은 물거품
+function seaCol(val,dep,n,gr,out,o){const t=Math.min(1,Math.max(0,(dep-1)/22)),s=t*t*(3-2*t);
+  let r=168+(98-168)*s,g=208+(138-208)*s,b=200+(166-200)*s;
+  if(val>.3){const f=Math.min(1,(val-.3)/.2)*.55;r+=(236-r)*f;g+=(240-g)*f;b+=(232-b)*f;}
+  out[o]=r+gr*.5+n;out[o+1]=g+gr*.5+n;out[o+2]=b+gr*.5+n;out[o+3]=255;}
 function bakeWorld(){
   const ctx=world.getContext('2d'), img=ctx.createImageData(IMW,IMH), d=img.data;
   const mask=new Uint8Array(IMW*IMH); // 0 바깥, 1 바다, 2 땅
-  const vals=new Float32Array(IMW*IMH);
+  const vals=new Float32Array(IMW*IMH),DPX=new Uint8Array(IMW*IMH);
   for(let py=0;py<IMH;py++){
     const Y=(IMH/2-py-.5)/SC; if(Math.abs(Y)>YMAX)continue;
     const t=tOfY(Y),t2=t*t,t6=t2*t2*t2, lat=Math.asin(Math.max(-1,Math.min(1,Math.sin(t)/MM)))/DEG;
     const kx=3*(9*A4*t6*t2+7*A3*t6+3*A2*t2+A1)/(2*Math.sqrt(3)*Math.cos(t))/DEG;
     for(let px=0;px<IMW;px++){
       const l=(px+.5-IMW/2)/SC*kx; if(Math.abs(l)>180)continue;
-      const lf=landF(lat,CM+l), k=py*IMW+px; vals[k]=lf; mask[k]=lf>=.5?2:1;
+      const lf=landF(lat,CM+l), k=py*IMW+px; vals[k]=lf; mask[k]=lf>=.5?2:1; if(lf<.5)DPX[k]=depthAt(lat,CM+l);
     }
   }
   for(let py=0;py<IMH;py++){
@@ -406,8 +419,7 @@ function bakeWorld(){
       const gr=(hash3(px,py,7)-.5)*10;
       if(m===0){d[o]=58;d[o+1]=44;d[o+2]=31;d[o+3]=255;continue;}
       if(m===1){
-        const sh=Math.min(1,vals[k]*2.2); const n=vnoise(px/90,py/90,3)*6;
-        d[o]=150+40*sh+gr*.5+n; d[o+1]=184+28*sh+gr*.5+n; d[o+2]=186+14*sh+gr*.5+n; d[o+3]=255;
+        const n=vnoise(px/90,py/90,3)*6; seaCol(vals[k],DPX[k],n,gr,d,o);
       }else{
         const edge=(mask[k-1]===1||mask[k+1]===1||mask[k-IMW]===1||mask[k+IMW]===1);
         if(edge){d[o]=92;d[o+1]=68;d[o+2]=44;d[o+3]=255;continue;}
@@ -438,23 +450,23 @@ const TS=256,TILES=new Map();let TR=3,TN=768,tileT=0;
 function tileLatRow(py){const Y=(IMH/2-py)/SC;if(Math.abs(Y)>YMAX)return null;const t=tOfY(Y),t2=t*t,t6=t2*t2*t2;
   return {lat:Math.asin(Math.max(-1,Math.min(1,Math.sin(t)/MM)))/DEG,kx:3*(9*A4*t6*t2+7*A3*t6+3*A2*t2+A1)/(2*Math.sqrt(3)*Math.cos(t))/DEG};}
 function tileStep(T,until){const W=TN+4;
-  if(!T.v){T.v=new Float32Array(W*W);T.lat=new Float32Array(W);T.vr=0;T.cr=0;T.img=T.c.getContext('2d').createImageData(TN,TN);T.dirty=0;}
+  if(!T.v){T.v=new Float32Array(W*W);T.dp=new Uint8Array(W*W);T.lat=new Float32Array(W);T.vr=0;T.cr=0;T.img=T.c.getContext('2d').createImageData(TN,TN);T.dirty=0;}
   const x0=T.i*TS,y0=T.j*TS,v=T.v,d=T.img.data;
   while(performance.now()<until){
     if(T.vr<W){const r=T.vr++,py=y0+(r-2+.5)/TR,L=tileLatRow(py);T.lat[r]=L?L.lat:0;
       for(let c=0;c<W;c++){const k=r*W+c;if(!L){v[k]=-9;continue;}const px=x0+(c-2+.5)/TR,l=(px-IMW/2)/SC*L.kx;if(Math.abs(l)>180){v[k]=-9;continue;}
-        v[k]=landF(L.lat,CM+l)+(vnoise(px/7,py/7,5)-.5)*.18;}
+        v[k]=landF(L.lat,CM+l)+(vnoise(px/7,py/7,5)-.5)*.18;if(v[k]<.5)T.dp[k]=depthAt(L.lat,CM+l);}
       if(T.vr<T.cr+5)continue;}
     if(T.cr>=TN)break;
     {const r=T.cr++,rr=r+2,py=y0+(r+.5)/TR,al=Math.abs(T.lat[rr]),band=BAND_COL.find(b=>al<b[0])[1];
       for(let c=0;c<TN;c++){const cc=c+2,k=rr*W+cc,o=(r*TN+c)*4,val=v[k],px=x0+(c+.5)/TR,gr=(hash3(c+T.i*TN,r+T.j*TN,7)-.5)*10;
         if(val<-5){d[o]=58;d[o+1]=44;d[o+2]=31;d[o+3]=255;continue;}
-        if(val<.5){const sh=Math.min(1,Math.max(0,val)*2.2),n=vnoise(px/90,py/90,3)*6;d[o]=150+40*sh+gr*.5+n;d[o+1]=184+28*sh+gr*.5+n;d[o+2]=186+14*sh+gr*.5+n;d[o+3]=255;continue;}
+        if(val<.5){const n=vnoise(px/90,py/90,3)*6;seaCol(val,T.dp[k],n,gr,d,o);continue;}
         let edge=false;for(let q=1;q<=2&&!edge;q++)if((v[k-q]>-5&&v[k-q]<.5)||(v[k+q]>-5&&v[k+q]<.5)||(v[k-q*W]>-5&&v[k-q*W]<.5)||(v[k+q*W]>-5&&v[k+q*W]<.5))edge=true;
         if(edge){d[o]=92;d[o+1]=68;d[o+2]=44;d[o+3]=255;continue;}
         const n=vnoise(px/40,py/40,1)*14+vnoise(px/9,py/9,2)*5;d[o]=band[0]+n+gr;d[o+1]=band[1]+n+gr;d[o+2]=band[2]+n*.7+gr;d[o+3]=255;}
       if(r-T.dirty>=48||T.cr>=TN){const g=T.c.getContext('2d');g.putImageData(T.img,0,0,0,T.dirty,TN,T.cr-T.dirty);T.dirty=T.cr;}}}
-  if(T.cr>=TN&&!T.done){const g=T.c.getContext('2d');g.save();g.setTransform(TR,0,0,TR,-x0*TR,-y0*TR);drawGrat(g);g.restore();T.done=1;T.v=null;T.img=null;T.lat=null;}}
+  if(T.cr>=TN&&!T.done){const g=T.c.getContext('2d');g.save();g.setTransform(TR,0,0,TR,-x0*TR,-y0*TR);drawGrat(g);g.restore();T.done=1;T.v=null;T.img=null;T.lat=null;T.dp=null;}}
 function drawTiles(ctx){if(cam.z<2.4)return;if(!tileT){tileT=1;TR=MOB?2:3;TN=TS*TR;}const x0=cam.x-VW/2/cam.z,y0=cam.y-VH/2/cam.z,x1=cam.x+VW/2/cam.z,y1=cam.y+VH/2/cam.z,now=performance.now();
   const L=[];for(let j=Math.max(0,Math.floor(y0/TS));j<=Math.min(Math.floor((IMH-1)/TS),Math.floor(y1/TS));j++)for(let i=Math.max(0,Math.floor(x0/TS));i<=Math.min(Math.floor((IMW-1)/TS),Math.floor(x1/TS));i++){
     const key=i+','+j;let T=TILES.get(key);if(!T){T={i,j,c:document.createElement('canvas')};T.c.width=T.c.height=TN;TILES.set(key,T);}T.used=now;L.push(T);}
@@ -4497,6 +4509,18 @@ function flClouds(){if(!S||inPort>=0||flowMode()===2)return;const now=performanc
       const img=wx==='storm'||dk>.5?SP.s:grey<1?SP.g:SP.w;ctx.save();ctx.translate(s[0],s[1]);if(c.flip)ctx.scale(-1,1);ctx.drawImage(img,-w/2,-h/2,w,h);ctx.restore();}}
   ctx.globalAlpha=1;ctx.restore();}
 {const w1=wxDrawFx;wxDrawFx=function(){try{flClouds();}catch(e){}return w1.apply(this,arguments);};}
+// ===== 물결 반짝임: 바다 위에 작은 물빛이 반짝였다 사라진다 (낮엔 햇빛, 밤엔 달빛) =====
+const GL={P:[],last:0};
+function seaGlint(){if(!S||inPort>=0||cam.z<1.4)return;const now=performance.now(),dt=Math.min(.1,(now-(GL.last||now))/1000);GL.last=now;
+  let wx='clear';try{wx=wxNow().k;}catch(e){}if(wx==='fog')return;let i0={dark:0,mf:1};try{i0=dnInfo();}catch(e){}const mob=typeof MOB!=='undefined'&&MOB;
+  const n=Math.round((mob?28:70)*(wx==='storm'?.3:wx==='rain'||wx==='snow'?.5:wx==='cloud'?.7:1)*(i0.dark>.5?(1.25-i0.mf)*1.4:1));
+  while(GL.P.length<n)GL.P.push({t:99});GL.P.length=n;ctx.save();ctx.lineCap='round';
+  for(const p of GL.P){p.t+=dt;if(!(p.t<=p.life)){let ok=false;for(let k=0;k<4&&!ok;k++){const x=Math.random()*VW,y=Math.random()*VH,ip=toImg(x,y),ll=inv(ip[0],ip[1]);if(!ll||isLand(ll.lat,ll.lon)||!flVisible(ll.lat,ll.lon))continue;p.x=x;p.y=y;ok=true;}
+      if(!ok){p.t=0;p.life=.3;p.x=-99;continue;}p.t=0;p.life=1.1+Math.random()*1.6;p.L=3+Math.random()*5;}
+    if(p.x<0)continue;const f=Math.sin(Math.PI*Math.min(1,p.t/p.life)),a=.55*f*f;
+    ctx.strokeStyle=i0.dark>.5?`rgba(215,228,255,${a*.8})`:`rgba(255,255,248,${a})`;ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(p.x-p.L,p.y);ctx.quadraticCurveTo(p.x,p.y-1.6,p.x+p.L,p.y);ctx.stroke();}
+  ctx.restore();}
+{const di1=drawInland;drawInland=function(){try{seaGlint();}catch(e){}return di1.apply(this,arguments);};}
 
 // ===== 온라인 (Render 서버용) — ONLINE 빌드에서만 들어간다 =====
 const ON={live:false,id:0,nm:'',tok:'',ws:null,wsOk:false,W:{mk:{},dev:{},disc:{},inv:{},nm:{}},players:[],chat:[],unread:0,tab:'chat',qmk:{},qdev:{},rank:null,rankT:0,open:false,retry:0,posT:0};
