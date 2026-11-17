@@ -1644,6 +1644,25 @@ let DPR=1,VW=0,VH=0; function resize(){DPR=Math.min(2,window.devicePixelRatio||1
 addEventListener('resize',resize);resize();
 let cam={x:0,y:0,z:1.6}, follow=true, paused=true, tspeed=1, layers=1; // layers 0끔 1바람+해류 2바람 3해류
 const LAYER_NAMES=['화살표 끔','바람과 해류','바람만','해류만'];
+// 항구 문장: 문화권별 지붕 + 부두 + 깃발(고향 빨강, 들른 곳 파랑, 아직 안 들른 곳 노랑)을 미리 그려 둔다
+const EMB_C={};
+const EMB_ROOF={eu:['#b4502e','tri'],po:['#3d4f63','steep'],me:['#efe6d0','dome'],af:['#c9a066','flat'],sa:['#c8553d','dome'],ea:['#2f3b4c','curve'],jp:['#3a3836','curve'],sea:['#8a6a3a','thatch'],am:['#b9733f','tri'],oc:['#a58a4a','thatch']};
+function portEmblem(id,stt){let c='eu';try{c=culOf(id);}catch(e){}const key=c+stt+(PORTS[id].big?'b':'');if(EMB_C[key])return EMB_C[key];
+  const cv2=document.createElement('canvas');cv2.width=96;cv2.height=88;const g=cv2.getContext('2d');g.scale(2,2);const [rc,rt]=EMB_ROOF[c]||EMB_ROOF.eu;
+  g.fillStyle='rgba(40,25,10,.28)';g.beginPath();g.ellipse(24,38,20,5,0,0,7);g.fill();
+  g.fillStyle='#8a6a44';g.strokeStyle='#3b2a1a';g.lineWidth=1;g.fillRect(27,33,16,3);g.strokeRect(27,33,16,3);for(const x of [30,35,40]){g.fillRect(x,36,1.5,4);}
+  g.fillStyle='#d9c79e';g.beginPath();g.moveTo(5,38);g.lineTo(43,38);g.lineTo(40,33);g.lineTo(8,33);g.closePath();g.fill();g.stroke();
+  const H=[[8,22,11,11],[17,17,12,16],[28,24,9,9]];
+  H.forEach(([x,y,w,h],i)=>{g.fillStyle=i===1?'#f3e8cf':'#e6d6b0';g.fillRect(x,y,w,h);g.strokeRect(x,y,w,h);g.fillStyle='#4a3420';g.fillRect(x+w/2-1.2,y+h-4,2.4,4);if(h>10){g.fillRect(x+2,y+3,2,2);g.fillRect(x+w-4,y+3,2,2);}
+    g.fillStyle=rc;g.beginPath();
+    if(rt==='dome'){g.arc(x+w/2,y,w/2,Math.PI,0);g.closePath();g.fill();g.stroke();if(i===1){g.beginPath();g.moveTo(x+w/2,y-w/2);g.lineTo(x+w/2,y-w/2-3);g.stroke();}}
+    else if(rt==='flat'){g.fillRect(x-1,y-2,w+2,2.5);g.strokeRect(x-1,y-2,w+2,2.5);}
+    else if(rt==='curve'){g.moveTo(x-3,y+1);g.quadraticCurveTo(x+w/2,y-1,x+w/2,y-6);g.quadraticCurveTo(x+w/2,y-1,x+w+3,y+1);g.closePath();g.fill();g.stroke();}
+    else if(rt==='thatch'){g.moveTo(x-2,y+1);g.lineTo(x+w/2,y-7);g.lineTo(x+w+2,y+1);g.closePath();g.fill();g.stroke();g.strokeStyle='rgba(60,40,20,.5)';for(let k=1;k<4;k++){g.beginPath();g.moveTo(x-1+k*2,y);g.lineTo(x+w/2,y-6);g.stroke();}g.strokeStyle='#3b2a1a';}
+    else{const st=rt==='steep'?9:6;g.moveTo(x-1.5,y+.5);g.lineTo(x+w/2,y-st);g.lineTo(x+w+1.5,y+.5);g.closePath();g.fill();g.stroke();}});
+  const fx=23,fy=17-(rt==='dome'?6:rt==='steep'?9:7);g.strokeStyle='#3b2a1a';g.lineWidth=1.2;g.beginPath();g.moveTo(fx,fy);g.lineTo(fx,fy-10);g.stroke();
+  g.fillStyle=['#d9a62a','#2f6d8a','#b0291f'][stt];g.beginPath();g.moveTo(fx,fy-10);g.lineTo(fx+9,fy-7.5);g.lineTo(fx,fy-5);g.closePath();g.fill();g.lineWidth=.8;g.stroke();
+  return EMB_C[key]=cv2;}
 const toScr=(px,py)=>[(px-cam.x)*cam.z+VW/2,(py-cam.y)*cam.z+VH/2];
 const toImg=(sx,sy)=>[(sx-VW/2)/cam.z+cam.x,(sy-VH/2)/cam.z+cam.y];
 let trail=[], trailT=0;
@@ -1675,21 +1694,29 @@ function render(){
     const e=toScr(...proj(...route[route.length-1]));ctx.fillStyle='#a8322a';ctx.beginPath();ctx.arc(e[0],e[1],4,0,7);ctx.fill();}
   // 자취
   ctx.fillStyle='rgba(255,255,255,.7)';for(let i=0;i<trail.length;i++){const s=toScr(...proj(trail[i][0],trail[i][1]));ctx.globalAlpha=(i+1)/trail.length*.8;ctx.beginPath();ctx.arc(s[0],s[1],1.6,0,7);ctx.fill();}ctx.globalAlpha=1;
-  // 항구
-  ctx.font='bold 13px serif';ctx.textBaseline='middle';
-  for(const id of S.found){const p=PORTS[id],s=toScr(...proj(p.lat,p.lon));if(s[0]<-80||s[0]>VW+80||s[1]<-30||s[1]>VH+30)continue;
-    const home=id===HOME, vis=S.entered.includes(id);
-    ctx.strokeStyle='#3b2a1a';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(s[0],s[1]);ctx.lineTo(s[0],s[1]-16);ctx.stroke();
-    ctx.fillStyle=home?'#a8322a':vis?'#2f5d73':'#c79a3a';ctx.beginPath();ctx.moveTo(s[0],s[1]-16);ctx.lineTo(s[0]+11,s[1]-12);ctx.lineTo(s[0],s[1]-8);ctx.fill();
-    ctx.fillStyle='#3b2a1a';ctx.beginPath();ctx.arc(s[0],s[1],3,0,7);ctx.fill();
-    const label=p.name+(cam.z>1.2&&p.old!==p.name?`  (옛 ${p.old})`:'');ctx.lineWidth=3.5;ctx.strokeStyle='rgba(243,232,207,.95)';ctx.strokeText(label,s[0]+13,s[1]-10);ctx.fillStyle='#3b2a1a';ctx.fillText(label,s[0]+13,s[1]-10);}
+  // 항구: 지도에 박힌 작은 마을 문장 (문화권마다 지붕 모양·색이 다름)
+  ctx.font='bold 13px serif';ctx.textBaseline='middle';const pk=Math.max(.55,Math.min(1.35,cam.z*.36));
+  for(const id of S.found){const p=PORTS[id],s=toScr(...proj(p.lat,p.lon));if(s[0]<-90||s[0]>VW+90||s[1]<-60||s[1]>VH+40)continue;
+    const home=id===HOME,vis=S.entered.includes(id),im=portEmblem(id,home?2:vis?1:0),w=im.width/2*pk,h=im.height/2*pk;
+    ctx.drawImage(im,s[0]-w*.5,s[1]-h*.82,w,h);
+    if(cam.z>.9||home){const label=p.name+(cam.z>1.2&&p.old!==p.name?` (옛 ${p.old})`:''),ly=s[1]+h*.18+8;ctx.font=`bold ${Math.round(12+pk*2)}px serif`;ctx.textAlign='center';
+      ctx.lineWidth=3.5;ctx.strokeStyle='rgba(243,232,207,.95)';ctx.strokeText(label,s[0],ly);ctx.fillStyle=home?'#7a1f18':'#3b2a1a';ctx.fillText(label,s[0],ly);ctx.textAlign='left';}}
   for(const id of (S.rum||[])){if(known(id))continue;const p=PORTS[id],s=toScr(...proj(p.lat,p.lon));if(s[0]<-80||s[0]>VW+80||s[1]<-30||s[1]>VH+30)continue;
     ctx.setLineDash([3,3]);ctx.strokeStyle='#3b2a1a';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(s[0],s[1],9,0,7);ctx.stroke();ctx.setLineDash([]);
     ctx.fillStyle='#3b2a1a';ctx.font='bold 13px serif';ctx.fillText('?',s[0]-3,s[1]+1);const lb='소문: '+p.name;ctx.lineWidth=3.5;ctx.strokeStyle='rgba(243,232,207,.95)';ctx.strokeText(lb,s[0]+13,s[1]);ctx.fillText(lb,s[0]+13,s[1]);}
-  ctx.textBaseline='middle';for(const id in S.dd){const d=DISC[id],s=toScr(...proj(d.lat,d.lon));if(s[0]<-30||s[0]>VW+30||s[1]<-30||s[1]>VH+30)continue;
-    if(S.df[id]){ctx.font='15px serif';ctx.fillStyle=DTYPE_COL[d.t];ctx.beginPath();ctx.arc(s[0],s[1],9,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='center';ctx.fillText(DTYPE_ICO[d.t],s[0],s[1]+1);ctx.textAlign='left';
-      if(cam.z>2){ctx.font='11px serif';ctx.lineWidth=3;ctx.strokeStyle='rgba(243,232,207,.9)';ctx.strokeText(d.n,s[0]+12,s[1]);ctx.fillStyle='#3b2a1a';ctx.fillText(d.n,s[0]+12,s[1]);}}
-    else{const t=performance.now()/400;ctx.fillStyle=`rgba(192,64,138,${.6+.3*Math.sin(t)})`;ctx.beginPath();ctx.arc(s[0],s[1],8,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.font='bold 13px serif';ctx.textAlign='center';ctx.fillText('!',s[0],s[1]+1);ctx.textAlign='left';}}
+  // 발견물: 지도에 찍힌 표식 — 조사한 곳은 종류 문장, 알아챈 곳은 '!', 탐험한 바다 안의 아직 모르는 곳은 흐린 '?'
+  ctx.textBaseline='middle';const dk=Math.max(.7,Math.min(1.3,cam.z*.33));
+  for(const d of DISC){const id=d.id;if(S.df[id]||S.dd[id])continue;const i=Math.floor((90-d.lat)/2),j=Math.floor((wrapLon(d.lon)+30)/2);if(i<0||i>=EXH||!EXP[i*EXW+j])continue;
+    const s=toScr(...proj(d.lat,d.lon));if(s[0]<-20||s[0]>VW+20||s[1]<-20||s[1]>VH+20)continue;
+    ctx.globalAlpha=.75;ctx.setLineDash([3,3]);ctx.strokeStyle='#5a4028';ctx.lineWidth=1.6;ctx.beginPath();ctx.arc(s[0],s[1],8*dk,0,7);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#5a4028';ctx.font=`bold ${Math.round(11*dk)}px serif`;ctx.textAlign='center';ctx.fillText('?',s[0],s[1]+1);ctx.textAlign='left';ctx.globalAlpha=1;}
+  for(const id in S.dd){const d=DISC[id],s=toScr(...proj(d.lat,d.lon));if(s[0]<-30||s[0]>VW+30||s[1]<-30||s[1]>VH+30)continue;
+    if(S.df[id]){const r=11*dk;ctx.fillStyle='rgba(0,0,0,.25)';ctx.beginPath();ctx.arc(s[0]+1.5,s[1]+2,r,0,7);ctx.fill();
+      ctx.fillStyle='#f3e8cf';ctx.beginPath();ctx.arc(s[0],s[1],r,0,7);ctx.fill();ctx.lineWidth=2.5;ctx.strokeStyle=DTYPE_COL[d.t];ctx.stroke();
+      ctx.lineWidth=1;ctx.strokeStyle='#3b2a1a';ctx.beginPath();ctx.arc(s[0],s[1],r+1.6,0,7);ctx.stroke();
+      ctx.font=`${Math.round(13*dk)}px serif`;ctx.fillStyle=DTYPE_COL[d.t];ctx.textAlign='center';ctx.fillText(DTYPE_ICO[d.t],s[0],s[1]+1);ctx.textAlign='left';
+      if(cam.z>2){ctx.font='11px serif';ctx.lineWidth=3;ctx.strokeStyle='rgba(243,232,207,.9)';ctx.strokeText(d.n,s[0]+r+4,s[1]);ctx.fillStyle='#3b2a1a';ctx.fillText(d.n,s[0]+r+4,s[1]);}}
+    else{const t=performance.now()/400,r=9*dk;ctx.fillStyle=`rgba(192,64,138,${.6+.3*Math.sin(t)})`;ctx.beginPath();ctx.arc(s[0],s[1],r,0,7);ctx.fill();ctx.lineWidth=1.5;ctx.strokeStyle='#fff';ctx.stroke();ctx.fillStyle='#fff';ctx.font=`bold ${Math.round(13*dk)}px serif`;ctx.textAlign='center';ctx.fillText('!',s[0],s[1]+1);ctx.textAlign='left';}}
   // 화면 밖 가까운 항구 가리키기
   {const sp0=toScr(...proj(S.lat,S.lon));ctx.font='bold 12px serif';
    for(const o of nearest4()){const p=o.p,s=toScr(...proj(p.lat,p.lon));if(s[0]>20&&s[0]<VW-20&&s[1]>20&&s[1]<VH-20)continue;
@@ -1703,7 +1730,7 @@ function render(){
   drawInland();drawPirates();if(window.drawOthers)drawOthers();
   // 배
   const sp=toScr(...proj(S.lat,S.lon)), hd=dirOnScreen(S.lat,S.lon,Math.sin(S.hd*DEG),Math.cos(S.hd*DEG)), ang=Math.atan2(hd[1],hd[0]);
-  ctx.save();ctx.translate(sp[0],sp[1]);ctx.rotate(ang);const k=Math.max(.8,Math.min(1.5,cam.z*.7));ctx.scale(k,k);
+  ctx.save();ctx.translate(sp[0],sp[1]);ctx.rotate(ang);const k=Math.max(.8,Math.min(1.5,cam.z*.7))*(window.SHIPK||1);ctx.scale(k,k);
   ctx.fillStyle='rgba(0,0,0,.25)';ctx.beginPath();ctx.ellipse(2,3,14,6,0,0,7);ctx.fill();
   ctx.fillStyle='#6b4423';ctx.strokeStyle='#2d1c0e';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(16,0);ctx.quadraticCurveTo(6,-7,-12,-5);ctx.lineTo(-12,5);ctx.quadraticCurveTo(6,7,16,0);ctx.fill();ctx.stroke();
   const sl=[0,.55,1][S.sail];ctx.fillStyle='#f6eedb';ctx.strokeStyle='#8a6a44';
