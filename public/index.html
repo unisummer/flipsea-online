@@ -995,7 +995,7 @@ const bars=(id)=>STATK.map((k,r)=>{const v=curSt(id,r);return `<span class="sb" 
 const USED_NOW=[1,1,1,1,1,1,1,1];
 function mateCard(id,extra){const m=MATES[id],x=S.mt[id];const br=bestRole(id),seat=x&&seatOf(id);
   const prog=seat?`<span class="xpb" title="다음 성장까지"><i style="width:${Math.round(x.xp[seat.a.r]/XPN*100)}%"></i></span>`:'';
-  return `<div class="mc mcp${m.sp?' spg'+m.sp:''}">${ptImg(id,76)}<div class="mcb"><div class="mh">${m.sp?`<span class="chip spc${m.sp}">${['','✦ 뛰어난 인재','★ 영웅급','👑 전설'][m.sp]}</span> `:''}<b>${m.name}</b>${m.hero?' <span class="chip" style="background:#2f5d73">주인공</span>':m.story?' <span class="chip" style="background:#a8322a">동료</span>':''} <small>${PORTS[m.home].name} 출신 · ${PERS[m.per]} · 특기 <b>${TRAITS[m.tr][0]}</b>: ${TRAITS[m.tr][1]}</small>${m.tr2?`<div class="sptr">✨ 특별 특기 <b>${SPTR[m.tr2.i][0]}</b>: ${spDesc(m)}</div>`:''}</div>
+  return `<div class="mc mcp${m.sp?' spg'+m.sp:(m.story||m.hero)?' spgS':''}">${ptImg(id,76)}<div class="mcb"><div class="mh">${m.sp?`<span class="chip spc${m.sp}">${['','✦ 뛰어난 인재','★ 영웅급','👑 전설'][m.sp]}</span> `:''}<b>${m.name}</b>${m.hero?' <span class="chip" style="background:#2f5d73">주인공</span>':m.story?' <span class="chip" style="background:#a8322a">동료</span>':''} <small>${PORTS[m.home].name} 출신 · ${PERS[m.per]} · 특기 <b>${TRAITS[m.tr][0]}</b>: ${TRAITS[m.tr][1]}</small>${m.tr2?`<div class="sptr">✨ 특별 특기 <b>${SPTR[m.tr2.i][0]}</b>: ${spDesc(m)}</div>`:''}</div>
    ${m.bio?`<div class="hint">${m.bio}</div>`:''}<div class="sbars">${bars(id)}</div>
    <div class="mf"><small>추천 자리: <b>${ROLES[br]}</b> (${STATK[br]} ${curSt(id,br)})${USED_NOW[br]?'':' <i>· 해전 단계부터 쓰임</i>'} · 월급 ${m.hero?'-':(x?salaryNow(id):mateSalary(m))+'골드'}${x&&!m.hero?` · 충성 ${x.loy}`:''}${seat?` · 지금 ${seat.a.aux?'보조 ':''}${ROLES[seat.a.r]} ${prog}`:x?' · <b style="color:#a8322a">대기 중</b> (성장 느림, 월급 절반)':''}</small>${extra||''}</div></div></div>`;}
 function fleetHTML(inPortNow){
@@ -4103,10 +4103,11 @@ tavernHire=function(p){spSync();const per=tavPer(),left=TAV_DAYS-(Math.floor(S.d
 {const bt0=bindTavern;bindTavern=function(box){bt0(box);const b=box.querySelector('[data-spq]');if(b)b.onclick=()=>{spSearch(inPort);drawPort();};
   box.querySelectorAll('[data-go="hire"]').forEach(x=>{if(!x.onclick)x.onclick=()=>{portTab='hire';drawPort();};});};}
 {const h0=hire;hire=function(id){const was=!!S.mt[id];h0(id);const m=MATES[id];if(!was&&S.mt[id]&&m.sp){if(m.sp>=2)sfx('levelup');toast(`${['','✦','★','👑'][m.sp]} ${m.name}이(가) 함대에 합류했습니다! 특별 특기 '${SPTR[m.tr2.i][0]}': ${spDesc(m)}`,true);}};}
-{const st=document.createElement('style');st.textContent=`.mc.spg1{border:2px solid #4f86b8!important;box-shadow:0 0 0 3px #4f86b822}
-.mc.spg2{border:2px solid #8a4fc0!important;box-shadow:0 0 12px #8a4fc077}
+{const st=document.createElement('style');st.textContent=`.mc.spg1{border:2px solid #4f9a4a!important;box-shadow:0 0 8px #4f9a4a55}
+.mc.spg2{border:2px solid #3f78c0!important;box-shadow:0 0 12px #3f78c077}
+.mc.spgS{border:2px solid #7a3fa8!important;box-shadow:0 0 10px #7a3fa866}
 .mc.spg3{border:2px solid #d4a017!important;background:linear-gradient(135deg,#fff8e0,#fbe9b0)!important;box-shadow:0 0 16px #d4a017aa}
-.chip.spc1{background:#3f6f9a}.chip.spc2{background:#7a3fa8}.chip.spc3{background:#b8860b}
+.chip.spc1{background:#3f8a3a}.chip.spc2{background:#2f66a8}.chip.spc3{background:#b8860b}
 .sptr{font-size:12.5px;color:#7a4500;margin-top:3px}.spbox{border:1.5px dashed #b8860b;border-radius:10px;padding:8px 10px;margin-top:12px;background:#fffaf0}
 .trsum span{background:#eef4e8;border-radius:6px;padding:1px 6px;margin:2px}`;document.head.appendChild(st);}
 
@@ -4137,19 +4138,21 @@ body.mob #onpanel{left:0;right:0;width:auto;bottom:calc(var(--dock,58px) + 62px)
 // ---------- 로그인 ----------
 const ONK='flipsea_online';
 function onSaved(){try{return JSON.parse(localStorage.getItem(ONK)||'null');}catch(e){return null;}}
+ON.sex=(onSaved()||{}).sex||'m';
 function loginBox(){let el=$('onlogin');if(!el){el=document.createElement('div');el.id='onlogin';const box=$('title').querySelector('.box');box.insertBefore(el,$('slots'));}return el;}
 function setNeed(on){$('title').querySelector('.box').classList.toggle('needlogin',on);}
 function loginForm(msg,bad){const el=loginBox();setNeed(true);const sv=onSaved();
   el.innerHTML=`<b>⚓ 선장 이름으로 들어가기</b> <small class="hint">처음이면 「새 선장 만들기」 · 이름은 한 사람만 쓸 수 있습니다</small>
    <div class="row"><input id="onName" maxlength="12" placeholder="선장 이름 (2~12자)" value="${esc(sv&&sv.nm||'')}" autocomplete="username"><input id="onPin" type="password" inputmode="numeric" maxlength="8" placeholder="비밀번호 (숫자 4~8자리)" autocomplete="current-password"></div>
+   <div class="row sexrow">주인공 <label><input type="radio" name="onSex" value="m" ${(sv&&sv.sex)==='f'?'':'checked'}> 남성 (호연의 모습)</label> <label><input type="radio" name="onSex" value="f" ${(sv&&sv.sex)==='f'?'checked':''}> 여성 (서린의 모습)</label> <small class="hint">여성을 고르면 서린이 주인공이 되고 호연이 소꿉친구 동료가 됩니다 (새 선장·새 항해를 시작할 때 정해집니다)</small></div>
    <div class="row"><button class="main" id="onGo">🌐 온라인 모드로 들어가기</button><button id="onMake">✚ 새 선장 만들기</button><button id="onSolo">🧭 싱글 모드 (혼자 · 배율 자유)</button></div><div class="msg ${bad?'bad':''}" id="onMsg">${msg||'🌐 온라인: 모든 선장이 같은 속도(하루 2.5초)로 항해하고 서로의 배가 보입니다. 같은 이름·비밀번호로 PC와 휴대폰에서 이어집니다.<br>🧭 싱글: 혼자 하며 시간 배율(×1~×16)과 멈춤을 마음대로 씁니다. 이 기기에만 저장됩니다.'}</div>`;
   ['onName','onPin'].forEach(i=>{const x=$(i);x.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter')doLogin(false);});x.addEventListener('keyup',e=>e.stopPropagation());});
   $('onGo').onclick=()=>doLogin(false);$('onMake').onclick=()=>doLogin(true);$('onSolo').onclick=goSolo;}
-async function doLogin(create){const name=$('onName').value.trim(),pin=$('onPin').value.trim(),m=$('onMsg');
+async function doLogin(create){const name=$('onName').value.trim(),pin=$('onPin').value.trim(),m=$('onMsg');{const r=document.querySelector('input[name="onSex"]:checked');ON.sex=r?r.value:'m';}
   if(!/^[\p{L}\p{N}_\- ]{2,12}$/u.test(name)){m.className='msg bad';m.textContent='선장 이름은 2~12자의 한글·영문·숫자로 정해 주세요.';return;}
   if(!/^\d{4,8}$/.test(pin)){m.className='msg bad';m.textContent='비밀번호는 숫자 4~8자리입니다.';return;}
   m.className='msg';m.textContent='확인하는 중…';$('onGo').disabled=true;
-  try{const r=await onApi('POST','/api/login',{name,pin,create},20000);ON.tok=r.token;ON.nm=r.name;ON.id=r.id;ON.season=r.season||1;try{localStorage.setItem(ONK,JSON.stringify({tok:r.token,nm:r.name,id:r.id}));}catch(e){}
+  try{const r=await onApi('POST','/api/login',{name,pin,create},20000);ON.tok=r.token;ON.nm=r.name;ON.id=r.id;ON.season=r.season||1;try{localStorage.setItem(ONK,JSON.stringify({tok:r.token,nm:r.name,id:r.id,sex:ON.sex}));}catch(e){}
     onReady(r.isNew?`새 선장 '${r.name}'을(를) 등록했습니다. 이 이름과 비밀번호를 기억해 두세요.`:'');}
   catch(e){$('onGo').disabled=false;m.className='msg bad';
     if(e.code==='no_user'){m.className='msg';m.innerHTML=`'<b>${esc(name)}</b>'은(는) 처음 보는 이름입니다. 새 선장으로 등록할까요? <button class="main" id="onNew">새 선장 등록</button>`;$('onNew').onclick=()=>doLogin(true);}
@@ -4515,14 +4518,27 @@ const heroName=()=>ON.live&&ON.nm?ON.nm:'호연';
 // 마지막 글자에 받침이 있나 (한글은 계산, 숫자는 읽는 소리로: 0영 1일 3삼 6육 7칠 8팔, 영문 등은 없음으로 봄)
 const hasBat=s=>{const c=s.charCodeAt(s.length-1);if(c>=0xAC00&&c<=0xD7A3)return (c-0xAC00)%28!==0;return /[013678]$/.test(s);};
 const HERO_RE=/호연(이라는|이|아|은|을|과)?/g;
-function heroize(s){const n=heroName();if(n==='호연'||!s||s.indexOf('호연')<0)return s;const b=hasBat(n);
+const HZ='호\u200b연'; // 동료가 된 호연 (내 이름으로 바뀌지 않게 보이지 않는 글자를 끼움)
+function heroFem(){return !!(ON.live&&((S&&S.sex)||ON.sex)==='f');}
+const heroHit=v=>v.indexOf('호연')>=0||(heroFem()&&v.indexOf('서린')>=0);
+function heroize(s){if(s&&heroFem()&&s.indexOf('서린')>=0)s=s.split('서린').join(HZ);const n=heroName();if(n==='호연'||!s||s.indexOf('호연')<0)return s;const b=hasBat(n);
   const J={'이라는':b?'이라는':'라는','이':b?'이':'가','아':b?'아':'야','은':b?'은':'는','을':b?'을':'를','과':b?'과':'와'};
   return s.replace(HERO_RE,(m,j)=>n+(j?J[j]:''));}
 const HERO_SKIP='#onpanel,#rankw,#duelbox,#evbar,#onchip,#title,#onLogin,#onlogin,input,textarea';
-function heroWalk(root){if(!ON.live||heroName()==='호연'||!root)return;
-  if(root.nodeType===3){if(root.nodeValue.indexOf('호연')>=0&&!(root.parentElement&&root.parentElement.closest(HERO_SKIP)))root.nodeValue=heroize(root.nodeValue);return;}
+const HERO_SET=new WeakMap();const heroSetV=t=>{if(HERO_SET.get(t)===t.nodeValue)return;const v=heroize(t.nodeValue);if(v!==t.nodeValue)t.nodeValue=v;HERO_SET.set(t,t.nodeValue);};
+function heroWalk(root){if(!ON.live||(heroName()==='호연'&&!heroFem())||!root)return;
+  if(root.nodeType===3){if(heroHit(root.nodeValue)&&!(root.parentElement&&root.parentElement.closest(HERO_SKIP)))heroSetV(root);return;}
   if(root.nodeType!==1||root.closest(HERO_SKIP))return;const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let t;
-  while((t=w.nextNode()))if(t.nodeValue.indexOf('호연')>=0&&!t.parentElement.closest(HERO_SKIP))t.nodeValue=heroize(t.nodeValue);}
+  while((t=w.nextNode()))if(heroHit(t.nodeValue)&&!t.parentElement.closest(HERO_SKIP))heroSetV(t);}
+// 여성 주인공: 주인공 초상은 서린, 소꿉친구 동료(0번)는 호연의 모습·이름으로 바꾼다
+const SEXO={img:{호연:CORE_IMG['호연'],서린:CORE_IMG['서린']},pt:{호연:CORE_PT['호연'],서린:CORE_PT['서린']},nm:MATES[0].name};let sexOn=false;
+function applySex(){const f=heroFem();if(f===sexOn)return;sexOn=f;
+  CORE_IMG['호연']=f?SEXO.img['서린']:SEXO.img['호연'];CORE_PT['호연']=f?SEXO.pt['서린']:SEXO.pt['호연'];
+  CORE_IMG[HZ]=SEXO.img['호연'];CORE_PT[HZ]=SEXO.pt['호연'];MATES[0].name=f?HZ:SEXO.nm;delete PT_C[0];delete PT_C[HY];
+  if(typeof BPT_C!=='undefined'){delete BPT_C[0];delete BPT_C[HY];}if(heroObs)heroWalk(document.body);}
+{const ns0=newState;newState=function(){const o=ns0.apply(this,arguments);if(ON.live)o.sex=ON.sex||'m';return o;};}
+{const eh0=ensureHero;ensureHero=function(){const r=eh0.apply(this,arguments);try{applySex();}catch(e){}return r;};}
+{const lf0=loginForm;loginForm=function(){const r=lf0.apply(this,arguments);try{applySex();}catch(e){}return r;};}
 let heroObs=null;
 function heroStart(){if(heroObs)return;heroWalk(document.body);
   heroObs=new MutationObserver(L=>{for(const m of L){if(m.type==='characterData')heroWalk(m.target);else m.addedNodes.forEach(heroWalk);}});
