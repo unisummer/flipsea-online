@@ -4437,7 +4437,8 @@ function flSpawnR(p){for(let t=0;t<6;t++){const x=Math.random()*VW,y=Math.random
 function flStorms(){try{return wxStormsAt(S.day).map(s=>{const c=toScr(...proj(s.lat,s.lon)),e=toScr(...proj(s.lat+s.r,s.lon));return [c[0],c[1],Math.hypot(e[0]-c[0],e[1]-c[1]),s.lat<0?1:-1];});}catch(e){return [];}}
 function flDraw(){if(!S||inPort>=0||flowMode()!==0)return;const now=performance.now(),dt=Math.min(.1,(now-(FL.last||now))/1000);FL.last=now;const mob=typeof MOB!=='undefined'&&MOB;
   let wx='clear';try{wx=wxNow().k;}catch(e){}let dk=0;try{dk=dnInfo().dark;}catch(e){}
-  const nW=Math.round((mob?100:240)*(wx==='storm'?1.3:wx==='fog'?.5:1)),nR=mob?45:100;while(FL.W.length<nW)FL.W.push({t:99});FL.W.length=nW;while(FL.R.length<nR)FL.R.push({t:99});FL.R.length=nR;
+  const nW=0, // 바람은 이제 구름으로 보여 준다 (하얀 줄기는 해류처럼 보여서 뺌)
+    nR=mob?45:100;while(FL.W.length<nW)FL.W.push({t:99});FL.W.length=nW;while(FL.R.length<nR)FL.R.push({t:99});FL.R.length=nR;
   const ST=flStorms();
   // 해류 물결: 짧은 갈매기 모양이 해류 방향으로 천천히 미끄러진다
   ctx.save();ctx.lineCap='round';
@@ -4465,6 +4466,37 @@ function flPennant(){if(!S||inPort>=0)return;try{const w=windAt(S.lat,S.lon,S.da
   ctx.save();ctx.fillStyle='#a8322a';ctx.strokeStyle='#5a1a14';ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(mx+nx*2*k,my+ny*2*k);ctx.quadraticCurveTo(mx+dv[0]*L*.5+nx*wv,my+dv[1]*L*.5+ny*wv,mx+dv[0]*L,my+dv[1]*L);ctx.lineTo(mx-nx*1.5*k,my-ny*1.5*k);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();}catch(e){}}
 {const di0=drawInland;drawInland=function(){try{window.SAILB=flSailBulge();flWake();flDraw();}catch(e){}return di0.apply(this,arguments);};}
 {const w0=wxDrawFx;wxDrawFx=function(){try{flPennant();}catch(e){}return w0.apply(this,arguments);};}
+
+// ===== 바람을 구름으로: 구름이 그 자리 바람의 방향과 빠르기로 떠간다 (그림자는 바다에, 구름은 배 위에) =====
+const CL={L:[],spr:[],last:0};
+function clSprites(){if(CL.spr.length)return;for(let v=0;v<4;v++){const c=document.createElement('canvas');c.width=320;c.height=200;const g=c.getContext('2d'),r=srand(91+v*17);
+  for(let i=0;i<9;i++){const x=70+r()*180,y=70+r()*60,R=34+r()*46,gr=g.createRadialGradient(x,y,R*.2,x,y,R);gr.addColorStop(0,'rgba(255,255,255,.95)');gr.addColorStop(.6,'rgba(255,255,255,.75)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.beginPath();g.arc(x,y,R,0,7);g.fill();}
+  const mk=col=>{const d=document.createElement('canvas');d.width=320;d.height=200;const h=d.getContext('2d');h.drawImage(c,0,0);h.globalCompositeOperation='source-atop';h.fillStyle=col;h.fillRect(0,0,320,200);return d;};
+  CL.spr.push({w:c,g:mk('rgba(150,158,170,.55)'),s:mk('rgba(70,76,90,.8)'),sh:mk('rgb(0,0,0)')});}}
+function clSpawn(c,edge,vx,vy){const W=VW/cam.z,H=VH/cam.z,x0=cam.x-W/2,y0=cam.y-H/2,m=180/cam.z;
+  if(edge&&(vx||vy)){if(Math.abs(vx)>Math.abs(vy)){c.x=vx>0?x0-m:x0+W+m;c.y=y0+Math.random()*H;}else{c.y=vy>0?y0-m:y0+H+m;c.x=x0+Math.random()*W;}}else{c.x=x0+Math.random()*W;c.y=y0+Math.random()*H;}
+  c.v=Math.floor(Math.random()*4);c.s=.7+Math.random()*.7;c.k=0;c.a=0;c.flip=Math.random()<.5;}
+function flClouds(){if(!S||inPort>=0||flowMode()===2)return;const now=performance.now(),dt=Math.min(.1,(now-(CL.last||now))/1000);CL.last=now;clSprites();
+  let wx='clear';try{wx=wxNow().k;}catch(e){}if(wx==='fog')return;let dk=0;try{dk=dnInfo().dark;}catch(e){}const mob=typeof MOB!=='undefined'&&MOB;
+  const want=Math.round((mob?.6:1)*(wx==='clear'?6:wx==='calm'?4:wx==='cloud'?13:wx==='rain'||wx==='snow'?16:20));
+  while(CL.L.length<want){const c={};clSpawn(c,false);c.a=Math.random();CL.L.push(c);}
+  const W=VW/cam.z,H=VH/cam.z,x0=cam.x-W/2,y0=cam.y-H/2,m=260/cam.z,ST=flStorms(),sp0=toScr(...proj(S.lat,S.lon));
+  const grey=wx==='storm'?.45:wx==='rain'||wx==='snow'?.7:wx==='cloud'?.85:1;
+  ctx.save();
+  for(let pass=0;pass<2;pass++)for(let i=CL.L.length-1;i>=0;i--){const c=CL.L[i];
+    if(pass===0){if(c.k--<=0){c.k=12;const ll=inv(c.x,c.y);if(ll){const w=windAt(ll.lat,ll.lon,S.day),dv=dirOnScreen(ll.lat,ll.lon,w.u,w.v);let vx=dv[0],vy=dv[1],s=Math.min(1.6,w.s);
+        const sc=toScr(c.x,c.y);for(const q of ST){const dx=sc[0]-q[0],dy=sc[1]-q[1],r=Math.hypot(dx,dy);if(r<q[2]*1.3&&r>1){const k=Math.min(1,1.4-r/q[2]);vx=vx*(1-k)+(-dy/r*q[3])*k;vy=vy*(1-k)+(dx/r*q[3])*k;s=Math.max(s,1.5*k);}}
+        if(wx==='calm')s*=.2;c.vx=vx;c.vy=vy;c.sp=(10+34*s)*(wx==='storm'?1.6:1);}}
+      c.x+=(c.vx||0)*c.sp*dt/cam.z;c.y+=(c.vy||0)*c.sp*dt/cam.z;
+      const out=c.x<x0-m||c.x>x0+W+m||c.y<y0-m||c.y>y0+H+m;
+      if(out||i>=want){if(i>=want){CL.L.splice(i,1);continue;}const far=c.x<x0-W||c.x>x0+2*W||c.y<y0-H||c.y>y0+2*H;clSpawn(c,!far,c.vx,c.vy);if(far)c.a=0;}
+      c.a=Math.min(1,c.a+dt*.4);}
+    const s=toScr(c.x,c.y),z=Math.max(.75,Math.min(1.5,.55+cam.z*.12))*c.s,w=320*z,h=200*z,SP=CL.spr[c.v];if(s[0]<-w||s[0]>VW+w||s[1]<-h||s[1]>VH+h)continue;
+    if(pass===0){ctx.globalAlpha=.16*c.a*(1-dk*.5);ctx.drawImage(SP.sh,s[0]-w/2+38*z,s[1]-h/2+46*z,w,h);}
+    else{const d=Math.hypot(s[0]-sp0[0],s[1]-sp0[1]),near=Math.min(1,Math.max(.35,(d-40)/140));ctx.globalAlpha=.62*c.a*near*(1-dk*.45);
+      const img=wx==='storm'||dk>.5?SP.s:grey<1?SP.g:SP.w;ctx.save();ctx.translate(s[0],s[1]);if(c.flip)ctx.scale(-1,1);ctx.drawImage(img,-w/2,-h/2,w,h);ctx.restore();}}
+  ctx.globalAlpha=1;ctx.restore();}
+{const w1=wxDrawFx;wxDrawFx=function(){try{flClouds();}catch(e){}return w1.apply(this,arguments);};}
 
 // ===== 온라인 (Render 서버용) — ONLINE 빌드에서만 들어간다 =====
 const ON={live:false,id:0,nm:'',tok:'',ws:null,wsOk:false,W:{mk:{},dev:{},disc:{},inv:{},nm:{}},players:[],chat:[],unread:0,tab:'chat',qmk:{},qdev:{},rank:null,rankT:0,open:false,retry:0,posT:0};
