@@ -262,6 +262,15 @@ const GRID=new Uint8Array(GH*GW);
   while(k<bin.length){let r=0,sh=0,b;do{b=bin.charCodeAt(k++);r|=(b&127)<<sh;sh+=7;}while(b&128);
     if(val)GRID.fill(1,pos,pos+r);pos+=r;val^=1;}
 })();
+// ===== 좁은 해협 뚫기: 0.25도 격자보다 좁은 해협이 땅으로 막혀 있어 물길을 2칸 폭으로 연다 (원래 지구 위도·경도) =====
+const STRAITS=[['지브롤터',[[36.0,-6.7],[35.97,-5.6],[36.1,-4.5]]],
+ ['다르다넬스·마르마라·보스포루스',[[39.9,25.8],[40.15,26.35],[40.45,26.8],[40.7,27.8],[41.0,28.95],[41.3,29.12],[41.8,29.5]]],
+ ['덴마크 해협',[[56.8,11.8],[56.05,12.62],[55.65,12.72],[55.3,13.0],[54.9,13.6]]],
+ ['바브엘만데브',[[14.0,42.4],[12.6,43.35],[11.9,44.4]]]];
+(function carve(){const cellOf=(la,lo)=>{const gl=-la,gn=300-lo,w=((gn+30)%360+360)%360-30;return [(90-gl)*4,(w+30)*4];};
+  const open=(i,j)=>{for(const [a,b] of [[0,0],[0,1],[1,0],[1,1]]){const ii=Math.floor(i)+a,jj=((Math.floor(j)+b)%GW+GW)%GW;if(ii>=0&&ii<GH)GRID[ii*GW+jj]=0;}};
+  for(const [,P] of STRAITS)for(let s=0;s+1<P.length;s++){const A=cellOf(...P[s]),B=cellOf(...P[s+1]),n=Math.ceil(Math.hypot(B[0]-A[0],B[1]-A[1])*3)+1;
+    for(let t=0;t<=n;t++)open(A[0]+(B[0]-A[0])*t/n-.5,A[1]+(B[1]-A[1])*t/n-.5);}})();
 const PORTS=PORT_DATA.map((p,i)=>({id:i,name:p[0],old:p[1],lat:p[2],lon:p[3]})).concat(CITY_DATA.map((c,i)=>({id:PORT_DATA.length+i,name:c.n,old:c.old,lat:c.lat,lon:c.lon,inland:1})));
 const SEAPORTS=PORTS.filter(p=>!p.inland);
 const HOME=0;
