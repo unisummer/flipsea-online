@@ -4431,7 +4431,7 @@ function flBuildCur(){if(FL.curImg||FL.curBusy)return;FL.curBusy=true;const W=72
 {const dt0=drawTiles;drawTiles=function(c){dt0.apply(this,arguments);try{if(!S||flowMode()!==0)return;if(!FL.curImg){flBuildCur();return;}c.save();c.imageSmoothingEnabled=true;c.globalAlpha=1;c.drawImage(FL.curImg,0,0,IMW,IMH);c.restore();}catch(e){}};}
 // ---- 바람 줄기와 해류 물결 (실제 시간으로 움직여 배율과 상관없이 같은 빠르기) ----
 function flSpawnW(p){for(let t=0;t<6;t++){const x=Math.random()*VW,y=Math.random()*VH,ip=toImg(x,y),ll=inv(ip[0],ip[1]);if(!ll||isLand(ll.lat,ll.lon)||!flVisible(ll.lat,ll.lon))continue;const c0=currentAt(ll.lat,ll.lon),m0=Math.hypot(c0[0],c0[1]);if(m0<4||Math.random()>Math.min(1,.15+m0/30))continue;
-  p.x=x;p.y=y;p.t=0;p.life=1.8+Math.random()*2.2;p.h=[];p.k=0;return true;}p.t=99;return false;}
+  p.x=x;p.y=y;p.t=0;p.life=3+Math.random()*2.5;p.h=[];p.k=0;return true;}p.t=99;return false;}
 function flSpawnR(p){for(let t=0;t<6;t++){const x=Math.random()*VW,y=Math.random()*VH,ip=toImg(x,y),ll=inv(ip[0],ip[1]);if(!ll||isLand(ll.lat,ll.lon)||!flVisible(ll.lat,ll.lon))continue;
   const c=currentAt(ll.lat,ll.lon),m=Math.hypot(c[0],c[1]);if(m<9&&Math.random()<.85)continue;p.x=x;p.y=y;p.t=0;p.life=3+Math.random()*3;p.m=m;const dv=dirOnScreen(ll.lat,ll.lon,c[0]/(m||1),c[1]/(m||1));p.dx=dv[0];p.dy=dv[1];return true;}p.t=99;return false;}
 function flStorms(){try{return wxStormsAt(S.day).map(s=>{const c=toScr(...proj(s.lat,s.lon)),e=toScr(...proj(s.lat+s.r,s.lon));return [c[0],c[1],Math.hypot(e[0]-c[0],e[1]-c[1]),s.lat<0?1:-1];});}catch(e){return [];}}
@@ -4450,10 +4450,10 @@ function flDraw(){if(!S||inPort>=0||flowMode()!==0)return;const now=performance.
     if(p.k--<=0){p.k=3;const ip=toImg(p.x,p.y),ll=inv(ip[0],ip[1]);if(!ll||isLand(ll.lat,ll.lon)){p.t=99;continue;}const c=currentAt(ll.lat,ll.lon),m=Math.hypot(c[0],c[1]);if(m<2){p.t=99;continue;}const dv=dirOnScreen(ll.lat,ll.lon,c[0]/m,c[1]/m);
       p.vx=dv[0];p.vy=dv[1];p.s=Math.min(1.3,m/38);}
     // (해류 줄기는 날씨·폭풍과 상관없이 물속 흐름을 따른다)
-    const sp=6+30*p.s;p.x+=p.vx*sp*dt;p.y+=p.vy*sp*dt;p.h.push(p.x,p.y);if(p.h.length>36)p.h.splice(0,2);
+    const sp=14+42*p.s;p.x+=p.vx*sp*dt;p.y+=p.vy*sp*dt;p.h.push(p.x,p.y);if(p.h.length>80)p.h.splice(0,2);
     if(p.x<-20||p.x>VW+20||p.y<-20||p.y>VH+20){p.t=99;continue;}
-    const f=Math.sin(Math.PI*Math.min(1,p.t/p.life)),a=(.18+.42*Math.min(1,p.s))*f*(wx==='fog'?.35:1)*(dk>.5?.75:1);if(p.h.length<4)continue;
-    ctx.strokeStyle=`rgba(255,255,255,${a})`;ctx.lineWidth=.9+.9*Math.min(1,p.s);ctx.beginPath();ctx.moveTo(p.h[0],p.h[1]);for(let i=2;i<p.h.length;i+=2)ctx.lineTo(p.h[i],p.h[i+1]);ctx.stroke();}
+    const f=Math.sin(Math.PI*Math.min(1,p.t/p.life)),a=(.42+.45*Math.min(1,p.s))*f*(wx==='fog'?.4:1)*(dk>.5?.8:1);if(p.h.length<4)continue;
+    const lw=1.4+1.1*Math.min(1,p.s);ctx.beginPath();ctx.moveTo(p.h[0],p.h[1]);for(let i=2;i<p.h.length;i+=2)ctx.lineTo(p.h[i],p.h[i+1]);ctx.strokeStyle=`rgba(20,70,110,${a*.35})`;ctx.lineWidth=lw+2;ctx.stroke();ctx.strokeStyle=`rgba(255,255,255,${a})`;ctx.lineWidth=lw;ctx.stroke();}
   ctx.restore();}
 // ---- 배의 반응: 항적(물거품 꼬리), 바람에 부푸는 돛, 바람에 날리는 깃발 ----
 function flWake(){if(!S||inPort>=0)return;const now=performance.now();if(now-FL.wakeT>140){FL.wakeT=now;const L=FL.wake,last=L[L.length-1];if(!last||Math.abs(last[0]-S.lat)+Math.abs(last[1]-S.lon)>1e-4)L.push([S.lat,S.lon,now]);else if(last)last[2]=now;}
