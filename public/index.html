@@ -280,7 +280,6 @@ const WATERWAYS=[
  ['메콩강·톤레사프',[[9.6,106.6],[10.4,105.7],[11.55,104.9],[12.4,104.4],[12.9,104.0],[13.3,103.8]]],
  ['양쯔강',[[31.5,122.2],[31.8,120.9],[32.2,119.4],[32.05,118.8],[31.3,118.4],[30.5,117.1],[29.75,116.0],[30.0,115.2],[30.6,114.3],[29.5,113.0],[30.3,112.2],[30.7,111.3],[31.0,109.5],[30.4,108.2],[29.56,106.55]]],
  ['황하',[[37.85,119.4],[37.4,118.4],[36.7,117.0],[35.9,115.8],[35.0,114.6],[34.9,113.6],[34.85,112.4],[34.8,111.2],[34.6,110.3],[34.5,109.5],[34.3,108.9]]],
- ['한강',[[37.75,126.35],[37.65,126.65],[37.55,126.85],[37.53,127.05]]],
  ['아마존강',[[-0.3,-48.6],[-1.4,-51.8],[-1.9,-55.5],[-2.5,-57.5],[-3.1,-60.0]]],
  ['미시시피강',[[28.9,-89.3],[29.95,-90.07],[31.3,-91.5],[33.4,-91.1],[35.1,-90.05],[36.9,-89.2],[38.6,-90.2]]],
  ['세인트로렌스강·오대호',[[49.0,-66.5],[48.0,-69.5],[46.8,-71.2],[45.5,-73.6],[44.2,-76.1],[43.6,-77.5],[43.3,-79.2],[42.9,-79.1],[42.6,-80.0],[42.1,-82.5],[42.3,-83.0],[43.0,-82.4],[44.5,-82.5],[46.0,-83.9],[46.5,-84.4],[47.0,-86.0]]],
@@ -600,7 +599,9 @@ const salaryNow=i=>MATES[i].hero?0:Math.round(mateSalary(MATES[i])*(seatOf(i)?1:
 const mateSalary=m=>{const s=[...m.st].sort((a,b)=>b-a);return Math.round(8+(s[0]+s[1]+s[2])/10+(m.story?8:0)+[0,15,35,70][m.sp||0]);};
 const mateFee=m=>mateSalary(m)*4*[1,3,5,8][m.sp||0];
 const mt=id=>S.mt[id];
-const curSt=(id,r)=>Math.min(99,(MATES[id].st[r]||0)+((S.mt[id]&&S.mt[id].g&&S.mt[id].g[r])||0));
+// 능력치: 0.1씩 쌓이고 정수(1단위)가 될 때마다 실제로 반영된다. 상한 99
+const curStF=(id,r)=>Math.min(99,(MATES[id].st[r]||0)+((S&&S.mt[id]&&S.mt[id].g&&S.mt[id].g[r])||0));
+const curSt=(id,r)=>Math.floor(curStF(id,r)+1e-6);
 function hiredIds(){return Object.keys(S.mt).map(Number).filter(i=>S.mt[i].h);}
 function seatOf(id){for(let k=0;k<S.fleet.length;k++){const a=S.fleet[k].as.find(x=>x.m===id);if(a)return {k,a};}return null;}
 function roleVal(r){if(FLEET_ROLES.includes(r)){let m=0,ax=0;for(const sh of S.fleet)for(const a of sh.as)if(a.r===r){if(a.aux)ax+=curSt(a.m,r)*.5;else m=Math.max(m,curSt(a.m,r));}return Math.min(120,m+ax);}
@@ -625,7 +626,11 @@ function assign(id,k,r,aux){const s=seatOf(id);if(s)S.fleet[s.k].as.splice(S.fle
   sh.as.push({m:id,r,aux:aux?1:0});S.st['role'+r]=1;checkMissions();save();return true;}
 function unassign(id){if(MATES[id].hero)return;const s=seatOf(id);if(s)S.fleet[s.k].as.splice(S.fleet[s.k].as.indexOf(s.a),1);save();}
 const XPN=20;
-function gainXp(i,r,v){const x=S.mt[i];if(!x)return;v*=1+trMine(i,'grow');x.xp[r]+=v;if(x.xp[r]>=XPN){x.xp[r]-=XPN;if(curSt(i,r)<99){x.g[r]++;S.st.grow=(S.st.grow||0)+1;toast(`${MATES[i].name}의 ${STATK[r]}이(가) ${curSt(i,r)}(으)로 올랐습니다.`);}}}
+// 성장: 자리에 앉은 하루마다 약 0.05 (20일에 1). 능력이 높을수록 느려져서(60 넘으면 점점, 95 근처는 5배 느림) 처음 능력치가 중요하다
+const growDim=c=>c>=99?0:Math.max(.2,Math.min(1,(99-c)/40));
+function gainXp(i,r,v){const x=S.mt[i];if(!x)return;v*=1+trMine(i,'grow');const c0=curStF(i,r);if(c0>=99)return;
+  const before=Math.floor(c0+1e-6);x.g[r]=Math.round(((x.g[r]||0)+v*.05*growDim(c0))*1000)/1000;const after=curSt(i,r);
+  if(after>before){S.st.grow=(S.st.grow||0)+1;toast(`${MATES[i].name}의 ${STATK[r]}이(가) ${after}(으)로 올랐습니다.`);}}
 function mateDaily(){for(const i of hiredIds()){const s=seatOf(i);if(s)gainXp(i,s.a.r,s.a.aux?.6:1);else gainXp(i,bestRole(i),.25);}
   if(Math.floor(S.day)%30===0)payday();}
 function payday(){const ids=hiredIds().filter(i=>!MATES[i].hero);if(!ids.length)return;const sum=ids.reduce((a,i)=>a+salaryNow(i),0);const pop=Math.round(traitV('loy'));
@@ -1055,10 +1060,12 @@ function sfx(k){Snd.fx(k);}
 const bars=(id)=>STATK.map((k,r)=>{const v=curSt(id,r);return `<span class="sb" title="${k} ${v}"><i style="width:${v}%"></i><em>${k[0]}${v}</em></span>`;}).join('');
 const USED_NOW=[1,1,1,1,1,1,1,1];
 function mateCard(id,extra){const m=MATES[id],x=S.mt[id];const br=bestRole(id),seat=x&&seatOf(id);
-  const prog=seat?`<span class="xpb" title="다음 성장까지"><i style="width:${Math.round(x.xp[seat.a.r]/XPN*100)}%"></i></span>`:'';
-  return `<div class="mc mcp${m.sp?' spg'+m.sp:(m.story||m.hero)?' spgS':''}">${ptImg(id,76)}<div class="mcb"><div class="mh">${m.sp?`<span class="chip spc${m.sp}">${['','✦ 뛰어난 인재','★ 영웅급','👑 전설'][m.sp]}</span> `:''}<b>${m.name}</b>${m.hero?' <span class="chip" style="background:#2f5d73">주인공</span>':m.story?' <span class="chip" style="background:#a8322a">동료</span>':''} <small>${PORTS[m.home].name} 출신 · ${PERS[m.per]} · 특기 <b>${TRAITS[m.tr][0]}</b>: ${TRAITS[m.tr][1]}</small>${m.tr2?`<div class="sptr">✨ 특별 특기 <b>${SPTR[m.tr2.i][0]}</b>: ${spDesc(m)}</div>`:''}</div>
-   ${m.bio?`<div class="hint">${m.bio}</div>`:''}<div class="sbars">${bars(id)}</div>
-   <div class="mf"><small>추천 자리: <b>${ROLES[br]}</b> (${STATK[br]} ${curSt(id,br)})${USED_NOW[br]?'':' <i>· 해전 단계부터 쓰임</i>'} · 월급 ${m.hero?'-':(x?salaryNow(id):mateSalary(m))+'골드'}${x&&!m.hero?` · 충성 ${x.loy}`:''}${seat?` · 지금 ${seat.a.aux?'보조 ':''}${ROLES[seat.a.r]} ${prog}`:x?' · <b style="color:#a8322a">대기 중</b> (성장 느림, 월급 절반)':''}</small>${extra||''}</div></div></div>`;}
+  const prog=seat?`<span class="xpb" title="다음 1 성장까지"><i style="width:${Math.round((curStF(id,seat.a.r)%1)*100)}%"></i></span>`:'';
+  const top=[0,1,2,3,4,5,6,7].sort((a,b)=>curStF(id,b)-curStF(id,a)).slice(0,2);
+  return `<div class="mc mcp mcard${m.sp?' spg'+m.sp:(m.story||m.hero)?' spgS':''}"><span class="mpt" data-mwin="${id}">${ptImg(id,76)}</span><div class="mcb"><div class="mh">${m.sp?`<span class="chip spc${m.sp}">${['','✦ 뛰어난 인재','★ 영웅급','👑 전설'][m.sp]}</span> `:''}<b>${m.name}</b>${m.hero?' <span class="chip" style="background:#2f5d73">주인공</span>':m.story?' <span class="chip" style="background:#a8322a">동료</span>':''} <small>${PORTS[m.home].name} 출신 · ${PERS[m.per]}</small></div>
+   <div class="mtop"><span>특기 <b>${TRAITS[m.tr][0]}</b> <small>${TRAITS[m.tr][1]}</small></span>${m.tr2?`<span class="sptr">✨ <b>${SPTR[m.tr2.i][0]}</b> <small>${spDesc(m)}</small></span>`:''}
+   <span>우수 능력 ${top.map(r=>`<b class="topst">${STATK[r]} ${curSt(id,r)}</b>`).join(' ')}</span></div>
+   <div class="mf"><small>추천 자리: <b>${ROLES[br]}</b> (${STATK[br]} ${curSt(id,br)})${USED_NOW[br]?'':' <i>· 해전 단계부터 쓰임</i>'} · 월급 ${m.hero?'-':(x?salaryNow(id):mateSalary(m))+'골드'}${x&&!m.hero?` · 충성 ${x.loy}`:''}${seat?` · 지금 ${seat.a.aux?'보조 ':''}${ROLES[seat.a.r]} ${prog}`:x?' · <b style="color:#a8322a">대기 중</b> (성장 느림, 월급 절반)':''}</small>${extra||''}</div></div><button class="mrad" data-mwin="${id}" title="능력치 자세히 보기">${typeof radarSVG==='function'?radarSVG(id,64):''}<small>능력치</small></button></div>`;}
 function fleetHTML(inPortNow){
   const ids=hiredIds(),free=ids.filter(i=>!seatOf(i)&&!MATES[i].hero);
   let h=`<div class="tipbox"><b>배치 요령</b> · 자리는 <b>능력치</b>로 고르세요. 각 카드의 '추천 자리'가 그 사람의 가장 높은 능력입니다. <b>특기</b>는 자리와 상관없이 함대에 타고만 있으면 효과가 납니다.
@@ -3314,7 +3321,7 @@ function openGear(){if(!S)return;gearInit();const draw=()=>{$('infobox').innerHT
     $('infobox').querySelectorAll('[data-geq]').forEach(b=>b.onclick=()=>{equip(+b.dataset.geq);draw();});
     $('infobox').querySelectorAll('[data-gun]').forEach(b=>b.onclick=()=>{const k=b.dataset.gun;if(k==='t')S.eq.t[+b.dataset.gi]=null;else S.eq[k]=null;save();draw();});};
   draw();$('info').style.display='flex';infoOpen=true;paused=true;}
-addEventListener('keydown',e=>{if(!S||$('title').style.display==='flex'||B||storyOpen||encOpen)return;if(e.target&&/INPUT|TEXTAREA/.test(e.target.tagName))return;if(e.ctrlKey||e.metaKey||e.altKey)return;
+addEventListener('keydown',e=>{if(typeof MW!=='undefined'&&MW)return;if(!S||$('title').style.display==='flex'||B||storyOpen||encOpen)return;if(e.target&&/INPUT|TEXTAREA/.test(e.target.tagName))return;if(e.ctrlKey||e.metaKey||e.altKey)return;
   if(e.key.toLowerCase()!=='b')return;e.preventDefault();e.stopImmediatePropagation();if(infoOpen){closeInfo();if(inPort<0)paused=false;else drawPort();}else openGear();},true);
 (()=>{const st=document.createElement('style');st.textContent=`.gtop{display:grid;grid-template-columns:260px 1fr;gap:14px}.gport{display:flex;gap:10px;align-items:flex-start}.gport img,.gport svg{border-radius:8px}
 .gst{display:grid;grid-template-columns:36px 1fr 28px;gap:6px;align-items:center;font-size:13px;margin:3px 0}.gst .bar{height:8px}
@@ -3628,7 +3635,7 @@ function igDraw(){if(!IG)return;const A=IG.A,Bf=IG.B,c=IG.ch,el=$('igbox');if(!$
   const go=$('igGo');if(go)go.onclick=()=>igSubmit();const x=$('igX');if(x)x.onclick=()=>igClose();}
 function igTick(){if(!IG||IG.done||IG.wait||IGS.busy())return;const e=$('igTm'),left=Math.max(0,Math.ceil((IG.deadline-Date.now())/1000));if(e)e.textContent=left+'초';if(left<=0)igSubmit(true);}
 setInterval(igTick,250);
-addEventListener('keydown',e=>{if(!IG)return;e.stopImmediatePropagation();if(e.key==='Enter'&&!IG.done&&!IG.wait){const b=$('igGo');if(b&&!b.disabled)igSubmit();}else if((e.key==='Enter'||e.key==='Escape')&&IG.done)igClose();},true);
+addEventListener('keydown',e=>{if(typeof MW!=='undefined'&&MW)return;if(!IG)return;e.stopImmediatePropagation();if(e.key==='Enter'&&!IG.done&&!IG.wait){const b=$('igGo');if(b&&!b.disabled)igSubmit();}else if((e.key==='Enter'||e.key==='Escape')&&IG.done)igClose();},true);
 function igNewRound(){IG.ch={g:[],a:[],sk:''};IG.deadline=Date.now()+IG_T*1000;IG.wait=null;
   if(IG.mode==='pve'){IG.next=igAI(IG.B,IG.A,IG.hist);IG.hint=igHint(IG.A,IG.B,IG.next);}igDraw();}
 function evTxt(ev,A,Bf){return ev.map(e=>{const nm=w=>w==='A'?A.nm:Bf.nm,on=w=>w==='A'?Bf.nm:A.nm;
@@ -3950,7 +3957,7 @@ function townBack(){portTab='town';drawPort();}
 // 입항하면 마을부터 (들른 횟수도 센다)
 {const ep0=enterPort;enterPort=function(id){const r=ep0.apply(this,arguments);if(inPort>=0){if(!PORTS[inPort].inland){S.vis=S.vis||{};S.vis[inPort]=(S.vis[inPort]||0)+1;}portTab='town';shopSel=null;drawPort();}return r;};}
 // 열쇠: 마을에서 1~9로 건물, 건물 안에서 Esc·Backspace로 마을
-addEventListener('keydown',e=>{if(inPort<0||!S||$('port').style.display==='none')return;const t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'))return;
+addEventListener('keydown',e=>{if(typeof MW!=='undefined'&&MW)return;if(inPort<0||!S||$('port').style.display==='none')return;const t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'))return;
   if(typeof infoOpen!=='undefined'&&infoOpen)return;
   if(portTab==='town'&&/^[1-9]$/.test(e.key)){const L=townList(inPort),b=L[+e.key-1];if(b){e.preventDefault();e.stopImmediatePropagation();townGo(b.k);}return;}
   if(portTab!=='town'&&(e.key==='Escape'||e.key==='Backspace')){e.preventDefault();e.stopImmediatePropagation();townBack();}},true);
@@ -4171,6 +4178,49 @@ tavernHire=function(p){spSync();const per=tavPer(),left=TAV_DAYS-(Math.floor(S.d
 .chip.spc1{background:#3f8a3a}.chip.spc2{background:#2f66a8}.chip.spc3{background:#b8860b}
 .sptr{font-size:12.5px;color:#7a4500;margin-top:3px}.spbox{border:1.5px dashed #b8860b;border-radius:10px;padding:8px 10px;margin-top:12px;background:#fffaf0}
 .trsum span{background:#eef4e8;border-radius:6px;padding:1px 6px;margin:2px}`;document.head.appendChild(st);}
+// ===== 항해자 능력치 창 (대항해시대 4 캐릭터 창처럼) + 능력치 도형 =====
+const RAD_COL=m=>m.sp===3?['#d4a017','rgba(232,190,60,.55)']:m.sp===2?['#2f66a8','rgba(70,130,210,.45)']:m.sp===1?['#3f8a3a','rgba(90,170,80,.45)']:(m.story||m.hero)?['#7a3fa8','rgba(150,90,200,.45)']:['#6a5030','rgba(160,130,80,.4)'];
+function radarSVG(id,sz,big){const m=MATES[id],c=sz/2,R=c-(big?30:4),ang=k=>-Math.PI/2+k*Math.PI/4,pt=(k,v)=>[c+Math.cos(ang(k))*R*v,c+Math.sin(ang(k))*R*v].map(x=>x.toFixed(1)).join(',');
+  const [sc,fc]=RAD_COL(m);let s=`<svg width="${sz}" height="${sz}" viewBox="0 0 ${sz} ${sz}" class="radar">`;
+  for(const f of [.25,.5,.75,1])s+=`<polygon points="${[0,1,2,3,4,5,6,7].map(k=>pt(k,f)).join(' ')}" fill="${f===1?'#fbf4e2':'none'}" stroke="#c9b48a" stroke-width="${f===1?1.2:.6}"/>`;
+  for(let k=0;k<8;k++)s+=`<line x1="${c}" y1="${c}" x2="${pt(k,1).split(',')[0]}" y2="${pt(k,1).split(',')[1]}" stroke="#d8c7a0" stroke-width=".6"/>`;
+  if(big)s+=`<polygon points="${[0,1,2,3,4,5,6,7].map(k=>pt(k,Math.min(1,(m.st[k]||0)/99))).join(' ')}" fill="none" stroke="#8a7a5a" stroke-dasharray="3 2" stroke-width="1"/>`;
+  s+=`<polygon points="${[0,1,2,3,4,5,6,7].map(k=>pt(k,Math.max(.04,curStF(id,k)/99))).join(' ')}" fill="${fc}" stroke="${sc}" stroke-width="${big?2:1.4}"/>`;
+  if(big)for(let k=0;k<8;k++){const [x,y]=pt(k,1.16).split(',').map(Number);s+=`<text x="${x}" y="${y+4}" text-anchor="middle" font-size="12" font-weight="bold" fill="#3b2a1a">${STATK[k]}</text>`;}
+  return s+'</svg>';}
+let MW=null;
+function mwinHTML(id){const m=MATES[id],x=S.mt[id],seat=x&&seatOf(id),hired=!!x;
+  const row=r=>{const v=curStF(id,r),b=m.st[r]||0,shown=hired?(Math.floor(v*10+1e-6)/10).toFixed(1):String(Math.floor(v)),dim=growDim(v);
+    return `<div class="mwr"><span class="mwl">${STATK[r]}력</span><span class="mwn">${shown}</span><span class="mwb"><i class="base" style="width:${b/99*100}%"></i><i class="gain" style="left:${b/99*100}%;width:${Math.max(0,v-b)/99*100}%"></i><em style="left:${b/99*100}%">▲</em></span>
+     <small class="mwd" title="성장 속도">${v>=99?'최고':dim>=1?'성장 빠름':dim>=.5?'성장 보통':'성장 느림'}</small></div>`;};
+  const st=seat?`지금 ${seat.a.aux?'보조 ':''}${ROLES[seat.a.r]} · 다음 ${STATK[seat.a.r]} +1까지 ${Math.round((curStF(id,seat.a.r)%1)*100)}%`:hired?(m.hero?'':'대기 중 (가장 잘하는 능력이 천천히 자람)'):`영입비 ${mateFee(m).toLocaleString()}골드`;
+  return `<div class="mwbox"><div class="mwh"><button data-mw="-1">‹</button><b>${m.name}</b>${m.sp?`<span class="chip spc${m.sp}">${['','✦ 뛰어난 인재','★ 영웅급','👑 전설'][m.sp]}</span>`:m.hero?'<span class="chip" style="background:#2f5d73">주인공</span>':m.story?'<span class="chip" style="background:#7a3fa8">동료</span>':''}<button data-mw="1">›</button><button class="mwx" data-mw="x">✕</button></div>
+   <div class="mwtop"><div class="mwp">${ptImg(id,128)}<div><small>${PORTS[m.home].name} 출신 · ${PERS[m.per]}</small><br><small>월급 ${m.hero?'-':(x?salaryNow(id):mateSalary(m))+'골드'}${x&&!m.hero?` · 충성 ${x.loy}`:''}</small><br><small>${st}</small></div></div>
+    <div class="mwrad">${radarSVG(id,210,1)}</div></div>
+   <div class="mwg">${[0,1,2,3,4,5,6,7].map(row).join('')}</div>
+   <div class="mwt"><div>특기 <b>${TRAITS[m.tr][0]}</b> — ${TRAITS[m.tr][1]}</div>${m.tr2?`<div class="sptr">✨ 특별 특기 <b>${SPTR[m.tr2.i][0]}</b> — ${spDesc(m)}</div>`:''}${m.bio?`<div class="hint">${m.bio}</div>`:''}
+   <div class="hint">▲ 처음 능력치 · 진한 막대 = 자라난 만큼. 자리에 앉힌 역할의 능력이 하루 약 0.05씩 자라고(20일에 1), 60이 넘으면 점점 느려져 95 근처에서는 5배 느립니다. 그래서 처음 능력치가 중요합니다. 최고 99.</div></div></div>`;}
+function openMWin(id,list){MW={id,list:list&&list.length?list:[id]};let el=$('mwin');if(!el){el=document.createElement('div');el.id='mwin';document.body.appendChild(el);
+    el.addEventListener('click',e=>{const b=e.target.closest('[data-mw]');if(e.target===el||(b&&b.dataset.mw==='x')){el.style.display='none';MW=null;return;}
+      if(b){const L=MW.list,i=L.indexOf(MW.id),n=L[(i+(+b.dataset.mw)+L.length)%L.length];MW.id=n;el.innerHTML=mwinHTML(n);sfx('tab');}});}
+  el.innerHTML=mwinHTML(id);el.style.display='flex';sfx('paper');}
+document.addEventListener('click',e=>{const t=e.target.closest('[data-mwin]');if(!t||!S)return;e.preventDefault();e.stopPropagation();
+  const root=t.closest('#portbox,#infobox,.pbody')||document,L=[...new Set([...root.querySelectorAll('[data-mwin]')].map(x=>+x.dataset.mwin))];openMWin(+t.dataset.mwin,L);},true);
+document.addEventListener('keydown',e=>{if(!MW||$('mwin').style.display==='none')return;e.stopPropagation();e.preventDefault();
+  if(e.key==='Escape'){$('mwin').style.display='none';MW=null;}else if(e.key==='ArrowLeft'||e.key==='ArrowRight'){const L=MW.list,i=L.indexOf(MW.id);MW.id=L[(i+(e.key==='ArrowLeft'?-1:1)+L.length)%L.length];$('mwin').innerHTML=mwinHTML(MW.id);}},true);
+{const st=document.createElement('style');st.textContent=`.mcard{position:relative;padding-right:84px!important}.mcard .mpt{cursor:pointer}
+.mrad{position:absolute;right:6px;top:6px;border:none;background:transparent;cursor:pointer;display:flex;flex-direction:column;align-items:center;padding:0;font:inherit}.mrad small{font-size:11px;color:#6a5030;text-decoration:underline}
+.mtop{display:flex;flex-wrap:wrap;gap:3px 14px;font-size:13px;margin:3px 0}.mtop small{color:#6a5a40}.topst{background:#eadcb6;border-radius:5px;padding:0 6px;margin-right:3px}
+#mwin{position:fixed;inset:0;background:rgba(20,12,4,.55);z-index:9000;display:none;align-items:center;justify-content:center}
+.mwbox{width:min(720px,94vw);max-height:92vh;overflow:auto;background:linear-gradient(#f6ecd4,#efe0bc);border:3px solid #6a4a28;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.5);padding:10px 14px;color:#2d1c0e}
+.mwh{display:flex;align-items:center;gap:8px;background:#5a3e22;color:#f6ecd4;margin:-10px -14px 8px;padding:6px 10px;border-radius:9px 9px 0 0;font-size:18px}.mwh b{flex:1}
+.mwh button{background:#7a5a36;color:#f6ecd4;border:1px solid #d8c49c;border-radius:6px;font-size:18px;min-width:34px;cursor:pointer}.mwh .mwx{margin-left:4px}
+.mwtop{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.mwp{display:flex;gap:10px;align-items:center}.mwp img.pt{border:2px solid #6a4a28;border-radius:8px}
+.mwg{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;margin:8px 0}.mwr{display:grid;grid-template-columns:52px 42px 1fr 62px;align-items:center;gap:6px;background:#fbf4e2;border:1px solid #d8c49c;border-radius:6px;padding:3px 8px}
+.mwl{font-weight:bold}.mwn{text-align:right;font-variant-numeric:tabular-nums;font-weight:bold}.mwb{position:relative;height:12px;background:#e3d3b0;border-radius:4px}
+.mwb i{position:absolute;top:0;bottom:0;border-radius:4px}.mwb .base{left:0;background:#c9a77a}.mwb .gain{background:#7a9f4a}.mwb em{position:absolute;top:9px;font-style:normal;font-size:10px;transform:translateX(-50%);color:#6a4a28}
+.mwd{font-size:11px;color:#7a6a50;text-align:right}.mwt{display:flex;flex-direction:column;gap:4px;font-size:13.5px}
+@media (max-width:640px){.mwg{grid-template-columns:1fr}.mwrad svg{width:170px;height:170px}.mcard{padding-right:70px!important}.mrad svg{width:52px;height:52px}}`;document.head.appendChild(st);}
 
 // ===== 온라인 (Render 서버용) — ONLINE 빌드에서만 들어간다 =====
 const ON={live:false,id:0,nm:'',tok:'',ws:null,wsOk:false,W:{mk:{},dev:{},disc:{},inv:{},nm:{}},players:[],chat:[],unread:0,tab:'chat',qmk:{},qdev:{},rank:null,rankT:0,open:false,retry:0,posT:0};
