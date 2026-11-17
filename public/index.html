@@ -386,7 +386,10 @@ function bakeWorld(){
     }
   }
   ctx.putImageData(img,0,0);
-  // 경위선
+  drawGrat(ctx);
+}
+const shipSc=()=>Math.max(.5,Math.min(2.1,cam.z*.21)); // 배 그림 크기: 지도를 가까이 볼수록 커짐
+function drawGrat(ctx){
   ctx.lineWidth=1; ctx.strokeStyle='rgba(80,55,30,.28)';
   const line=(pts)=>{ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke();};
   for(let la=-75;la<=75;la+=15){if(!la)continue;const pts=[];for(let lo=-30;lo<=330;lo+=1)pts.push(proj(la,lo===330?329.999:lo));line(pts);}
@@ -398,6 +401,36 @@ function bakeWorld(){
   ctx.fillStyle='rgba(168,50,42,.8)';ctx.font='bold 13px serif';
   for(const lo of[0,60,120,180,240,300]){const p=proj(0,lo);ctx.fillText('적도',p[0]+4,p[1]-5);}
 }
+
+// ===== 가까이 볼 때 쓰는 고해상도 지도 조각 (해안선을 부드럽게, 조금씩 나눠 그려 끊김 없이) =====
+const TS=256,TILES=new Map();let TR=3,TN=768,tileT=0;
+function tileLatRow(py){const Y=(IMH/2-py)/SC;if(Math.abs(Y)>YMAX)return null;const t=tOfY(Y),t2=t*t,t6=t2*t2*t2;
+  return {lat:Math.asin(Math.max(-1,Math.min(1,Math.sin(t)/MM)))/DEG,kx:3*(9*A4*t6*t2+7*A3*t6+3*A2*t2+A1)/(2*Math.sqrt(3)*Math.cos(t))/DEG};}
+function tileStep(T,until){const W=TN+4;
+  if(!T.v){T.v=new Float32Array(W*W);T.lat=new Float32Array(W);T.vr=0;T.cr=0;T.img=T.c.getContext('2d').createImageData(TN,TN);T.dirty=0;}
+  const x0=T.i*TS,y0=T.j*TS,v=T.v,d=T.img.data;
+  while(performance.now()<until){
+    if(T.vr<W){const r=T.vr++,py=y0+(r-2+.5)/TR,L=tileLatRow(py);T.lat[r]=L?L.lat:0;
+      for(let c=0;c<W;c++){const k=r*W+c;if(!L){v[k]=-9;continue;}const px=x0+(c-2+.5)/TR,l=(px-IMW/2)/SC*L.kx;if(Math.abs(l)>180){v[k]=-9;continue;}
+        v[k]=landF(L.lat,CM+l)+(vnoise(px/7,py/7,5)-.5)*.18;}
+      if(T.vr<T.cr+5)continue;}
+    if(T.cr>=TN)break;
+    {const r=T.cr++,rr=r+2,py=y0+(r+.5)/TR,al=Math.abs(T.lat[rr]),band=BAND_COL.find(b=>al<b[0])[1];
+      for(let c=0;c<TN;c++){const cc=c+2,k=rr*W+cc,o=(r*TN+c)*4,val=v[k],px=x0+(c+.5)/TR,gr=(hash3(c+T.i*TN,r+T.j*TN,7)-.5)*10;
+        if(val<-5){d[o]=58;d[o+1]=44;d[o+2]=31;d[o+3]=255;continue;}
+        if(val<.5){const sh=Math.min(1,Math.max(0,val)*2.2),n=vnoise(px/90,py/90,3)*6;d[o]=150+40*sh+gr*.5+n;d[o+1]=184+28*sh+gr*.5+n;d[o+2]=186+14*sh+gr*.5+n;d[o+3]=255;continue;}
+        let edge=false;for(let q=1;q<=2&&!edge;q++)if((v[k-q]>-5&&v[k-q]<.5)||(v[k+q]>-5&&v[k+q]<.5)||(v[k-q*W]>-5&&v[k-q*W]<.5)||(v[k+q*W]>-5&&v[k+q*W]<.5))edge=true;
+        if(edge){d[o]=92;d[o+1]=68;d[o+2]=44;d[o+3]=255;continue;}
+        const n=vnoise(px/40,py/40,1)*14+vnoise(px/9,py/9,2)*5;d[o]=band[0]+n+gr;d[o+1]=band[1]+n+gr;d[o+2]=band[2]+n*.7+gr;d[o+3]=255;}
+      if(r-T.dirty>=48||T.cr>=TN){const g=T.c.getContext('2d');g.putImageData(T.img,0,0,0,T.dirty,TN,T.cr-T.dirty);T.dirty=T.cr;}}}
+  if(T.cr>=TN&&!T.done){const g=T.c.getContext('2d');g.save();g.setTransform(TR,0,0,TR,-x0*TR,-y0*TR);drawGrat(g);g.restore();T.done=1;T.v=null;T.img=null;T.lat=null;}}
+function drawTiles(ctx){if(cam.z<2.4)return;if(!tileT){tileT=1;TR=MOB?2:3;TN=TS*TR;}const x0=cam.x-VW/2/cam.z,y0=cam.y-VH/2/cam.z,x1=cam.x+VW/2/cam.z,y1=cam.y+VH/2/cam.z,now=performance.now();
+  const L=[];for(let j=Math.max(0,Math.floor(y0/TS));j<=Math.min(Math.floor((IMH-1)/TS),Math.floor(y1/TS));j++)for(let i=Math.max(0,Math.floor(x0/TS));i<=Math.min(Math.floor((IMW-1)/TS),Math.floor(x1/TS));i++){
+    const key=i+','+j;let T=TILES.get(key);if(!T){T={i,j,c:document.createElement('canvas')};T.c.width=T.c.height=TN;TILES.set(key,T);}T.used=now;L.push(T);}
+  const until=now+9;for(const T of L)if(!T.done&&performance.now()<until)tileStep(T,until);
+  for(const T of L)if(T.cr||T.done)ctx.drawImage(T.c,T.i*TS,T.j*TS,TS,TS);
+  if(TILES.size>(TR===2?28:20)){const A=[...TILES.values()].sort((a,b)=>a.used-b.used);for(const T of A.slice(0,TILES.size-(TR===2?24:16)))TILES.delete(T.i+','+T.j);}}
+
 function resetFog(){fctx.globalCompositeOperation='source-over';fctx.clearRect(0,0,IMW,IMH);
   const W2=world.getContext('2d'); // 지도 바깥(나무) 영역은 그대로 보이도록 원형 틀 안만 종이로 덮기
   fctx.save();fctx.beginPath();
@@ -1674,7 +1707,7 @@ function render(){
   ctx.setTransform(DPR,0,0,DPR,0,0);ctx.fillStyle='#241a12';ctx.fillRect(0,0,VW,VH);
   if(follow){const p=proj(S.lat,S.lon);cam.x=p[0];cam.y=p[1];}
   ctx.save();ctx.translate(VW/2,VH/2);ctx.scale(cam.z,cam.z);ctx.translate(-cam.x,-cam.y);
-  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(world,0,0);ctx.drawImage(fog,0,0);ctx.restore();
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(world,0,0);drawTiles(ctx);ctx.drawImage(fog,0,0);ctx.restore();
   // 바람·해류 화살표
   if(layers){const sp=Math.max(46,Math.min(90,60));
     for(let sy=sp/2;sy<VH;sy+=sp)for(let sx=sp/2;sx<VW;sx+=sp){
@@ -1695,7 +1728,7 @@ function render(){
   // 자취
   ctx.fillStyle='rgba(255,255,255,.7)';for(let i=0;i<trail.length;i++){const s=toScr(...proj(trail[i][0],trail[i][1]));ctx.globalAlpha=(i+1)/trail.length*.8;ctx.beginPath();ctx.arc(s[0],s[1],1.6,0,7);ctx.fill();}ctx.globalAlpha=1;
   // 항구: 지도에 박힌 작은 마을 문장 (문화권마다 지붕 모양·색이 다름)
-  ctx.font='bold 13px serif';ctx.textBaseline='middle';const pk=Math.max(.55,Math.min(1.35,cam.z*.36));
+  ctx.font='bold 13px serif';ctx.textBaseline='middle';const pk=Math.max(.55,Math.min(2.4,cam.z*.3));
   for(const id of S.found){const p=PORTS[id],s=toScr(...proj(p.lat,p.lon));if(s[0]<-90||s[0]>VW+90||s[1]<-60||s[1]>VH+40)continue;
     const home=id===HOME,vis=S.entered.includes(id),im=portEmblem(id,home?2:vis?1:0),w=im.width/2*pk,h=im.height/2*pk;
     ctx.drawImage(im,s[0]-w*.5,s[1]-h*.82,w,h);
@@ -1705,7 +1738,7 @@ function render(){
     ctx.setLineDash([3,3]);ctx.strokeStyle='#3b2a1a';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(s[0],s[1],9,0,7);ctx.stroke();ctx.setLineDash([]);
     ctx.fillStyle='#3b2a1a';ctx.font='bold 13px serif';ctx.fillText('?',s[0]-3,s[1]+1);const lb='소문: '+p.name;ctx.lineWidth=3.5;ctx.strokeStyle='rgba(243,232,207,.95)';ctx.strokeText(lb,s[0]+13,s[1]);ctx.fillText(lb,s[0]+13,s[1]);}
   // 발견물: 지도에 찍힌 표식 — 조사한 곳은 종류 문장, 알아챈 곳은 '!', 탐험한 바다 안의 아직 모르는 곳은 흐린 '?'
-  ctx.textBaseline='middle';const dk=Math.max(.7,Math.min(1.3,cam.z*.33));
+  ctx.textBaseline='middle';const dk=Math.max(.7,Math.min(2,cam.z*.25));
   for(const d of DISC){const id=d.id;if(S.df[id]||S.dd[id])continue;const i=Math.floor((90-d.lat)/2),j=Math.floor((wrapLon(d.lon)+30)/2);if(i<0||i>=EXH||!EXP[i*EXW+j])continue;
     const s=toScr(...proj(d.lat,d.lon));if(s[0]<-20||s[0]>VW+20||s[1]<-20||s[1]>VH+20)continue;
     ctx.globalAlpha=.75;ctx.setLineDash([3,3]);ctx.strokeStyle='#5a4028';ctx.lineWidth=1.6;ctx.beginPath();ctx.arc(s[0],s[1],8*dk,0,7);ctx.stroke();ctx.setLineDash([]);
@@ -1730,7 +1763,7 @@ function render(){
   drawInland();drawPirates();if(window.drawOthers)drawOthers();
   // 배
   const sp=toScr(...proj(S.lat,S.lon)), hd=dirOnScreen(S.lat,S.lon,Math.sin(S.hd*DEG),Math.cos(S.hd*DEG)), ang=Math.atan2(hd[1],hd[0]);
-  ctx.save();ctx.translate(sp[0],sp[1]);ctx.rotate(ang);const k=Math.max(.8,Math.min(1.5,cam.z*.7))*(window.SHIPK||1);ctx.scale(k,k);
+  ctx.save();ctx.translate(sp[0],sp[1]);ctx.rotate(ang);const k=shipSc()*(window.SHIPK||1);ctx.scale(k,k);
   ctx.fillStyle='rgba(0,0,0,.25)';ctx.beginPath();ctx.ellipse(2,3,14,6,0,0,7);ctx.fill();
   ctx.fillStyle='#6b4423';ctx.strokeStyle='#2d1c0e';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(16,0);ctx.quadraticCurveTo(6,-7,-12,-5);ctx.lineTo(-12,5);ctx.quadraticCurveTo(6,7,16,0);ctx.fill();ctx.stroke();
   const sl=[0,.55,1][S.sail];ctx.fillStyle='#f6eedb';ctx.strokeStyle='#8a6a44';
@@ -1863,7 +1896,7 @@ addEventListener('keydown',e=>{if($('title').style.display==='flex')return;const
   if('12345'.includes(k)&&k)setSpeed(SPEEDS['12345'.indexOf(k)]);
   if(k==='f'){follow=true;}
   if(k==='v'){layers=(layers+1)%4;}
-  if(k==='m'){if(cam.z>.5){cam.zPrev=cam.z;cam.z=Math.min(VW/IMW,VH/IMH)*1.0;follow=false;cam.x=IMW/2;cam.y=IMH/2;}else{cam.z=cam.zPrev||3.5;follow=true;}}
+  if(k==='m'){if(cam.z>.5){cam.zPrev=cam.z;cam.z=Math.min(VW/IMW,VH/IMH)*1.0;follow=false;cam.x=IMW/2;cam.y=IMH/2;}else{cam.z=cam.zPrev||5;follow=true;}}
   if(k==='e'||k==='enter'){const np=anchorAt>=0?anchorAt:nearPort();anchorAt=-1;showArrive();if(np>=0)enterPort(np);}
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
@@ -1876,7 +1909,7 @@ cv.addEventListener('mousedown',e=>{drag={x:e.clientX,y:e.clientY,cx:cam.x,cy:ca
 addEventListener('mousemove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(dx,dy)>5){drag.moved=true;follow=false;}if(drag.moved){cam.x=drag.cx-dx/cam.z;cam.y=drag.cy-dy/cam.z;}});
 addEventListener('mouseup',e=>{if(!drag)return;const d=drag;drag=null;if(d.moved||inPort>=0||$('title').style.display==='flex')return;clickAt(e.clientX,e.clientY);});
 cv.addEventListener('contextmenu',e=>{e.preventDefault();if(!S||inPort>=0)return;const ip=toImg(e.clientX,e.clientY),ll=inv(ip[0],ip[1]);if(!ll)return;S.mtarget=[ll.lat,ll.lon];toast('직접 몰 목표를 찍었습니다. 조타반의 노란 표시가 그쪽으로 가장 빠른 침로입니다. (다시 오른쪽 클릭하면 바뀜)');});
-cv.addEventListener('wheel',e=>{e.preventDefault();const f=Math.exp(-e.deltaY*.0015);if(B){B.zm=Math.max(.45,Math.min(2.6,B.zm*f));return;}const before=toImg(e.clientX,e.clientY);cam.z=Math.max(.15,Math.min(5,cam.z*f));
+cv.addEventListener('wheel',e=>{e.preventDefault();const f=Math.exp(-e.deltaY*.0015);if(B){B.zm=Math.max(.45,Math.min(2.6,B.zm*f));return;}const before=toImg(e.clientX,e.clientY);cam.z=Math.max(.15,Math.min(12,cam.z*f));
   if(!follow){const after=toImg(e.clientX,e.clientY);cam.x+=before[0]-after[0];cam.y+=before[1]-after[1];}},{passive:false});
 function clickAt(sx,sy){if(B){battleClick(sx,sy);return;}if(encOpen)return;if(S.car)return;
   if(sx>=MINI.x&&sx<=MINI.x+MINI.w&&sy>=MINI.y&&sy<=MINI.y+MINI.h){cam.x=(sx-MINI.x)/MINI.w*IMW;cam.y=(sy-MINI.y)/MINI.h*IMH;follow=false;return;}
@@ -1921,7 +1954,7 @@ function loop(now){const dt=Math.min(.1,(now-last)/1000);last=now;
 function start(cont){
   resetFog();EXP.fill(0);
   if(!(cont&&load())){S=newState();ensureHero();}storyInit();
-  $('title').style.display='none';document.body.classList.add('on');paused=false;follow=true;cam.z=3.5;reveal(true);computeNav();updateHud();
+  $('title').style.display='none';document.body.classList.add('on');paused=false;follow=true;cam.z=5;reveal(true);computeNav();updateHud();
   if(!cont){toast('부산에서 출항합니다. W로 돛을 올리고 A/D로 키를 돌리세요.');setTimeout(()=>toast('바다를 클릭하면 그곳까지 자동으로 갑니다.'),2500);}
 }
 window.__g={fogHole,get S(){return S;},landPath,perkSum,boostMax,waterMul,CITIES,citiesNear,departCaravan,get carPlan(){return carPlan;},set carPlan(v){carPlan=v;},caravanHTML,leaveCity,linkedGoods,prodList,routeKm,dailyCost,PORTS,shipF,fleetSail,crewNeedT,DISC,investigate,nearDisc,scanDisc,reportAll,openLog,regionStats,makeFlag,autoAssign,HY,SHIPTYPES,MATES,hire,assign,tavernMates,hopPlan,get legs(){return legs;},roleVal,hiredIds,openFleet,PROD,GOODS,buy,sell,sellPrice,buyPrice,set S(v){S=v;},update,findPath,setRoute,windAt,currentAt,isLand,proj,inv,PORTS,enterPort,leavePort,expPct,save,load,dailyTick,get route(){return route;},get autop(){return autop;},nearPort,start,render,cam};
@@ -2006,7 +2039,7 @@ function drawPirates(){if(!S.pir)return;const t=performance.now()/1000;
   bossHomes().forEach((h,i)=>{if(!S.bk[i]||S.bd[i])return;const s=toScr(...proj(h[0],h[1]));ctx.strokeStyle='rgba(168,50,42,.8)';ctx.setLineDash([4,4]);ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(s[0],s[1],16,0,7);ctx.stroke();ctx.setLineDash([]);
     ctx.font='bold 11px serif';ctx.textAlign='center';ctx.lineWidth=3;ctx.strokeStyle='rgba(243,232,207,.95)';const tx='☠ '+BOSS[i].n+' 근거지';ctx.strokeText(tx,s[0],s[1]+28);ctx.fillStyle='#a8322a';ctx.fillText(tx,s[0],s[1]+28);ctx.textAlign='left';});
   for(const p of S.pir){if(!pirVisible(p))continue;const s=toScr(...proj(p.lat,p.lon)),hd=dirOnScreen(p.lat,p.lon,Math.sin(p.hd*DEG),Math.cos(p.hd*DEG));
-    ctx.save();ctx.translate(s[0],s[1]);ctx.rotate(Math.atan2(hd[1],hd[0]));const k=Math.max(.8,Math.min(1.4,cam.z*.6));ctx.scale(k,k);
+    ctx.save();ctx.translate(s[0],s[1]);ctx.rotate(Math.atan2(hd[1],hd[0]));const k=shipSc()*.95;ctx.scale(k,k);
     ctx.fillStyle='#231a17';ctx.strokeStyle='#000';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(14,0);ctx.quadraticCurveTo(5,-6,-10,-4);ctx.lineTo(-10,4);ctx.quadraticCurveTo(5,6,14,0);ctx.fill();ctx.stroke();
     ctx.fillStyle=p.boss!=null?'#8a1f1a':'#3a3030';ctx.fillRect(1,-9,3,18);ctx.fillRect(-6,-7,3,14);ctx.restore();
     if(p.mode==='chase'&&!(p.calm>S.day)){ctx.strokeStyle=`rgba(200,40,30,${.5+.4*Math.sin(t*5)})`;ctx.lineWidth=2;ctx.beginPath();ctx.arc(s[0],s[1],15,0,7);ctx.stroke();}
@@ -2714,7 +2747,7 @@ function buildMobile(){
     const d=tch;tch=null;if(!d.moved&&!d.long&&!d.pinch&&inPort<0)clickAt(d.x,d.y);},{passive:false});
   // 표에 항목 이름 붙이기 (모바일 카드 모양)
   new MutationObserver(()=>{if(MOB)requestAnimationFrame(labelTables);}).observe(document.body,{childList:true,subtree:true});}
-function zoomAt(sx,sy,f){if(B){B.zm=Math.max(.45,Math.min(2.6,B.zm*f));return;}const before=toImg(sx,sy);cam.z=Math.max(.15,Math.min(5,cam.z*f));
+function zoomAt(sx,sy,f){if(B){B.zm=Math.max(.45,Math.min(2.6,B.zm*f));return;}const before=toImg(sx,sy);cam.z=Math.max(.15,Math.min(12,cam.z*f));
   if(!follow){const after=toImg(sx,sy);cam.x+=before[0]-after[0];cam.y+=before[1]-after[1];}}
 function labelTables(){document.querySelectorAll('table.mt:not([data-lb])').forEach(t=>{t.dataset.lb=1;const hr=t.querySelector('tr');if(!hr||!hr.querySelector('th'))return;hr.classList.add('thr');
   const hs=[...hr.children].map(th=>th.textContent.trim());t.querySelectorAll('tr').forEach(tr=>{if(tr===hr)return;[...tr.children].forEach((td,i)=>{if(i>0&&hs[i])td.dataset.l=hs[i];});});});}
@@ -4242,7 +4275,7 @@ window.drawOthers=function(){if(!ON.live)return;const now=performance.now();
     if(now-g.trT>220){g.trT=now;const L=g.tr[g.tr.length-1];if(!L||Math.abs(L[0]-la)+Math.abs(wrapD(L[1]-lo))>.01){g.tr.push([la,lo]);if(g.tr.length>18)g.tr.shift();}}
     if(g.tr.length>1){ctx.lineWidth=2.4;ctx.lineCap='round';for(let i=1;i<g.tr.length;i++){const a=toScr(...proj(g.tr[i-1][0],g.tr[i-1][1])),b=toScr(...proj(g.tr[i][0],g.tr[i][1]));if(Math.abs(a[0]-b[0])>VW/2)continue;ctx.strokeStyle=`rgba(47,125,134,${.08+.4*i/g.tr.length})`;ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}}
     const s=toScr(...proj(la,lo));if(s[0]<-40||s[1]<-40||s[0]>VW+40||s[1]>VH+40)continue;
-    const hd=dirOnScreen(la,lo,Math.sin(g.hd*DEG),Math.cos(g.hd*DEG));ctx.save();ctx.translate(s[0],s[1]);ctx.rotate(Math.atan2(hd[1],hd[0]));const k=Math.max(.8,Math.min(1.3,cam.z*.55));ctx.scale(k,k);
+    const hd=dirOnScreen(la,lo,Math.sin(g.hd*DEG),Math.cos(g.hd*DEG));ctx.save();ctx.translate(s[0],s[1]);ctx.rotate(Math.atan2(hd[1],hd[0]));const k=shipSc()*.95;ctx.scale(k,k);
     const bob=Math.sin(now/400+(+id))*.6;ctx.translate(0,bob);
     ctx.fillStyle='#2f7d86';ctx.strokeStyle='#123';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(13,0);ctx.quadraticCurveTo(4,-6,-9,-4);ctx.lineTo(-9,4);ctx.quadraticCurveTo(4,6,13,0);ctx.fill();ctx.stroke();
     ctx.fillStyle='#fdf6e3';ctx.strokeStyle='#8a6a44';ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(1,-9);ctx.quadraticCurveTo(5,0,1,9);ctx.lineTo(0,9);ctx.lineTo(0,-9);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
