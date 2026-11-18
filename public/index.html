@@ -3133,12 +3133,14 @@ const YARD_PERK=['','개조비 −15%','개조비 −15% · 새 배 값 −5%','
 const spWin=()=>Math.floor(S.day/30);
 const spLeft=p=>{const n=yardLv(p)>=5?2:1,u=(S.ysp&&S.ysp[p]&&S.ysp[p].w===spWin())?S.ysp[p].n:0;return Math.max(0,n-u);};
 const spPrice=t=>Math.round(SHIPTYPES[t].price*1.6);
-function rollShip(lv){const r=Math.random,cnt=lv>=5?(r()<.4?3:2):lv>=4?(r()<.4?2:1):1,rare=lv>=5?.35:lv>=4?.2:.1;
+// 명성 칭호가 높을수록: 수식어가 하나 더 붙을 확률·희귀 수식어 확률·보정 크기·전설의 배 확률이 오른다
+function rollShip(lv){const r=Math.random,ft=typeof fameTier==='function'?fameTier():0,B=shipFameBoost(ft);let cnt=lv>=5?(r()<.4?3:2):lv>=4?(r()<.4?2:1):1;if(cnt<3&&r()<B.more)cnt++;const rare=(lv>=5?.35:lv>=4?.2:.1)+B.rare;
   const pool=SMOD.slice().sort(()=>r()-.5).slice(0,cnt);const x={spd:1,hp:1,hold:1,guns:1,crew:1,mods:[]};let val=1;
-  for(const m of pool){const R=r()<rare?m.b:m.a,v=R[1]+(R[2]-R[1])*r();x[m.k]=+(1+v).toFixed(3);x.mods.push([m.k,R[0],Math.round(v*100)]);val+=Math.abs(v)*1.2;}
+  for(const m of pool){const R=r()<rare?m.b:m.a,v=R[1]+(R[2]-R[1])*Math.pow(r(),B.skew);x[m.k]=+(1+v).toFixed(3);x.mods.push([m.k,R[0],Math.round(v*100)]);val+=Math.abs(v)*1.2;}
   let nm=x.mods.map(m=>m[1]).join('·');
-  if(lv>=5&&r()<.06){nm='전설의 '+nm;x.spd=+(x.spd*1.1).toFixed(3);x.hp=+(x.hp*1.1).toFixed(3);x.leg=1;val+=.4;}
+  if((lv>=5&&r()<.06+B.leg)||(lv===4&&ft>=5&&r()<.03)){nm='전설의 '+nm;x.spd=+(x.spd*1.1).toFixed(3);x.hp=+(x.hp*1.1).toFixed(3);x.leg=1;val+=.4;}
   x.nm=nm;x.val=+val.toFixed(2);return x;}
+function shipFameBoost(t){return {more:.05*t,rare:.03*t,skew:1/(1+.15*t),leg:.015*t};}
 let yardReveal=null;
 const modTxt=x=>x.mods.map(m=>`${SMOD.find(s=>s.k===m[0]).t} ${m[2]>0?'+':''}${m[2]}%`).join(' · ')+(x.leg?' · 전설 +10%':'');
 {const yh0=yardHTML;yardHTML=function(p){let h=yh0(p);const lv=yardLv(p),v=(S.yinv&&S.yinv[p])||0,L=yardTypes(p),left=spLeft(p);
@@ -4324,7 +4326,7 @@ const tavPer=()=>Math.floor(S.day/TAV_DAYS),tavMo=()=>Math.floor(S.day/30);
 // 이 항구 주점의 일반 손님 3명 (+ 이번 달 수소문한 인재)
 function tavRegular(p){const per=tavPer(),r=srand(strH(`t|${p}|${per}|${S.sid}`)),out=[];
   const rk='r:'+p+':'+per,roll=r(),x=r();let rs=spFind(rk);
-  if(!rs&&roll<(typeof spChance==='function'?spChance():.06))rs=genSpecial(p,x<.03?3:x<.18?2:1,rk);
+  const ft=typeof fameTier==='function'?fameTier():0;if(!rs&&roll<(typeof spChance==='function'?spChance():.06))rs=genSpecial(p,x<.03+.007*ft?3:x<.18+.025*ft?2:1,rk);
   if(rs)out.push(rs);
   const cul=culOf(p),pool=MATES.filter(m=>!m.story&&!m.hero&&!m.sp),pref=pool.filter(m=>culOf(m.home)===cul);
   for(let g=0;out.length<3&&g<40;g++){const src=(pref.length&&r()<.75)?pref:pool;const m=src[Math.floor(r()*src.length)];if(m&&!out.includes(m))out.push(m);}
@@ -4899,6 +4901,8 @@ function spSearchOdds(){const t=fameTier();return [.05+.01*t,.30+.03*t];} // 수
 function famePerks(t){const L=[];if(t>0)L.push(`교역소에서 사는 값 −${t}% · 파는 값 +${(t*.5).toFixed(1)}%`);
   L.push(`주점에 특별 항해자가 있을 확률 ${((.06+.015*t)*100).toFixed(1)}%`);
   const o=[.05+.01*t,.3+.03*t];L.push(`수소문: 전설 ${(o[0]*100).toFixed(0)}% · 영웅급 ${(o[1]*100).toFixed(0)}%`);
+  L.push(`주점 특별 항해자 중 전설 ${(3+.7*t).toFixed(1)}% · 영웅급 ${(15+1.8*t).toFixed(1)}%`);
+  if(t>0)L.push(`조선소 특별 주문: 수식어 하나 더 ${5*t}% · 희귀 수식어 +${3*t}%p · 보정이 더 크게 · 전설의 배 +${(1.5*t).toFixed(1)}%p${t>=5?' (공업 4등급에서도 전설의 배)':''}`);
   L.push(t>=FAME_LEGEND?'👑 전설의 항해자가 함대에 합류함':`👑 전설의 항해자는 '${FAME_T[FAME_LEGEND][1]}' 이상이 되어야 합류`);return L;}
 // 교역 값
 {const b0=buyPrice;buyPrice=function(p,g){return Math.max(1,Math.round(b0(p,g)*fameBuyMul()));};}
@@ -4913,7 +4917,7 @@ function fameHTML(){const f=S.fame||0,t=fameTier(f),nx=FAME_T[t+1],pc=nx?Math.mi
    <div class="fwcur">${fameTitle(t)} <small>명성 ${f.toLocaleString()}</small></div>
    <div class="fwbar"><div style="width:${pc.toFixed(1)}%"></div></div><div class="hint">${nx?`다음 칭호 '${nx[1]}'까지 ${(nx[0]-f).toLocaleString()}`:'가장 높은 칭호입니다.'}</div>
    <h4>지금 받는 혜택</h4><ul>${famePerks(t).map(x=>`<li>${x}</li>`).join('')}</ul>
-   <h4>칭호 단계</h4><table class="mt">${FAME_T.map(([v,n],i)=>`<tr class="${i===t?'fwon':i<t?'fwdone':''}"><td>${i<=t?'⭐':'☆'} <b>${n}</b></td><td class="n">${v.toLocaleString()}</td><td class="hint">${i?`사는 값 −${i}%`:'—'}${i===FAME_LEGEND?' · 👑 전설 합류':''}</td></tr>`).join('')}</table>
+   <h4>칭호 단계</h4><table class="mt">${FAME_T.map(([v,n],i)=>`<tr class="${i===t?'fwon':i<t?'fwdone':''}"><td>${i<=t?'⭐':'☆'} <b>${n}</b></td><td class="n">${v.toLocaleString()}</td><td class="hint">${i?`사는 값 −${i}% · 좋은 배·항해자 확률 ↑`:'—'}${i===FAME_LEGEND?' · 👑 전설 합류':''}</td></tr>`).join('')}</table>
    <div class="hint" style="margin-top:6px">명성을 얻는 길: 발견물 보고(가장 큼) · 항구 투자 · 해적 두목 토벌 · 내륙 도시 첫 방문 · 바다 위 사건과 숨은 건물</div></div>`;}
 function openFame(){let d=document.getElementById('famewin');if(!d){d=document.createElement('div');d.id='famewin';document.body.appendChild(d);}d.innerHTML=fameHTML();d.style.display='flex';d.querySelector('.fwx').onclick=()=>d.style.display='none';d.onclick=e=>{if(e.target===d)d.style.display='none';};}
 document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('.famechip')){e.stopPropagation();openFame();}},true);
