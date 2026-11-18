@@ -5042,6 +5042,13 @@ const GIMG={"0":"","1":"","2":"","3":"","4":"","5":"","6":"","7":"","8":"","9":"
 const DIMG={"0":"","1":"","2":"","3":"","4":"","5":"","6":"","7":"","8":"","9":"","10":"","11":"","12":"","13":"","14":"","15":"","16":"","17":"","18":"","19":"","20":"","21":"","22":"","23":"","24":"","25":"","26":"","27":"","28":"","29":"","30":"","31":"","32":"","33":"","34":"","35":"","36":"","37":"","38":"","39":"","40":"","41":"","42":"","43":"","44":"","45":"","46":"","47":"","48":"","49":"","50":"","51":"","52":"","53":"","54":"","55":"","56":"","57":"","58":"","59":"","60":"","61":"","62":"","63":"","64":"","65":"","66":"","67":"","68":"","69":"","70":"","71":"","72":"","73":"","74":"","75":"","76":"","77":"","78":"","79":"","80":"","81":"","82":"","83":"","84":"","85":"","86":"","87":"","88":"","89":"","90":"","91":"","92":"","93":"","94":"","95":"","96":"","97":"","98":"","99":"","100":"","101":"","102":"","103":"","104":"","105":"","106":"","107":"","108":"","109":"","110":"","111":"","112":"","113":"","114":"","115":"","116":"","117":"","118":"","119":"","120":"","121":"","122":"","123":"","124":"","125":"","126":"","127":"","128":"","129":"","130":"","131":"","132":"","133":"","134":"","135":"","136":"","137":"","138":"","139":"","140":"","141":"","142":""};
 {const d0=discPic;discPic=function(id){return DIMG[id]||d0(id);};}
 
+// ===== 도시 그림 (제미나이 그림; 문화권별) =====
+const CIMG={"busan":""};
+function cityKey(id){const P=PORTS[id];if(id===HOME)return 'busan';const c=culOf(id),la=Math.abs(-P.lat);
+  if(P.inland)return ['me','af','sa','ea'].includes(c)?'in_dry':'in_green';
+  if(c==='eu')return la<46?'eu_med':'eu_north';if(c==='am')return la<23.5?'am_trop':'am_temp';return c;}
+{const b0=portBanner;portBanner=function(id){try{const k=cityKey(id);if(CIMG[k])return CIMG[k];}catch(e){}return b0(id);};}
+
 // ===== 바람과 해류를 '흐름'으로 보여 주기 =====
 // 보기: 0 흐름(하얀 바람 줄기 + 해류의 띠와 물결) · 1 화살표(예전 방식) · 2 끔. V 키로 바꾼다.
 const FLOW_NAMES=['바람·해류 흐름','바람·해류 화살표','표시 끔'];
@@ -5630,9 +5637,9 @@ function otherAt(sx,sy){if(!ON.live)return null;const now=performance.now();let 
 
 
 // ===== 그림 묶음 불러오기 (게임 파일 밖 a/*.json) =====
-const ASSET_B=[["FACES", "a/faces.0642fb67e5.json"], ["GIMG", "a/gimg.90b64b3902.json"], ["IGART", "a/igart.4ec7b2794b.json"], ["DIMG", "a/dimg.35a5e20d11.json"]];const ASSET_OK={};
+const ASSET_B=[["FACES", "a/faces.0642fb67e5.json"], ["CIMG", "a/cimg.f7d26a8042.json"], ["GIMG", "a/gimg.90b64b3902.json"], ["IGART", "a/igart.4ec7b2794b.json"], ["DIMG", "a/dimg.35a5e20d11.json"]];const ASSET_OK={};
 function assetFill(t,s){for(const k in s){const v=s[k];if(v&&typeof v==='object'){if(!t[k]||typeof t[k]!=='object')t[k]=Array.isArray(v)?[]:{};assetFill(t[k],v);}else t[k]=v;}}
-const ASSET_TGT={FACES:()=>FACES,GIMG:()=>GIMG,IGART:()=>IGART,DIMG:()=>DIMG};
+const ASSET_TGT={FACES:()=>FACES,CIMG:()=>CIMG,GIMG:()=>GIMG,IGART:()=>IGART,DIMG:()=>DIMG};
 const ASSET_AFTER={IGART:()=>{try{window.IGS_FILL&&IGS_FILL();}catch(e){}}};
 async function assetLoad(){for(const [v,u] of ASSET_B){for(let tr=0;tr<3&&!ASSET_OK[v];tr++){try{const r=await fetch(u);if(!r.ok)throw 0;assetFill(ASSET_TGT[v](),await r.json());ASSET_OK[v]=1;
   try{(ASSET_AFTER[v]||(()=>{}))();}catch(e){}try{if(typeof PT_C!=='undefined')for(const k in PT_C)delete PT_C[k];}catch(e){}
