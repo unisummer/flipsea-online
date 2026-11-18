@@ -4478,7 +4478,7 @@ function deskProps(){if(DESK.props)return DESK.props;const mk=(w,h,f)=>{const c=
     const gr=g.createLinearGradient(80,0,140,0);gr.addColorStop(0,'#e6dcc0');gr.addColorStop(.5,'#fbf4e2');gr.addColorStop(1,'#d8ccaa');g.fillStyle=gr;g.fillRect(82,170,56,196);g.fillStyle='#f4ecd6';g.beginPath();g.ellipse(110,170,28,8,0,0,7);g.fill();
     g.strokeStyle='#2a1a0a';g.lineWidth=3;g.beginPath();g.moveTo(110,170);g.lineTo(110,150);g.stroke();});
   return DESK.props={rose,divider,ink,candle};}
-function drawDesk(c){if(!S)return;const z=cam.z;
+function drawTable(c){const z=cam.z;
   c.save();
   // 책상: 지도 바깥 전체 (나뭇결은 화면 크기에 맞게)
   const big=new Path2D();big.rect(-IMW*3,-IMH*3,IMW*7,IMH*7);big.addPath(deskOval());const pat=deskWood();try{pat.setTransform(new DOMMatrix().scale(1/z));}catch(e){}
@@ -4494,6 +4494,57 @@ function drawDesk(c){if(!S)return;const z=cam.z;
    c.globalCompositeOperation='lighter';const R=IMH*(.09+.05*dk)*fl,g=c.createRadialGradient(fx,fy,0,fx,fy,R);g.addColorStop(0,`rgba(255,190,90,${.35+.25*dk})`);g.addColorStop(1,'rgba(255,160,60,0)');c.fillStyle=g;c.beginPath();c.arc(fx,fy,R,0,7);c.fill();
    c.globalCompositeOperation='source-over';c.fillStyle='#ffd27a';c.beginPath();c.ellipse(fx,fy-8*u*fl,5*u,13*u*fl,Math.sin(t*5)*.08,0,7);c.fill();c.fillStyle='#fff6d8';c.beginPath();c.ellipse(fx,fy-5*u,2.4*u,6*u,0,0,7);c.fill();}
   c.restore();}
+
+// ===== 지도 바깥: 우주에 떠 있는 지구 =====
+// 별(멀리 있어 천천히 흐르는 시차), 은하수와 성운, 반짝이는 별, 가끔 지나가는 별똥별, 대기의 푸른 빛, 오늘의 달 모양.
+const SPC={tile:null,tw:null,shoot:null};const SPC_T=1024;
+function spcTile(){if(SPC.tile)return SPC.tile;const c=document.createElement('canvas');c.width=c.height=SPC_T;const g=c.getContext('2d'),r=srand(777);
+  g.fillStyle='#02040b';g.fillRect(0,0,SPC_T,SPC_T);
+  // 은하수 띠 (대각선) — 타일 이음매가 보이지 않게 9번 겹쳐 그림
+  const band=(ox,oy)=>{const r=srand(4242);for(let i=0;i<70;i++){const t=r(),x=ox+t*SPC_T,y=oy+SPC_T*.85-t*SPC_T*.7+(r()-.5)*170,R=60+r()*150,col=r()<.5?'90,110,190':r()<.5?'150,90,170':'60,130,170';
+    const gr=g.createRadialGradient(x,y,0,x,y,R);gr.addColorStop(0,`rgba(${col},${.05+r()*.06})`);gr.addColorStop(1,`rgba(${col},0)`);g.fillStyle=gr;g.fillRect(x-R,y-R,R*2,R*2);}};
+  for(const ox of [-SPC_T,0,SPC_T])for(const oy of [-SPC_T,0,SPC_T])band(ox,oy);
+  // 작은 별 먼지
+  for(let i=0;i<1600;i++){const x=r()*SPC_T,y=r()*SPC_T,a=.15+r()*.5,s=r()<.92?.6:1.1,h=r();g.fillStyle=h<.15?`rgba(255,210,170,${a})`:h<.3?`rgba(170,200,255,${a})`:`rgba(235,240,255,${a})`;g.fillRect(x,y,s,s);}
+  // 조금 더 밝은 별 (빛 번짐)
+  for(let i=0;i<90;i++){const x=r()*SPC_T,y=r()*SPC_T,R=2+r()*3.5,h=r(),col=h<.2?'255,215,180':h<.45?'180,205,255':'245,248,255';const gr=g.createRadialGradient(x,y,0,x,y,R);gr.addColorStop(0,`rgba(${col},.95)`);gr.addColorStop(.35,`rgba(${col},.35)`);gr.addColorStop(1,`rgba(${col},0)`);g.fillStyle=gr;g.fillRect(x-R,y-R,R*2,R*2);}
+  SPC.tw=[];for(let i=0;i<45;i++)SPC.tw.push({x:r()*SPC_T,y:r()*SPC_T,s:1.2+r()*1.8,f:1+r()*2.5,p:r()*7,c:r()<.3?'200,220,255':'255,250,235'});
+  return SPC.tile=c;}
+function spcMoon(R,phase){const c=document.createElement('canvas'),S2=Math.ceil(R*2+8);c.width=c.height=S2;const g=c.getContext('2d'),m=S2/2;
+  const gr=g.createRadialGradient(m-R*.3,m-R*.3,R*.1,m,m,R);gr.addColorStop(0,'#f4f1e6');gr.addColorStop(1,'#b9b4a4');g.fillStyle=gr;g.beginPath();g.arc(m,m,R,0,7);g.fill();
+  const r=srand(91);g.fillStyle='rgba(120,115,100,.35)';for(let i=0;i<9;i++){const a=r()*7,d=r()*R*.7,cr=R*(.06+r()*.14);g.beginPath();g.arc(m+Math.cos(a)*d,m+Math.sin(a)*d,cr,0,7);g.fill();}
+  // 그림자 (MOON 순서: 0 그믐 → 4 보름 → 7 그믐달)
+  const k=phase/8,lit=(1-Math.cos(k*2*Math.PI))/2;g.globalCompositeOperation='source-atop';g.fillStyle='rgba(4,6,16,.88)';
+  if(lit<.03){g.beginPath();g.arc(m,m,R+1,0,7);g.fill();}else if(lit<.97){const wax=k<.5,tx=R*(1-2*lit);g.beginPath();
+    if(wax){g.arc(m,m,R+1,Math.PI/2,Math.PI*1.5);g.ellipse(m,m,Math.abs(tx),R+1,0,-Math.PI/2,Math.PI/2,tx<0);}else{g.arc(m,m,R+1,-Math.PI/2,Math.PI/2);g.ellipse(m,m,Math.abs(tx),R+1,0,Math.PI/2,-Math.PI/2,tx<0);}g.fill();}
+  return c;}
+function drawSpace(c){const z=cam.z,t=performance.now()/1000;
+  const big=new Path2D();big.rect(-IMW*3,-IMH*3,IMW*7,IMH*7);big.addPath(deskOval());
+  c.save();c.clip(big,'evenodd');
+  // 별 하늘은 화면 기준으로 그리고, 지도보다 훨씬 느리게 흐르게 해서 아주 멀리 있는 느낌을 준다
+  const T=c.getTransform();c.setTransform(DPR,0,0,DPR,0,0);const tile=spcTile(),par=.06,ox=-((cam.x*z*par)%SPC_T+SPC_T)%SPC_T,oy=-((cam.y*z*par)%SPC_T+SPC_T)%SPC_T;
+  for(let x=ox;x<VW;x+=SPC_T)for(let y=oy;y<VH;y+=SPC_T){c.drawImage(tile,x,y);
+    for(const s of SPC.tw){const a=.35+.65*Math.max(0,Math.sin(t*s.f+s.p)),px=x+s.x,py=y+s.y;if(px<-10||px>VW+10||py<-10||py>VH+10)continue;c.fillStyle=`rgba(${s.c},${a})`;
+      c.fillRect(px-s.s/2,py-s.s/2,s.s,s.s);c.fillStyle=`rgba(${s.c},${a*.35})`;c.fillRect(px-s.s*2.2,py-.4,s.s*4.4,.8);c.fillRect(px-.4,py-s.s*2.2,.8,s.s*4.4);}}
+  // 별똥별
+  if(!SPC.shoot&&Math.random()<.004)SPC.shoot={x:Math.random()*VW,y:Math.random()*VH*.6,a:.5+Math.random()*.5,t:0,v:600+Math.random()*500};
+  if(SPC.shoot){const s=SPC.shoot;s.t+=1/60;const L=Math.min(1,s.t*3)*120,px=s.x+Math.cos(s.a)*s.v*s.t,py=s.y+Math.sin(s.a)*s.v*s.t,al=Math.max(0,1-s.t/1.1);
+    const gr=c.createLinearGradient(px,py,px-Math.cos(s.a)*L,py-Math.sin(s.a)*L);gr.addColorStop(0,`rgba(255,255,255,${al})`);gr.addColorStop(1,'rgba(255,255,255,0)');c.strokeStyle=gr;c.lineWidth=1.6;c.beginPath();c.moveTo(px,py);c.lineTo(px-Math.cos(s.a)*L,py-Math.sin(s.a)*L);c.stroke();if(s.t>1.1)SPC.shoot=null;}
+  c.setTransform(T);
+  // 대기: 지구를 감싸는 푸른 빛
+  c.shadowColor='rgba(110,180,255,.95)';c.shadowBlur=34*DPR;c.strokeStyle='rgba(140,200,255,.9)';c.lineWidth=6/z;c.stroke(deskOval());c.shadowBlur=14*DPR;c.stroke(deskOval());c.shadowBlur=0;
+  c.restore();
+  c.strokeStyle='rgba(190,225,255,.75)';c.lineWidth=1.6/z;c.stroke(deskOval());
+  // 달: 낮과 밤의 달 모양을 그대로 따른다
+  let ph=4;try{ph=dnInfo().moon;}catch(e){}const R=IMH*.055;if(!SPC.moon||SPC.moon.ph!==ph)SPC.moon={ph,img:spcMoon(256,ph)};
+  const mx=IMW*.93,my=IMH*.11;c.save();c.globalCompositeOperation='lighter';const gl=c.createRadialGradient(mx,my,R*.8,mx,my,R*2.2);gl.addColorStop(0,'rgba(200,210,255,.18)');gl.addColorStop(1,'rgba(200,210,255,0)');c.fillStyle=gl;c.beginPath();c.arc(mx,my,R*2.2,0,7);c.fill();c.restore();
+  const im=SPC.moon.img,k=R/256;c.drawImage(im,mx-im.width*k/2,my-im.height*k/2,im.width*k,im.height*k);}
+function deskMode(){return (S&&S.opt&&S.opt.outside)||'space';}
+function drawDesk(c){if(!S)return;if(deskMode()==='desk')drawTable(c);else drawSpace(c);}
+// ---- 설정: 지도 바깥 모습 ----
+{const oh0=optsHTML;optsHTML=function(){const m=deskMode();
+  return `<h4 style="margin:8px 0 4px">🌌 지도 바깥</h4><div class="optr"><div><b>지도 바깥 모습</b></div><div style="display:flex;gap:6px;margin-top:4px">${[['space','🌌 별이 뜬 우주'],['desk','🪵 선장의 탁자']].map(([k,n])=>`<button class="btn sm" data-outside="${k}" style="${m===k?'background:#c9a24a;color:#2a1a0a':''}">${n}</button>`).join('')}</div></div>`+oh0.apply(this,arguments);};}
+{const ob0=optsBind;optsBind=function(root){ob0(root);root.querySelectorAll('[data-outside]').forEach(b=>b.onclick=()=>{S.opt=S.opt||{};S.opt.outside=b.dataset.outside;save();root.querySelectorAll('[data-outside]').forEach(x=>x.style.cssText=x===b?'background:#c9a24a;color:#2a1a0a':'');toast(b.dataset.outside==='desk'?'지도 바깥: 선장의 탁자':'지도 바깥: 별이 뜬 우주');});};}
 
 // ===== 바람과 해류를 '흐름'으로 보여 주기 =====
 // 보기: 0 흐름(하얀 바람 줄기 + 해류의 띠와 물결) · 1 화살표(예전 방식) · 2 끔. V 키로 바꾼다.
