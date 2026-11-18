@@ -594,8 +594,9 @@ const MATES=[];
   let id=STORY.length,seed=1;const R=()=>hash3(seed++,77,13);
   const gen=p=>{for(let k=0;k<3;k++){const b=bandOf(p.lat),pool=NAMEP[b];let nm;
       for(let t=0;t<20;t++){nm=pool[0][Math.floor(R()*pool[0].length)]+' '+pool[1][Math.floor(R()*pool[1].length)];if(!MATES.some(m=>m.name===nm))break;}
-      const st=STATK.map(()=>22+Math.floor(R()*30));const a=Math.floor(R()*8);let b2=Math.floor(R()*8);if(b2===a)b2=(a+3)%8;
-      st[a]+=32+Math.floor(R()*24);st[b2]+=18+Math.floor(R()*20);for(let q=0;q<8;q++)st[q]=Math.min(99,st[q]);
+      // 일반 항해자: 바탕 20~45, 주특기 55~74, 부특기 45~62 (✦ 뛰어난 인재부터 75 이상)
+      const st=STATK.map(()=>20+Math.floor(R()*26));const a=Math.floor(R()*8);let b2=Math.floor(R()*8);if(b2===a)b2=(a+3)%8;
+      st[a]=55+Math.floor(R()*20);st[b2]=Math.max(st[b2],45+Math.floor(R()*18));for(let q=0;q<8;q++)st[q]=Math.min(74,st[q]);
       MATES.push({id:id++,name:nm,home:p.id,st,tr:Math.floor(R()*TRAITS.length),per:Math.floor(R()*PERS.length)});}};
   PORTS.slice(0,40).forEach(gen);
   MATES.push({id:id,name:'호연',home:0,st:[62,52,48,55,40,42,30,45],tr:6,per:6,story:1,hero:1,bio:'이 이야기의 주인공. 세상을 모두 둘러보고 큰돈을 벌어 모두가 잘 먹고 잘살게 하겠다는 꿈을 꾼다.'});id++;
@@ -642,12 +643,13 @@ function assign(id,k,r,aux){const s=seatOf(id);if(s)S.fleet[s.k].as.splice(S.fle
   sh.as.push({m:id,r,aux:aux?1:0});S.st['role'+r]=1;checkMissions();save();return true;}
 function unassign(id){if(MATES[id].hero)return;const s=seatOf(id);if(s)S.fleet[s.k].as.splice(S.fleet[s.k].as.indexOf(s.a),1);save();}
 const XPN=20;
-// 성장: 자리에 앉은 하루마다 약 0.05 (20일에 1). 능력이 높을수록 느려져서(60 넘으면 점점, 95 근처는 5배 느림) 처음 능력치가 중요하다
+// 성장: 자리에 앉은 하루마다 약 0.08 (12~13일에 1), 주인공 1.5배, 선장 자리는 다른 능력도 40% 속도로. 능력이 높을수록 느려져서(60 넘으면 점점, 95 근처는 5배 느림) 처음 능력치가 중요하다
 const growDim=c=>c>=99?0:Math.max(.2,Math.min(1,(99-c)/40));
-function gainXp(i,r,v){const x=S.mt[i];if(!x)return;v*=1+trMine(i,'grow');const c0=curStF(i,r);if(c0>=99)return;
-  const before=Math.floor(c0+1e-6);x.g[r]=Math.round(((x.g[r]||0)+v*.05*growDim(c0))*1000)/1000;const after=curSt(i,r);
+const XP_BASE=.08,XP_HERO=1.5,XP_CAPT=.4; // 하루 성장 기본값 · 주인공 보정 · 선장 자리의 다른 능력 성장 비율
+function gainXp(i,r,v){const x=S.mt[i];if(!x)return;v*=1+trMine(i,'grow');if(MATES[i].hero)v*=XP_HERO;const c0=curStF(i,r);if(c0>=99)return;
+  const before=Math.floor(c0+1e-6);x.g[r]=Math.round(((x.g[r]||0)+v*XP_BASE*growDim(c0))*1000)/1000;const after=curSt(i,r);
   if(after>before){S.st.grow=(S.st.grow||0)+1;toast(`${MATES[i].name}의 ${STATK[r]}이(가) ${after}(으)로 올랐습니다.`);}}
-function mateDaily(){for(const i of hiredIds()){const s=seatOf(i);if(s)gainXp(i,s.a.r,s.a.aux?.6:1);else gainXp(i,bestRole(i),.25);}
+function mateDaily(){for(const i of hiredIds()){const s=seatOf(i);if(s){gainXp(i,s.a.r,s.a.aux?.6:1);if(s.a.r===0&&!s.a.aux)for(let r=1;r<8;r++)gainXp(i,r,XP_CAPT);}else gainXp(i,bestRole(i),.25);}
   if(Math.floor(S.day)%30===0)payday();}
 function payday(){const ids=hiredIds().filter(i=>!MATES[i].hero);if(!ids.length)return;const sum=ids.reduce((a,i)=>a+salaryNow(i),0);const pop=Math.round(traitV('loy'));
   if(S.gold>=sum){S.gold-=sum;ids.forEach(i=>S.mt[i].loy=Math.min(100,S.mt[i].loy+3+pop));toast(`항해자 월급 ${sum}골드를 냈습니다.`);}
@@ -3161,7 +3163,9 @@ const modTxt=x=>x.mods.map(m=>`${SMOD.find(s=>s.k===m[0]).t} ${m[2]>0?'+':''}${m
 {const c0=UPG.s.cost,c1=UPG.h.cost;UPG.s.cost=(T,n)=>Math.round(c0(T,n)*(S&&inPort>=0&&yardLv(inPort)>=1?.85:1));UPG.h.cost=(T,n)=>Math.round(c1(T,n)*(S&&inPort>=0&&yardLv(inPort)>=1?.85:1));}
 
 // ---------- 명품 상품 (시장 투자) ----------
-const LUXG=[['상급',1.25,1.15,1.3],['명품',1.45,1.25,1.4],['황실 진상',1.7,1.35,1.55],['전설의',2.0,1.5,1.75]]; // 이름, 파는 값 배수, 최소 판매가(원가 배수), 사는 값 배수
+// 이름, 파는 값 배수, 최소 판매가(원가 배수), 사는 값 배수 — 파는 배수가 사는 배수보다 훨씬 커서, 같은 길을 오가도 보통 상품보다 1.3~2배 더 남는다
+const LUXG=[['상급',1.7,1.3,1.3],['명품',2.2,1.5,1.45],['황실 진상',2.8,1.8,1.6],['전설의',3.6,2.2,1.8]];
+const luxG=l=>LUXG.find(x=>x[0]===l.gr)||[l.gr,l.mul,l.fl,1];
 const LUXP=[null,null,[1,0,0,0],[.7,.3,0,0],[.4,.4,.2,0],[.2,.4,.3,.1]];
 const luxWin=()=>Math.floor(S.day/10);
 function luxOffers(p){const lv=mktLv(p);if(lv<2)return [];const r=srng(p*7919+luxWin()*104729+(S.seed||0)),L=prodList(p).slice();if(!L.length)return [];
@@ -3170,7 +3174,7 @@ function luxOffers(p){const lv=mktLv(p);if(lv<2)return [];const r=srng(p*7919+lu
     const G=LUXG[gi],key=p+':'+luxWin()+':'+i,used=(S.luxB&&S.luxB[key])||0;out.push({i,g,G,key,qty:Math.max(0,10+10*lv-used),price:Math.max(1,Math.round(buyPrice(p,g)*G[3]))});}
   return out;}
 const luxQ=()=>(S.lux||[]).reduce((a,l)=>a+l.q,0);
-const luxHere=(l,p)=>{const v=Math.round(sellPrice(p,l.g)*l.mul);return l.from===p?v:Math.max(v,Math.round(l.c*l.fl));};
+const luxHere=(l,p)=>{const G=luxG(l),v=Math.round(sellPrice(p,l.g)*G[1]);return l.from===p?v:Math.max(v,Math.round(l.c*G[2]));};
 {const ct0=cargoT;cargoT=function(){return ct0()+luxQ();};}
 {const a0=assetNow;assetNow=function(){return a0()+(S.lux||[]).reduce((a,l)=>a+l.q*l.c,0);};}
 function luxBuy(o,n){const p=inPort;n=Math.min(n,o.qty,freeT(),Math.floor(S.gold/o.price));if(n<=0)return;S.gold-=n*o.price;S.luxB=S.luxB||{};S.luxB[o.key]=(S.luxB[o.key]||0)+n;
@@ -3182,11 +3186,23 @@ function luxHTML(p){const lv=mktLv(p),O=luxOffers(p),mine=S.lux||[];let h='';
   if(lv>=2)h+=`<h4>✨ 오늘의 명품 <small>(시장 투자 ${lv}등급 · ${10-Math.floor(S.day)%10}일 뒤 바뀜)</small></h4><table class="mt">${O.map(o=>`<tr><td>${gi(o.g)} <b>${o.G[0]} ${GOODS[o.g][0]}</b><div class="hint">어디서 팔든 원가의 <b>${Math.round(o.G[2]*100)}%</b> 이상 · 보통 값의 ${o.G[1]}배 (이 항구에서 되팔면 보장 없음)</div></td><td class="n"><b>${o.price}</b></td><td class="n">${o.qty}</td>
     <td class="b">${o.qty?`<button data-lb="${o.i}" data-n="10">10</button><button data-lb="${o.i}" data-n="999">최대</button>`:'<small>다 팔림</small>'}</td></tr>`).join('')}</table>`;
   else h+=`<p class="hint">✨ 이 항구의 <b>시장 투자 2등급</b>(${IVLV[2].toLocaleString()}골드)부터 <b>명품 상품</b>이 나옵니다. 어디서 팔아도 원가보다 비싸게 팔리는 특별한 물건입니다. (지금 ${lv}등급)</p>`;
-  if(mine.length)h+=`<h4>✨ 내 명품 짐</h4><table class="mt"><tr><th>상품</th><th class="n">수량</th><th class="n">원가</th><th class="n">여기 값</th><th class="n">원가 대비</th><th></th></tr>${mine.map((l,i)=>{const v=luxHere(l,p);return `<tr><td>${gi(l.g)} ${l.gr} ${GOODS[l.g][0]}${l.from===p?' <small class="hint">(산 곳)</small>':''}</td><td class="n">${l.q}</td><td class="n">${Math.round(l.c)}</td><td class="n"><b>${v}</b></td><td class="n" style="color:${v>=l.c?'#3b7a3b':'#a8322a'}">${Math.round(v/l.c*100)}%</td><td class="b"><button data-ls="${i}" data-n="10">10</button><button data-ls="${i}" data-n="999">전부</button></td></tr>`;}).join('')}</table>`;
+  // 내 명품 짐은 '내 짐 팔기' 표 안에 함께 들어간다 (luxRows)
   return h;}
 {const dp0=drawPort;drawPort=function(){const r=dp0.apply(this,arguments);try{if(inPort>=0&&portTab==='trade'){const t=document.querySelector('#portbox .sellt');if(t){t.insertAdjacentHTML('afterend',`<div id="luxbox">${luxHTML(inPort)}</div>`);
     const O=luxOffers(inPort);document.querySelectorAll('#luxbox [data-lb]').forEach(b=>b.onclick=()=>luxBuy(O.find(o=>o.i===+b.dataset.lb),+b.dataset.n));
-    document.querySelectorAll('#luxbox [data-ls]').forEach(b=>b.onclick=()=>luxSell(+b.dataset.ls,+b.dataset.n));}}}catch(e){console.error(e);}return r;};}
+    if((S.lux||[]).length){const tb=t.tBodies[0]||t;const empty=[...t.querySelectorAll('td[colspan]')];empty.forEach(e=>e.parentNode.remove());tb.insertAdjacentHTML('beforeend',luxRows(inPort));}
+    document.querySelectorAll('#portbox [data-ls]').forEach(b=>b.onclick=()=>luxSell(+b.dataset.ls,+b.dataset.n));}}}catch(e){console.error(e);}return r;};}
+// 명품 짐을 일반 팔기 표의 줄로
+function luxRec(l,p){const G=luxG(l),v=luxHere(l,p),pc=v/l.c*100;let best=null;for(const q of (S.found||[]))if(q!==p){const w=luxHere(l,q);if(!best||w>best.v)best={p:q,v:w};}
+  const pb=best?v/best.v*100:null,rec=l.from===p?['산 곳','#a8322a','여기서는 보장 값이 없습니다',0]:pb!=null&&pb<75?['들고 가기','#2f5d73',`${PORTS[best.p].name}에서 더 비쌈 (${best.v})`,0]:pc>=150?['팔기 좋음','#3b7a3b','명품 값이 충분히 붙음',1]:['팔아도 좋음','#7a6a2a','어디서든 원가의 '+Math.round(G[2]*100)+'% 이상',1];
+  return {G,v,pc,best,pb,rec};}
+function luxRows(p){return (S.lux||[]).map((l,i)=>{const {G,v,pc,best,pb,rec}=luxRec(l,p);
+  return `<tr class="luxrow"><td>${gi(l.g)} <b>✨ ${l.gr} ${GOODS[l.g][0]}</b><div class="hint">명품 · 보통 값의 ${G[1]}배 · 최소 원가의 ${Math.round(G[2]*100)}%</div></td><td class="n">${l.q}</td><td class="n">${Math.round(l.c)}</td>
+   <td class="n"><b>${v}</b></td><td class="n"><b style="color:${pc>=100?'#3b7a3b':'#a8322a'}">${Math.round(pc)}%</b></td>
+   <td>${best?`${PORTS[best.p].name} <b>${best.v}</b>`:'<small class="hint">모름</small>'}</td><td class="n">${pb!=null?Math.round(pb)+'%':'-'}</td>
+   <td><b style="color:${rec[1]}">${rec[0]}</b><div class="hint">${rec[2]}</div></td>
+   <td class="b"><button data-ls="${i}" data-n="10">10</button><button data-ls="${i}" data-n="999">전부</button></td></tr>`;}).join('');}
+{const st=document.createElement('style');st.textContent='.luxrow td{background:rgba(232,194,90,.16)}';document.head.appendChild(st);}
 // 시장의 집: 투자로 얻는 것 정리
 {const ih0=investHTML;investHTML=function(p){const h=ih0(p),v=(S.inv&&S.inv[p])||0,lv=mktLv(p),yv=(S.yinv&&S.yinv[p])||0;
   const M=['','등급 표시만','✨ 명품 상품 1종 (상급)','명품 2종 (상급·명품)','명품 2종, 황실 진상이 나올 수 있음','명품 3종, 전설의 상품이 나올 수 있음'];
@@ -3813,19 +3829,26 @@ function buyBody(id){const cmp=cmpOn();
      <div class="cb"><button data-buy="${g}" data-n="1">1</button><button data-buy="${g}" data-n="10">10</button><button class="main" data-buy="${g}" data-n="999" ${mx<1?'disabled':''}>최대 ${mx}톤</button></div></div>`;}).join('');
   return cmpBar(`화물칸 남은 자리 <b>${freeT()}</b>톤`)+`<div class="cgrid">${cards}</div>
    ${cmp?'':'<p class="hint">「비교 보기」를 켜면 다른 항구 시세와 많이 살 때 오르는 값을 함께 봅니다.</p>'}`;}
-function sellBody(id){const cmp=cmpOn(),ks=Object.keys(S.cargo).map(Number);
-  if(!ks.length)return `<p class="hint">실은 상품이 없습니다.</p><button data-go="buy">사기로 가기</button>${(S.lux||[]).length?' <button data-go="lux">✨ 명품 짐 팔기</button>':''}`;
+function sellBody(id){const cmp=cmpOn(),ks=Object.keys(S.cargo).map(Number),LX=S.lux||[];
+  if(!ks.length&&!LX.length)return `<p class="hint">실은 상품이 없습니다.</p><button data-go="buy">사기로 가기</button>`;
+  const luxRecs=LX.map(l=>luxRec(l,id));
+  const luxCards=LX.map((l,i)=>{const o=luxRecs[i],R=o.rec;return `<div class="card gcard lux">${gi(l.g,72)}<div class="cn"><b>✨ ${l.gr} ${GOODS[l.g][0]}</b></div><div class="cs">내 짐 <b>${l.q}</b>톤${l.from===id?' · <span class="tw">산 곳</span>':''}</div>
+     <div class="gp"><b>${o.v}</b>골드 <span class="rec" style="background:${R[1]}">${R[0]}</span></div>${cmp?`<div class="cmpc">원가 ${Math.round(l.c)} · 원가 대비 <b style="color:${o.pc>=100?'#3b7a3b':'#a8322a'}">${Math.round(o.pc)}%</b><br>명품: 보통 값의 ${o.G[1]}배 · 최소 원가의 ${Math.round(o.G[2]*100)}%<br>아는 최고 값: ${o.best?`<b>${PORTS[o.best.p].name}</b> ${o.best.v}`:'모름'}<br><span class="hint">${R[2]}</span></div>`:''}
+     <div class="cb"><button data-ls="${i}" data-n="10">10</button><button class="main" data-ls="${i}" data-n="999">전부 팔기</button></div></div>`;}).join('');
+  const luxOk=LX.map((l,i)=>luxRecs[i].rec[3]?i:-1).filter(i=>i>=0);
   const advs={};ks.forEach(g=>advs[g]=sellAdvice(id,g));const rec=ks.filter(g=>advs[g].rec==='sell'||advs[g].rec==='ok');
   const cards=ks.map(g=>{const c=S.cargo[g],a=advs[g],R=REC_TXT[a.rec],b=a.mx;
     const cx=cmp?`<div class="cmpc">원가 ${c.c>=1?Math.round(c.c):'없음(전리품)'} · ${a.pctCost==null?'전부 이익':`원가 대비 <b style="color:${a.pctCost>=100?'#3b7a3b':'#a8322a'}">${Math.round(a.pctCost)}%</b>`}<br>다 팔면 평균 ${Math.round(a.here)}<br>아는 최고 값: ${b?`<b>${PORTS[b.p].name}</b> ${b.v}${b.isEst?'(추정)':''} <small>${Math.round(b.d/100)*100}km</small> · 최고 대비 ${Math.round(a.pctBest)}%`:'모름'}<br><span class="hint">${a.why}</span></div>`:'';
     return `<div class="card gcard">${gi(g,72)}<div class="cn"><b>${GOODS[g][0]}</b> <span class="qs">${'★'.repeat(Math.round(c.ql||1))}</span></div><div class="cs">내 짐 <b>${c.q}</b>톤</div>
      <div class="gp"><b>${a.v}</b>골드 <span class="rec" style="background:${R[1]}">${R[0]}</span></div>${cx}
      <div class="cb"><button data-sell="${g}" data-n="10">10</button><button class="main" data-sell="${g}" data-n="999">전부 팔기</button></div></div>`;}).join('');
-  return cmpBar(rec.length?`<button id="sellrec">추천대로 팔기 (${rec.map(g=>GOODS[g][0]).join(', ')})</button>`:'')+`<div class="cgrid sellt">${cards}</div>
+  const recN=rec.map(g=>GOODS[g][0]).concat(luxOk.map(i=>'✨'+GOODS[LX[i].g][0]));
+  return cmpBar(recN.length?`<button id="sellrec">추천대로 팔기 (${recN.join(', ')})</button>`:'')+`<div class="cgrid sellt">${cards}${luxCards}</div>
    ${cmp?`<details class="note"><summary>추천은 어떻게 정하나요?</summary><p>여기서 다 팔 때의 평균값과, 내가 아는 다른 항구(회계사가 있으면 추정값 포함)로 가져가 팔 때를 비교합니다. 다른 항구 값은 10% 낮춰 보고(추정값은 15%), 가는 동안 드는 값(하루 월급 + 물·식량 값 + 짐값의 1%)을 뺍니다. 남는 것이 없으면 <b>지금 팔기</b>, 짐값의 15%보다 적게 남으면 <b>팔아도 좋음</b>, 그보다 많으면 <b>들고 가기</b>입니다.</p></details>`:'<p class="hint">「비교 보기」를 켜면 원가와 다른 항구 최고 값을 함께 봅니다.</p>'}
-   ${(S.lux||[]).length?'<p class="hint">✨ 명품 짐은 「명품」 탭에서 팝니다.</p>':''}`;}
+`;}
 function bindMarket(box){const id=inPort;
-  const sr=box.querySelector('#sellrec');if(sr)sr.onclick=()=>{Object.keys(S.cargo).map(Number).filter(g=>{const r=sellAdvice(id,g).rec;return r==='sell'||r==='ok';}).forEach(g=>sell(g,999));};
+  const sr=box.querySelector('#sellrec');if(sr)sr.onclick=()=>{Object.keys(S.cargo).map(Number).filter(g=>{const r=sellAdvice(id,g).rec;return r==='sell'||r==='ok';}).forEach(g=>sell(g,999));
+    for(let i=(S.lux||[]).length-1;i>=0;i--){if(S.lux[i]&&luxRec(S.lux[i],id).rec[3])luxSell(i,999);}};
   box.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>buy(+b.dataset.buy,+b.dataset.n));
   box.querySelectorAll('[data-sell]').forEach(b=>b.onclick=()=>sell(+b.dataset.sell,+b.dataset.n));
   const O=luxOffers(id);box.querySelectorAll('[data-lb]').forEach(b=>b.onclick=()=>luxBuy(O.find(o=>o.i===+b.dataset.lb),+b.dataset.n));
@@ -3838,9 +3861,7 @@ function luxBody(p){const lv=mktLv(p),mine=S.lux||[];let h='';
      <div class="cb">${o.qty?`<button data-lb="${o.i}" data-n="10">10</button><button class="main" data-lb="${o.i}" data-n="999">최대</button>`:'<small>다 팔림</small>'}</div></div>`).join('')}</div>
     <p class="hint">명품은 산 항구에서 되팔면 보장이 없습니다. 다른 항구로 가져가 파세요.</p>`;}
   else h+=`<div class="note">✨ 이 항구의 <b>시장 투자 2등급</b>(${IVLV[2].toLocaleString()}골드)부터 <b>명품 상품</b>이 나옵니다. 어디서 팔아도 원가보다 비싸게 팔리는 특별한 물건입니다. (지금 ${lv}등급 · 투자는 시장의 집에서)</div>`;
-  if(mine.length)h+=`<h4>✨ 내 명품 짐</h4><div class="cgrid">${mine.map((l,i)=>{const v=luxHere(l,p),r=v/l.c;return `<div class="card gcard lux">${gi(l.g,72)}<div class="cn"><b>${l.gr} ${GOODS[l.g][0]}</b></div><div class="cs">내 짐 <b>${l.q}</b>톤 · 원가 ${Math.round(l.c)}${l.from===p?' · <span class="tw">산 곳</span>':''}</div>
-     <div class="gp"><b>${v}</b>골드 <span class="rec" style="background:${r>=1?'#3b7a3b':'#a8322a'}">원가의 ${Math.round(r*100)}%</span></div>
-     <div class="cb"><button data-ls="${i}" data-n="10">10</button><button class="main" data-ls="${i}" data-n="999">전부 팔기</button></div></div>`;}).join('')}</div>`;
+  if(mine.length)h+=`<p class="hint">✨ 내 명품 짐 ${mine.reduce((a,l)=>a+l.q,0)}톤은 <b>팔기</b> 탭에서 다른 짐과 함께 팝니다. <button data-go="sell">팔기로 가기</button></p>`;
   return h;}
 // ---------- 조선소 ----------
 function ybuyBody(id){const L=yardTypes(id),lv=yardLv(id),left=spLeft(id),full=S.fleet.length>=5;
@@ -4292,7 +4313,7 @@ function spSync(){if(!S)return;if(!S.sp)S.sp=[];if(!S.spq)S.spq={};if(!S.sid)S.s
 function spFind(key){spSync();const i=S.sp.findIndex(o=>o.spk===key);return i<0?null:MATES[SP0+i];}
 function genSpecial(p,tier,key){spSync();const r=srand(strH(key+'|'+S.sid));
   const a=Math.floor(r()*8),b=(a+1+Math.floor(r()*7))%8,rg=(lo,hi)=>lo+Math.floor(r()*(hi-lo+1));
-  const B=[[35,60],[45,70],[60,80]][tier-1],M=[[80,90],[90,96],[97,99]][tier-1],C=[[65,78],[75,88],[88,95]][tier-1];
+  const B=[[35,55],[45,65],[55,72]][tier-1],M=[[75,84],[85,92],[93,99]][tier-1],C=[[62,74],[72,84],[85,92]][tier-1];
   const st=STATK.map(()=>rg(B[0],B[1]));st[a]=rg(M[0],M[1]);st[b]=rg(C[0],C[1]);
   const pool=NAMEP[bandOf(PORTS[p].lat)];let bn='';for(let t=0;t<30;t++){bn=pool[0][Math.floor(r()*pool[0].length)]+' '+pool[1][Math.floor(r()*pool[1].length)];if(!MATES.some(m=>(m.bn||m.name)===bn))break;}
   const mod=tier===1?SP_RMOD[a][Math.floor(r()*2)]:tier===2?SP_EMOD[a]:'전설의';
@@ -4360,7 +4381,7 @@ function mwinHTML(id){const m=MATES[id],x=S.mt[id],seat=x&&seatOf(id),hired=!!x;
     <div class="mwrad">${radarSVG(id,210,1)}</div></div>
    <div class="mwg">${[0,1,2,3,4,5,6,7].map(row).join('')}</div>
    <div class="mwt"><div>특기 <b>${TRAITS[m.tr][0]}</b> — ${TRAITS[m.tr][1]}</div>${m.tr2?`<div class="sptr">✨ 특별 특기 <b>${SPTR[m.tr2.i][0]}</b> — ${spDesc(m)}</div>`:''}${m.bio?`<div class="hint">${m.bio}</div>`:''}
-   <div class="hint">▲ 처음 능력치 · 진한 막대 = 자라난 만큼. 자리에 앉힌 역할의 능력이 하루 약 0.05씩 자라고(20일에 1), 60이 넘으면 점점 느려져 95 근처에서는 5배 느립니다. 그래서 처음 능력치가 중요합니다. 최고 99.</div></div></div>`;}
+   <div class="hint">▲ 처음 능력치 · 진한 막대 = 자라난 만큼. 자리에 앉힌 역할의 능력이 하루 약 0.08씩 자라고(12~13일에 1, 호연은 1.5배), 선장 자리에 앉으면 다른 능력도 그 40% 속도로 함께 자랍니다. 60이 넘으면 점점 느려져 95 근처에서는 5배 느립니다. 그래서 처음 능력치가 중요합니다. 최고 99.</div></div></div>`;}
 function openMWin(id,list){MW={id,list:list&&list.length?list:[id]};let el=$('mwin');if(!el){el=document.createElement('div');el.id='mwin';document.body.appendChild(el);
     el.addEventListener('click',e=>{const b=e.target.closest('[data-mw]');if(e.target===el||(b&&b.dataset.mw==='x')){el.style.display='none';MW=null;return;}
       if(b){const L=MW.list,i=L.indexOf(MW.id),n=L[(i+(+b.dataset.mw)+L.length)%L.length];MW.id=n;el.innerHTML=mwinHTML(n);sfx('tab');}});}
