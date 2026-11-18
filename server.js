@@ -169,6 +169,9 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', ETag: ETAG, Vary: 'Accept-Encoding', ...(gz ? { 'Content-Encoding': 'gzip' } : {}) });
       return res.end(gz ? INDEX_GZ : INDEX);
     }
+    // 그림 묶음: 이름에 내용 해시가 들어 있어 바뀌지 않으므로 브라우저가 오래 보관한다
+    const am = /^\/a\/([a-z0-9]+\.[0-9a-f]{6,16}\.json)$/.exec(url.pathname);
+    if (am) { const fp = path.join(PUB, 'a', am[1]); if (fs.existsSync(fp)) { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=31536000, immutable' }); return fs.createReadStream(fp).pipe(res); } }
     if (url.pathname === '/admin' && ADMIN_HTML) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(ADMIN_HTML); }
     res.writeHead(404); res.end('not found');
   } catch (e) {
