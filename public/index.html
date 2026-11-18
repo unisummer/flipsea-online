@@ -2101,7 +2101,7 @@ function drawPirates(){if(!S.pir)return;const t=performance.now()/1000;
     ctx.font='bold 11px serif';ctx.textAlign='center';ctx.lineWidth=3;ctx.strokeStyle='rgba(243,232,207,.95)';const tx='☠ '+BOSS[i].n+' 근거지';ctx.strokeText(tx,s[0],s[1]+28);ctx.fillStyle='#a8322a';ctx.fillText(tx,s[0],s[1]+28);ctx.textAlign='left';});
   for(const p of S.pir){if(!pirVisible(p))continue;const s=toScr(...proj(p.lat,p.lon)),hd=dirOnScreen(p.lat,p.lon,Math.sin(p.hd*DEG),Math.cos(p.hd*DEG));
     ctx.save();ctx.translate(s[0],s[1]);ctx.rotate(Math.atan2(hd[1],hd[0]));const k=shipSc()*.95;ctx.scale(k,k);
-    try{const pt=p.boss!=null?8:[1,1,0,2,7,7,5][Math.min(6,p.lv||1)];drawShipForm(ctx,pt,1,(p.id||0)%2?1:-1,{pirate:1});}catch(e){ctx.fillStyle='#231a17';ctx.beginPath();ctx.ellipse(0,0,12,5,0,0,7);ctx.fill();}ctx.restore();
+    try{const pt=p.boss!=null?8:[1,1,0,2,7,7,5][Math.min(6,p.lv||1)];drawShipForm(ctx,pt,1,(p.id||0)%2?1:-1,{pirate:1,boss:p.boss!=null});}catch(e){ctx.fillStyle='#231a17';ctx.beginPath();ctx.ellipse(0,0,12,5,0,0,7);ctx.fill();}ctx.restore();
     if(p.mode==='chase'&&!(p.calm>S.day)){ctx.strokeStyle=`rgba(200,40,30,${.5+.4*Math.sin(t*5)})`;ctx.lineWidth=2;ctx.beginPath();ctx.arc(s[0],s[1],15,0,7);ctx.stroke();}
     ctx.font='bold 11px serif';ctx.lineWidth=3;ctx.strokeStyle='rgba(243,232,207,.95)';const tx=`☠ ${p.name} ${'★'.repeat(p.lv)}`;ctx.strokeText(tx,s[0]+12,s[1]-10);ctx.fillStyle='#8a1f1a';ctx.fillText(tx,s[0]+12,s[1]-10);}}
 // ----- 조우 -----
@@ -4559,7 +4559,20 @@ function sfHullPath(L,W,kind){const p=new Path2D(),a=L/2;
 function sfKind(t){const n=SHIPTYPES[t].n;return n==='정크'?'junk':n==='플류트'?'flute':(n==='클리퍼'||n==='증기 클리퍼'||n==='슬루프'||n==='스쿠너'||n==='프리깃')?'sharp':'std';}
 const SF_W={'정크':.42,'플류트':.42,'클리퍼':.26,'증기 클리퍼':.28,'슬루프':.32,'스쿠너':.3,'프리깃':.3,'전열함':.36,'다우':.34};
 // c는 배의 자리로 옮겨 배 머리가 +x를 향하게 돌려 둔 상태. sl=돛 펼친 정도(0~1), side=바람이 돛을 미는 쪽(±1)
-function drawShipForm(c,t,sl,side,o){o=o||{};const D=SHIPDEF[t]||SHIPDEF[0],T=SHIPTYPES[t],L=D.L*SF_K,W=L*(SF_W[T.n]||.35),kind=sfKind(t),a=L/2,SB=(window.SAILB||5)*sl,now=performance.now()/1000;
+// ---- 지도 위 입체 배: 24방향 × 돛 3단계 그림을 필요할 때 그려 두고 쓴다 ----
+const SPR={},SPR_N=24,SPR_K=3,SPR_C=.72,SPR_Z=.78;let SPR_budget=0,SPR_bt=0;
+function shipSprite(t,di,si,pir,boss,flag){const key=t+'|'+di+'|'+si+'|'+(pir?1:0)+(boss?1:0)+'|'+(flag||'');if(SPR[key])return SPR[key];
+  const now=performance.now();if(now-SPR_bt>16){SPR_bt=now;SPR_budget=0;}if(SPR_budget>=3)return null;SPR_budget++;
+  const D=SHIPDEF[t]||SHIPDEF[0],Lp=D.L*SF_K*SPR_K,S2=Math.ceil(Lp*1.5+220),cv=document.createElement('canvas');cv.width=cv.height=S2;const g=cv.getContext('2d');
+  const ph=di*2*Math.PI/SPR_N,ox=S2/2,oy=S2*.62;
+  try{drawShip3D(g,t,{cx:ox,cy:oy,ux:Math.cos(ph),uy:Math.sin(ph)*SPR_C,vx:-Math.sin(ph),vy:Math.cos(ph)*SPR_C,zs:SPR_Z,Lp,sl:[0,.55,1][si],pirate:pir,boss,flag,detail:false});}catch(e){return null;}
+  return SPR[key]={cv,ox,oy,ang:Math.atan2(Math.sin(ph)*SPR_C,Math.cos(ph))};}
+const ship3D=()=>!(S&&S.opt&&S.opt.shipv==='flat');
+function drawShipSprite(c,t,sl,o){const M=c.getTransform(),ang=Math.atan2(M.b,M.a);const ph=Math.atan2(Math.sin(ang)/SPR_C,Math.cos(ang));let di=Math.round(ph/(2*Math.PI/SPR_N));di=((di%SPR_N)+SPR_N)%SPR_N;
+  const si=sl<=0?0:sl<.8?1:2;let sp=shipSprite(t,di,si,o.pirate,o.boss,o.flag);
+  if(!sp){for(const d of [1,-1,2,-2,3,-3]){const k=t+'|'+(((di+d)%SPR_N)+SPR_N)%SPR_N+'|'+si+'|'+(o.pirate?1:0)+(o.boss?1:0)+'|'+(o.flag||'');if(SPR[k]){sp=SPR[k];break;}}}
+  if(!sp)return false;let res=ang-sp.ang;res=Math.atan2(Math.sin(res),Math.cos(res));c.save();c.rotate(-ang+res*.5);const k=1/SPR_K;c.drawImage(sp.cv,-sp.ox*k,-sp.oy*k,sp.cv.width*k,sp.cv.height*k);c.restore();return true;}
+function drawShipForm(c,t,sl,side,o){o=o||{};if(ship3D()&&typeof drawShip3D==='function'){try{if(drawShipSprite(c,t,sl,o))return;}catch(e){}}const D=SHIPDEF[t]||SHIPDEF[0],T=SHIPTYPES[t],L=D.L*SF_K,W=L*(SF_W[T.n]||.35),kind=sfKind(t),a=L/2,SB=(window.SAILB||5)*sl,now=performance.now()/1000;
   const pir=o.pirate,hullC=pir?'#2a2220':T.n==='정크'?'#7a3a22':(T.n==='클리퍼'||T.n==='증기 클리퍼')?'#2b2622':'#6b4423',deckC=pir?'#4a3c34':T.n==='정크'?'#a8683e':'#a87a48';
   const H=sfHullPath(L,W,kind);
   // 그림자
@@ -4632,6 +4645,10 @@ const SF_TR=[];
   if(S.fleet.length>1){const k=shipSc()*(window.SHIPK||1),last=SF_TR[SF_TR.length-1],mv=last?Math.max(0,1-(performance.now()-last[2])/2600):0;
     sfFollowers.ang=Math.atan2(...dirOnScreen(S.lat,S.lon,Math.sin(S.hd*DEG),Math.cos(S.hd*DEG)).slice().reverse());const F=sfFollowers(SF_TR,[S.lat,S.lon],S.fleet.map(f=>f.t),k);sfDrawFollowers(F,k,mv,[0,.55,1][S.sail]);}}}catch(e){}return r;};}
 function sfWD(d){d=((d+180)%360+360)%360-180;return d;}
+// ---- 설정: 지도 위 배 그림 ----
+{const oh0=optsHTML;optsHTML=function(){const m=ship3D()?'3d':'flat';
+  return `<h4 style="margin:8px 0 4px">⛵ 지도 위 배</h4><div class="optr"><div style="display:flex;gap:6px">${[['3d','입체 그림'],['flat','위에서 본 모양']].map(([k,n])=>`<button class="btn sm" data-shipv="${k}" style="${m===k?'background:#c9a24a;color:#2a1a0a':''}">${n}</button>`).join('')}</div></div>`+oh0.apply(this,arguments);};}
+{const ob0=optsBind;optsBind=function(root){ob0(root);root.querySelectorAll('[data-shipv]').forEach(b=>b.onclick=()=>{S.opt=S.opt||{};S.opt.shipv=b.dataset.shipv;save();root.querySelectorAll('[data-shipv]').forEach(x=>x.style.cssText=x===b?'background:#c9a24a;color:#2a1a0a':'');toast(b.dataset.shipv==='flat'?'지도 위 배: 위에서 본 모양':'지도 위 배: 입체 그림');});};}
 
 // ===== 배 그림 (조선소·함대 카드): 비스듬히 위에서 내려다본 입체 그림 =====
 // 뱃머리가 왼쪽 아래를 향하고, 갑판 위 짐(상자·통·자루), 선루, 색 띠를 두른 선체, 부푼 돛과 밧줄, 우리 세계의 문장을 그린다.
@@ -4643,13 +4660,13 @@ const SA_STY={ // 선체 띠 색, 돛 색, 돛 문장
   '플류트':{band:['#d2742c'],sail:'#f6e9c4',emb:'wave'},'프리깃':{band:['#1f2f5a','#e0c04a'],sail:'#f7f3e8',emb:'star'},'전열함':{band:['#1a1a1a','#e0c04a','#1a1a1a'],sail:'#f7f3e8',emb:'compass',gold:1},
   '슬루프':{band:['#2f8aa0'],sail:'#f7f1e2',emb:null},'스쿠너':{band:['#e9e2d0','#2a6a8a'],sail:'#fbf7ec',emb:null},'클리퍼':{band:['#151515','#c9a24a'],sail:'#fbf8f0',emb:null,hull:'#2a2320'},
   '증기 클리퍼':{band:['#151515','#b0302a'],sail:'#f3efe4',emb:null,hull:'#2a2320'}};
-function shipArt(t,pirate,boss){const k=t+(pirate?'p':'')+(boss?'b':'');if(SA_C[k])return SA_C[k];
-  const Wc=360,Hc=240,cv=document.createElement('canvas');cv.width=Wc;cv.height=Hc;const fg=cv.getContext('2d');const wk=document.createElement('canvas');wk.width=780;wk.height=600;const g=wk.getContext('2d');
+// o: {cx,cy,ux,uy,vx,vy,zs,Lp,sl(0~1),pirate,boss,flag,detail}  — u=뱃머리 방향, v=오른쪽 뱃전 방향(화면 아래쪽을 향하게 맞춤), zs=높이 비율
+function drawShip3D(g,t,o){const pirate=o.pirate,boss=o.boss,sl=o.sl==null?1:o.sl,zs=o.zs||1,detail=o.detail!==false;
   const D=SHIPDEF[t]||SHIPDEF[0],T=SHIPTYPES[t],st=SA_STY[T.n]||{band:['#7a4c26'],sail:'#f6eedb'},r=srand(t*131+(pirate?7:0));
   // 비스듬한 투영: 배 길이 방향 u(뱃머리 = 왼쪽 아래), 폭 방향 v(보는 쪽 = 오른쪽 아래), 높이는 위
-  const Lp=Math.min(250,128+(D.L-54)*2.1),W=Lp*(T.n==='정크'||T.n==='플류트'?.36:T.n==='클리퍼'||T.n==='증기 클리퍼'?.24:.3),a=Lp/2;
-  const ux=-.74,uy=.42,vx=.64,vy=.26,cx=400,cy=420;
-  const P=(x,y,z)=>[cx+x*ux+y*vx,cy+x*uy+y*vy-z];
+  const Lp=o.Lp||Math.min(250,128+(D.L-54)*2.1),W=Lp*(T.n==='정크'||T.n==='플류트'?.36:T.n==='클리퍼'||T.n==='증기 클리퍼'?.24:.3),a=Lp/2;
+  let {ux,uy,vx,vy}=o;const cx=o.cx,cy=o.cy;if(vy<0){vx=-vx;vy=-vy;}
+  const P=(x,y,z)=>[cx+x*ux+y*vx,cy+x*uy+y*vy-z*zs];const sternNear=uy<0;
   const ws=s=>{s=Math.max(-1,Math.min(1,s));return s>=0?W/2*Math.pow(Math.max(0,1-Math.pow(s,2.2)),.55):W/2*Math.sqrt(Math.max(0,1-.6*s*s));};
   const D0=W*.5,zd=s=>D0*(1+.5*s*s*s*s+.25*s*s+(s<0?.15*(-s):0)),bul=W*.1;
   const hullC=pirate?'#3a2a22':(st.hull||'#a26b35'),hullD=shade(hullC,-.35),hullL=shade(hullC,.18);
@@ -4669,6 +4686,10 @@ function shipArt(t,pirate,boss){const k=t+(pirate?'p':'')+(boss?'b':'');if(SA_C[
   // 포문
   const rows=D.guns||(T.guns>=12?1:0);for(let rw=0;rw<rows;rw++){const tt=.62-rw*.2,n=Math.min(12,Math.round(T.guns/(rows*2)/1.4));for(let i=0;i<n;i++){const s=-.75+i*1.45/Math.max(1,n-1),p=P(s*a*(.9+.1*tt),yd(s,tt),zb(s)+(zd(s)-zb(s))*tt);g.fillStyle='#14100c';g.fillRect(p[0]-2.4,p[1]-2.2,4.8,4.2);g.strokeStyle=st.gold?'#d9b13a':'#5a3a1a';g.lineWidth=.8;g.strokeRect(p[0]-2.4,p[1]-2.2,4.8,4.2);}}
   g.restore();
+  // 고물(배 뒤판): 고물이 보는 쪽으로 올 때
+  if(sternNear){const w1=ws(-1);poly([P(-a,-w1,zd(-1)+bul),P(-a,w1,zd(-1)+bul),P(-a*.9,w1*.6,zb(-1)),P(-a*.9,-w1*.6,zb(-1))],shade(hullC,-.15),INK,1.2);
+    const bc=pirate?'#1a1414':st.band[0];{const z1=zb(-1)+(zd(-1)-zb(-1))*.32,z2=zb(-1)+(zd(-1)-zb(-1))*.14;poly([P(-a*.98,-w1*.85,z1),P(-a*.98,w1*.85,z1),P(-a*.96,w1*.72,z2),P(-a*.96,-w1*.72,z2)],bc);}
+    for(const yy of [-.4,0,.4]){const p=P(-a,w1*yy,zd(-1)*.75);g.fillStyle='rgba(255,220,140,.8)';g.fillRect(p[0]-1.6,p[1]-2,3.2,3.4);}}
   // 뱃전 위 테두리
   g.strokeStyle=st.gold&&!pirate?'#d9b13a':hullL;g.lineWidth=2;g.beginPath();SS.forEach((s,i)=>{const p=P(s*a,ws(s),zd(s)+bul);i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]);});g.stroke();
   // 갑판
@@ -4689,7 +4710,7 @@ function shipArt(t,pirate,boss){const k=t+(pirate?'p':'')+(boss?'b':'');if(SA_C[
   const items=[];const nItem=Math.min(14,3+Math.round(T.hold/70));for(let i=0;i<nItem;i++){const s=-.62+r()*1.18,yy=(r()-.5)*W*.6;if(Math.abs(s+.05)<.2&&Math.abs(yy)<W*.2)continue;items.push([s,yy,r()]);}
   items.sort((p,q)=>(p[0]*uy+p[1]*vy)-(q[0]*uy+q[1]*vy));
   // 돛대 정보: 뒤(고물)부터 앞으로 그린다
-  const masts=D.m.map(([p,ty,h])=>({x:a-p*Lp,ty,H:h*1.75*(Lp/170)**.35})).sort((m,n)=>m.x-n.x);
+  const masts=D.m.map(([p,ty,h])=>({x:a-p*Lp,ty,H:h*1.75*(Lp/170)**.35})).sort((m,n)=>m.x*uy-n.x*uy);
   // 선루 (고물/이물)
   const castle=(s0,s1,hh,col)=>{const pts=[],top=[],front=[];for(const s of SS)if(s>=s0&&s<=s1){pts.push(s);}
     const zt=s=>zd(s)+bul+hh;const sideF=[];pts.forEach(s=>sideF.push(P(s*a,ws(s),zt(s))));for(let i=pts.length-1;i>=0;i--)sideF.push(P(pts[i]*a,ws(pts[i]),zd(pts[i])+bul));poly(sideF,shade(col,-.1),INK,1);
@@ -4698,7 +4719,8 @@ function shipArt(t,pirate,boss){const k=t+(pirate?'p':'')+(boss?'b':'');if(SA_C[
     g.strokeStyle=st.gold&&!pirate?'#d9b13a':'#e8cf9a';g.lineWidth=1;g.beginPath();pts.forEach((s,i)=>{const p=P(s*a,ws(s),zt(s)-hh*.35);i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]);});g.stroke();
     for(let i=0;i<pts.length;i+=2){const p=P(pts[i]*a,ws(pts[i]),zt(pts[i])-hh*.6);g.fillStyle='rgba(30,20,10,.6)';g.fillRect(p[0]-1.5,p[1]-2,3,3.5);}};
   const castC=pirate?'#4a3a30':(T.n==='정크'?'#b06a3c':hullC);
-  if(D.castle>.35)castle(-1,-1+.16+.12*D.castle,D0*.42*D.castle,castC);
+  const aftC=()=>{if(D.castle>.35)castle(-1,-1+.16+.12*D.castle,D0*.42*D.castle,castC);},foreC=()=>{if(D.castle>=1&&T.n!=='정크')castle(1-.16,.98,D0*.32,castC);};
+  if(!sternNear)aftC();else foreC();
   // 짐 (갑판 위)
   for(const [s,yy,q] of items){const z=zd(s);if(q<.5)box(s*a,yy,z,6+q*4,5+q*3,7+q*5,['#a8743c','#8e6234','#b8864a'][Math.floor(q*6)%3]);else if(q<.8)barrel(s*a,yy,z,4.5,9);else sack(s*a,yy,z,5);}
   // 굴뚝
@@ -4718,44 +4740,52 @@ function shipArt(t,pirate,boss){const k=t+(pirate?'p':'')+(boss?'b':'');if(SA_C[
   const quadSail=(pts,ctrl,col,edge)=>{g.beginPath();g.moveTo(pts[0][0],pts[0][1]);g.lineTo(pts[1][0],pts[1][1]);g.quadraticCurveTo(ctrl[0][0],ctrl[0][1],pts[2][0],pts[2][1]);g.quadraticCurveTo(ctrl[1][0],ctrl[1][1],pts[3][0],pts[3][1]);g.quadraticCurveTo(ctrl[2][0],ctrl[2][1],pts[0][0],pts[0][1]);g.closePath();
     const gr=g.createLinearGradient(pts[0][0],pts[0][1],pts[2][0],pts[2][1]);gr.addColorStop(0,shade(col,.12));gr.addColorStop(1,shade(col,-.14));g.fillStyle=gr;g.fill();g.strokeStyle=edge;g.lineWidth=.9;g.stroke();};
   const bowTip=P(a*1.32,0,zd(1)+bul+W*.35);
+  // 기움돛대와 앞 삼각돛
+  const jibF=()=>{if(T.n!=='정크'&&T.n!=='다우'){const b0=P(a*.92,0,zd(1)+bul*.6);g.strokeStyle='#4a2e16';g.lineWidth=2;g.beginPath();g.moveTo(b0[0],b0[1]);g.lineTo(bowTip[0],bowTip[1]);g.stroke();
+    const fm=masts.reduce((b,m)=>!b||m.x>b.x?m:b,null);if(sl>0&&fm&&(T.sz!=='소형'||T.n==='슬루프')){const ft=P(fm.x,0,zd(fm.x/a)+fm.H*.85),fb=P(fm.x+6,0,zd(fm.x/a)+bul+4),bel=[vx*8,vy*8];g.beginPath();g.moveTo(bowTip[0],bowTip[1]);g.lineTo(ft[0],ft[1]);g.quadraticCurveTo((ft[0]+fb[0])/2+bel[0],(ft[1]+fb[1])/2+bel[1],fb[0],fb[1]);g.quadraticCurveTo((fb[0]+bowTip[0])/2+bel[0],(fb[1]+bowTip[1])/2+bel[1],bowTip[0],bowTip[1]);g.closePath();g.fillStyle=sailCol;g.fill();g.strokeStyle=sailD;g.lineWidth=.8;g.stroke();}}};
+  if(sternNear)jibF();
   let mainTop=null,emDone=false;const mainI=masts.reduce((b,m,i)=>m.H>masts[b].H?i:b,0);
   masts.forEach((m,mi)=>{const s=m.x/a,z0=zd(s),base=P(m.x,0,z0),top=P(m.x,0,z0+m.H);
     // 돛대
     g.strokeStyle='#4a2e16';g.lineWidth=Math.max(2,Lp/80);g.beginPath();g.moveTo(base[0],base[1]);g.lineTo(top[0],top[1]);g.stroke();
     // 밧줄 (돛대 꼭대기 → 양 뱃전)
     g.strokeStyle='rgba(50,30,15,.55)';g.lineWidth=.6;for(const sy of [-1,1]){const q=P(m.x-6,sy*ws(s),z0+bul);g.beginPath();g.moveTo(top[0],top[1]);g.lineTo(q[0],q[1]);g.stroke();}
-    if(mi===masts.length-1){g.beginPath();g.moveTo(top[0],top[1]);g.lineTo(bowTip[0],bowTip[1]);g.stroke();}
-    if(m.ty==='sq'){const nS=m.H>95?3:2,sw0=W*(T.sz==='대형'?1.12:1.08);for(let i=0;i<nS;i++){const zt=z0+m.H*(1-i*(.88/nS))-4,zb=zt-m.H*(.82/nS)+3,sw=sw0*(1-.12*(nS-1-i)*0)*(1-i*-.08)*(1-.15*(nS-1-i)),bl=7+Lp*.02;
+    if(m===masts.reduce((b,q)=>!b||q.x>b.x?q:b,null)){g.beginPath();g.moveTo(top[0],top[1]);g.lineTo(bowTip[0],bowTip[1]);g.stroke();}
+    if(m.ty==='sq'&&sl<=0){const nS=m.H>95?3:2;for(let i=0;i<nS;i++){const zt=z0+m.H*(1-i*(.88/nS))-4,sw=W*.9*(1-.15*(nS-1-i)),L1=P(m.x,-sw,zt),R1=P(m.x,sw,zt);g.strokeStyle=sailCol;g.lineWidth=4;g.beginPath();g.moveTo(L1[0],L1[1]);g.lineTo(R1[0],R1[1]);g.stroke();g.strokeStyle='#4a2e16';g.lineWidth=1.4;g.stroke();}}
+    else if(m.ty==='sq'){const nS=m.H>95?3:2,sw0=W*(T.sz==='대형'?1.12:1.08);for(let i=0;i<nS;i++){const zt=z0+m.H*(1-i*(.88/nS))-4,zb=zt-m.H*(.82/nS)*(.5+.5*sl)+3,sw=sw0*(1-.12*(nS-1-i)*0)*(1-i*-.08)*(1-.15*(nS-1-i)),bl=7+Lp*.02;
         const TL=P(m.x,-sw,zt),TR=P(m.x,sw,zt),BR=P(m.x,sw*.92,zb),BL=P(m.x,-sw*.92,zb),bu=[ux*bl,uy*bl];
         const mid=(p,q,k)=>[(p[0]+q[0])/2+bu[0]*k,(p[1]+q[1])/2+bu[1]*k];
         const col=pirate&&boss&&(i%2)?'#8a1f1a':sailCol;quadSail([TL,TR,BR,BL],[mid(TR,BR,.8),mid(BR,BL,1.5),mid(BL,TL,.8)],col,sailD);
         if(pirate&&boss){g.save();g.clip();g.fillStyle='rgba(138,31,26,.85)';for(let k=-3;k<=3;k+=2){const p1=P(m.x,sw*k/3.5,zt),p2=P(m.x,sw*(k+1)/3.5,zt);g.fillRect(Math.min(p1[0],p2[0]),p1[1]-60,Math.abs(p2[0]-p1[0]),200);}g.restore();}
         g.strokeStyle='#4a2e16';g.lineWidth=1.6;g.beginPath();g.moveTo(TL[0],TL[1]);g.lineTo(TR[0],TR[1]);g.stroke();
-        if(!emDone&&mi===mainI&&i===nS-1&&(st.emb||pirate)){const c=mid(mid(TL,TR,0),mid(BL,BR,0),0);emblem(c[0]+bu[0]*1.1,c[1]+bu[1]*1.1,Math.min(1.5,(zt-zb)/26),st.emb,Math.atan2(vy,vx)*.4);emDone=true;}}}
+        if(detail&&!emDone&&mi===mainI&&i===nS-1&&(st.emb||pirate)){const c=mid(mid(TL,TR,0),mid(BL,BR,0),0);emblem(c[0]+bu[0]*1.1,c[1]+bu[1]*1.1,Math.min(1.5,(zt-zb)/26),st.emb,Math.atan2(vy,vx)*.4);emDone=true;}}}
+    else if(sl<=0){const ls=m.H*(m.ty==='lat'?1.25:.62),f=P(m.x+ls*.3,0,z0+m.H*.3),b=P(m.x-ls*.5,0,z0+m.H*.5);g.strokeStyle=sailCol;g.lineWidth=4;g.beginPath();g.moveTo(f[0],f[1]);g.lineTo(b[0],b[1]);g.stroke();g.strokeStyle='#4a2e16';g.lineWidth=1.4;g.stroke();}
     else if(m.ty==='lat'){const ls=m.H*1.25,f=P(m.x+ls*.42,0,z0+m.H*.18),b=P(m.x-ls*.5,0,z0+m.H*1.02),clew=P(m.x-ls*.34,0,z0+m.H*.12),bel=[vx*(10+Lp*.03),vy*(10+Lp*.03)];
       g.beginPath();g.moveTo(f[0],f[1]);g.lineTo(b[0],b[1]);g.quadraticCurveTo((b[0]+clew[0])/2+bel[0]*.6,(b[1]+clew[1])/2+bel[1]*.6,clew[0],clew[1]);g.quadraticCurveTo((f[0]+clew[0])/2+bel[0],(f[1]+clew[1])/2+bel[1],f[0],f[1]);g.closePath();
       const gr=g.createLinearGradient(f[0],f[1],b[0],b[1]);gr.addColorStop(0,shade(sailCol,.1));gr.addColorStop(1,shade(sailCol,-.12));g.fillStyle=gr;g.fill();g.strokeStyle=sailD;g.lineWidth=.9;g.stroke();
       g.strokeStyle='#4a2e16';g.lineWidth=1.6;g.beginPath();g.moveTo(f[0],f[1]);g.lineTo(b[0],b[1]);g.stroke();
-      if(!emDone&&mi===mainI&&(st.emb||pirate)){emblem((f[0]+b[0]+clew[0])/3+bel[0]*.5,(f[1]+b[1]+clew[1])/3+bel[1]*.5,Math.min(1.4,m.H/60),st.emb,-.15);emDone=true;}}
+      if((detail||pirate)&&!emDone&&mi===mainI&&(st.emb||pirate)){emblem((f[0]+b[0]+clew[0])/3+bel[0]*.5,(f[1]+b[1]+clew[1])/3+bel[1]*.5,Math.min(1.4,m.H/60),st.emb,-.15);emDone=true;}}
     else{const ls=m.H*.62,x0=m.x+ls*.22,x1=m.x-ls*.62,zt=z0+m.H,zb=z0+m.H*.2,bel=[vx*8,vy*8];const TL=P(x0,0,zt),TR=P(x1,0,zt-m.H*.04),BR=P(x1-ls*.12,0,zb),BL=P(x0,0,zb);
       const sc=pirate?sailCol:st.sail;g.beginPath();g.moveTo(TL[0],TL[1]);g.quadraticCurveTo((TL[0]+TR[0])/2,(TL[1]+TR[1])/2-6,TR[0],TR[1]);g.quadraticCurveTo((TR[0]+BR[0])/2+bel[0],(TR[1]+BR[1])/2+bel[1],BR[0],BR[1]);g.lineTo(BL[0],BL[1]);g.closePath();g.fillStyle=sc;g.fill();g.strokeStyle='#5a3a1a';g.lineWidth=1;g.stroke();
       g.strokeStyle='rgba(70,40,15,.7)';g.lineWidth=1.1;for(let i=1;i<7;i++){const f=i/7,p=[TL[0]+(BL[0]-TL[0])*f,TL[1]+(BL[1]-TL[1])*f],q=[TR[0]+(BR[0]-TR[0])*f+bel[0]*Math.sin(Math.PI*f),TR[1]+(BR[1]-TR[1])*f+bel[1]*Math.sin(Math.PI*f)];g.beginPath();g.moveTo(p[0],p[1]);g.lineTo(q[0],q[1]);g.stroke();}
-      if(!emDone&&mi===mainI){emblem((TL[0]+BR[0])/2,(TL[1]+BR[1])/2,Math.min(1.5,m.H/60),pirate?null:st.emb,0);emDone=true;}}
+      if(detail&&!emDone&&mi===mainI){emblem((TL[0]+BR[0])/2,(TL[1]+BR[1])/2,Math.min(1.5,m.H/60),pirate?null:st.emb,0);emDone=true;}}
     if(mi===mainI)mainTop=top;
 });
-  // 기움돛대와 앞 삼각돛
-  if(T.n!=='정크'&&T.n!=='다우'){const b0=P(a*.92,0,zd(1)+bul*.6);g.strokeStyle='#4a2e16';g.lineWidth=2;g.beginPath();g.moveTo(b0[0],b0[1]);g.lineTo(bowTip[0],bowTip[1]);g.stroke();
-    const fm=masts[masts.length-1];if(fm&&(T.sz!=='소형'||T.n==='슬루프')){const ft=P(fm.x,0,zd(fm.x/a)+fm.H*.85),fb=P(fm.x+6,0,zd(fm.x/a)+bul+4),bel=[vx*8,vy*8];g.beginPath();g.moveTo(bowTip[0],bowTip[1]);g.lineTo(ft[0],ft[1]);g.quadraticCurveTo((ft[0]+fb[0])/2+bel[0],(ft[1]+fb[1])/2+bel[1],fb[0],fb[1]);g.quadraticCurveTo((fb[0]+bowTip[0])/2+bel[0],(fb[1]+bowTip[1])/2+bel[1],bowTip[0],bowTip[1]);g.closePath();g.fillStyle=sailCol;g.fill();g.strokeStyle=sailD;g.lineWidth=.8;g.stroke();}}
-  // 이물 선루
-  if(D.castle>=1&&T.n!=='정크')castle(1-.16,.98,D0*.32,castC);
+  if(!sternNear)jibF();
+  // 가까운 쪽 선루
+  if(!sternNear)foreC();else aftC();
   // 깃발
-  if(mainTop){const t=mainTop;g.strokeStyle='#4a2e16';g.lineWidth=1.2;g.beginPath();g.moveTo(t[0],t[1]);g.lineTo(t[0],t[1]-12);g.stroke();g.fillStyle=pirate?'#111':'#a8322a';g.beginPath();g.moveTo(t[0],t[1]-12);g.quadraticCurveTo(t[0]+10,t[1]-14,t[0]+20,t[1]-9);g.quadraticCurveTo(t[0]+10,t[1]-8,t[0],t[1]-5);g.fill();
+  if(mainTop){const t=mainTop;g.strokeStyle='#4a2e16';g.lineWidth=1.2;g.beginPath();g.moveTo(t[0],t[1]);g.lineTo(t[0],t[1]-12);g.stroke();g.fillStyle=pirate?'#111':(o.flag||'#a8322a');g.beginPath();g.moveTo(t[0],t[1]-12);g.quadraticCurveTo(t[0]+10,t[1]-14,t[0]+20,t[1]-9);g.quadraticCurveTo(t[0]+10,t[1]-8,t[0],t[1]-5);g.fill();
     if(pirate){g.fillStyle='#eee';g.beginPath();g.arc(t[0]+8,t[1]-9.5,1.8,0,7);g.fill();}}
   // 물에 잠긴 선체 아래 하얀 물결
   g.strokeStyle='rgba(255,255,255,.7)';g.lineWidth=1.5;g.beginPath();SS.forEach((s,i)=>{const p=P(s*a*.9,ws(s)*.6,zb(s));i?g.lineTo(p[0],p[1]+1.5):g.moveTo(p[0],p[1]+1.5);});g.stroke();
+}
+function shipArt(t,pirate,boss){const k=t+(pirate?'p':'')+(boss?'b':'');if(SA_C[k])return SA_C[k];
+  const Wc=360,Hc=240,cv=document.createElement('canvas');cv.width=Wc;cv.height=Hc;const fg=cv.getContext('2d');const wk=document.createElement('canvas');wk.width=780;wk.height=600;const g=wk.getContext('2d');const r=srand(t*131+(pirate?7:0));
+  drawShip3D(g,t,{cx:400,cy:420,ux:-.74,uy:.42,vx:.64,vy:.26,zs:1,pirate,boss,sl:1});
+  const P=()=>[0,0];
   // 그린 배의 실제 크기를 재서 카드에 꽉 차게 앉힌다
   const id=g.getImageData(0,0,wk.width,wk.height).data;let x0=wk.width,y0=wk.height,x1=0,y1=0;for(let y=0;y<wk.height;y+=2)for(let x=0;x<wk.width;x+=2)if(id[(y*wk.width+x)*4+3]>20){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}
-  const g2=fg,wy0=P(0,0,0)[1];
   // 배경: 양피지 + 물결
   fg.fillStyle='#ece0c2';fg.fillRect(0,0,Wc,Hc);const sea=fg.createLinearGradient(0,150,0,Hc);sea.addColorStop(0,'rgba(90,150,170,0)');sea.addColorStop(.35,'rgba(90,150,170,.35)');sea.addColorStop(1,'rgba(60,120,150,.55)');fg.fillStyle=sea;fg.fillRect(0,150,Wc,Hc-150);
   fg.strokeStyle='rgba(255,255,255,.5)';fg.lineWidth=1.2;for(let i=0;i<9;i++){const y=185+i*6+r()*4,x=r()*Wc;fg.beginPath();fg.moveTo(x,y);fg.quadraticCurveTo(x+14,y-3,x+28,y);fg.stroke();}
