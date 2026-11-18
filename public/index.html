@@ -1902,7 +1902,7 @@ function updateHud(){
   ${rem?`<div class="row"><span class="k">남은 거리</span><span>${Math.round(rem)} km${nav.sp>5?' · 약 '+Math.ceil(rem/Math.max(20,spd))+'일':''}</span></div>`:''}`;
   // 위쪽 정보 줄: 항해에 꼭 필요하지 않은 정보
   {let ti=$('topinfo');if(!ti){ti=document.createElement('div');ti.id='topinfo';document.body.appendChild(ti);}
-   const tih=`<span title="가진 돈">💰 <b>${S.gold.toLocaleString()}</b></span><span title="명성">⭐ ${S.fame||0}</span><span title="발견물 (J)">🔍 ${Object.keys(S.df).length}/${DISC.length}</span><span title="함대와 항해자 (T)">⛵ ${S.fleet.length}척 · 👥 ${hiredIds().length}명</span><span title="화물칸">📦 ${cargoT()}/${cargoT()+freeT()}톤</span>`+
+   const tih=`<span title="가진 돈">💰 <b>${S.gold.toLocaleString()}</b></span><span class="famechip" title="명성 — 눌러서 칭호와 혜택 보기">⭐ ${typeof fameTitle==='function'?fameTitle()+' ':''}${(S.fame||0).toLocaleString()}</span><span title="발견물 (J)">🔍 ${Object.keys(S.df).length}/${DISC.length}</span><span title="함대와 항해자 (T)">⛵ ${S.fleet.length}척 · 👥 ${hiredIds().length}명</span><span title="화물칸">📦 ${cargoT()}/${cargoT()+freeT()}톤</span>`+
     (boostMax()>0?`<span title="${hasRelic('engine')?'증기기관':'순풍 부스터'} (G)">⚙ ${S.engine?`<b style="color:#ffb08a">가동 ×${boostMul()}</b> `:''}${(S.engDays==null?boostMax():Math.min(S.engDays,boostMax())).toFixed(1)}/${boostMax()}일</span>`:'')+
     (S.car?`<span title="대상">🐪 ${S.car.ph==='go'?'가는 길':S.car.ph==='back'?'돌아오는 길':'도시'} ${Math.floor(S.car.t)}/${Math.round(S.car.dur)}일</span>`:'')+
     `<span title="자동 항로 (R)">🧭 ${S.opt.safe?'항구 경유':'최단'}${legs.length>1?` · 경유 ${legs.length-1}곳`:''}</span>`;if(ti._h!==tih){ti._h=tih;ti.innerHTML=tih;}}
@@ -3913,7 +3913,7 @@ function bindTavern(box){const id=inPort,p=PORTS[id];
 // ---------- 조합 ----------
 function guildHome(){const un=Object.keys(S.df).filter(i=>!S.df[i].rep).length,G=gangsAt(inPort).map(o=>o.g),bk=allGangs().filter(g=>gTaken(g)&&!gDone(g)).length,bd=allGangs().filter(gDone).length,here=G.filter(g=>!gDone(g)).length;
   return `<p class="greet">조합장이 두꺼운 장부를 펼칩니다. "새로운 것을 보았다면 들려주시오. 바다를 어지럽히는 자들의 수배서도 여기 있소."</p>
-   <div class="grid"><b>명성</b><span>${(S.fame||0).toLocaleString()}</span><b>발견물</b><span>${Object.keys(S.df).length} / ${DISC.length}</span></div>
+   <div class="grid"><b>명성</b><span class="famechip" title="눌러서 칭호와 혜택 보기">⭐ ${typeof fameTitle==='function'?fameTitle()+' · ':''}${(S.fame||0).toLocaleString()}</span><b>발견물</b><span>${Object.keys(S.df).length} / ${DISC.length}</span></div>
    <div class="agrid">${act('📜','발견물 보고',un?`<b class="tw">보고할 발견물 ${un}개</b>`:'보고할 발견물이 없음','data-go="grep"')}
     ${act('🏴‍☠️','현상 수배',`이 항구 수배서 ${here}장 · 수배 중 ${bk} · 토벌 ${bd}`,'data-go="gbnt"')}</div>`;}
 
@@ -4303,7 +4303,7 @@ const tavPer=()=>Math.floor(S.day/TAV_DAYS),tavMo=()=>Math.floor(S.day/30);
 // 이 항구 주점의 일반 손님 3명 (+ 이번 달 수소문한 인재)
 function tavRegular(p){const per=tavPer(),r=srand(strH(`t|${p}|${per}|${S.sid}`)),out=[];
   const rk='r:'+p+':'+per,roll=r(),x=r();let rs=spFind(rk);
-  if(!rs&&roll<.06)rs=genSpecial(p,x<.03?3:x<.18?2:1,rk);
+  if(!rs&&roll<(typeof spChance==='function'?spChance():.06))rs=genSpecial(p,x<.03?3:x<.18?2:1,rk);
   if(rs)out.push(rs);
   const cul=culOf(p),pool=MATES.filter(m=>!m.story&&!m.hero&&!m.sp),pref=pool.filter(m=>culOf(m.home)===cul);
   for(let g=0;out.length<3&&g<40;g++){const src=(pref.length&&r()<.75)?pref:pool;const m=src[Math.floor(r()*src.length)];if(m&&!out.includes(m))out.push(m);}
@@ -4312,7 +4312,7 @@ function tavRegular(p){const per=tavPer(),r=srand(strH(`t|${p}|${per}|${S.sid}`)
 function tavMonthly(p){spSync();return S.spq[p]===tavMo()?spFind('s:'+p+':'+tavMo()):null;}
 tavernMates=function(p){spSync();const L=tavRegular(p).filter(m=>!S.mt[m.id]),q=tavMonthly(p);if(q&&!S.mt[q.id])L.unshift(q);return L;};
 function spSearch(p){spSync();const mo=tavMo();if(S.spq[p]===mo||S.gold<SPQ_COST)return;S.gold-=SPQ_COST;S.spq[p]=mo;
-  const key='s:'+p+':'+mo,x=srand(strH(key+'#'+S.sid))(),tier=x<.05?3:x<.30?2:1;const m=spFind(key)||genSpecial(p,tier,key);
+  const key='s:'+p+':'+mo,x=srand(strH(key+'#'+S.sid))(),o=typeof spSearchOdds==='function'?spSearchOdds():[.05,.3],tier=x<o[0]?3:x<o[1]?2:1;const m=spFind(key)||genSpecial(p,tier,key);
   sfx(tier===3?'levelup':'discover');toast(tier===3?`👑 주점 주인이 목소리를 낮춥니다. "전설이 이 항구에 와 있소!" — ${m.name}`:tier===2?`★ 영웅급 인재를 소개받았습니다: ${m.name}`:`✦ 뛰어난 인재를 소개받았습니다: ${m.name}`,true);save();}
 function trSummary(){const L=Object.keys(TR_CAP).filter(k=>k!=='grow'&&k!=='glut'&&traitV(k)>0).map(k=>TR_TXT[k](traitV(k)));if(traitV('glut')>0)L.push('물·식량 8% 더 먹음');
   return L.length?`<div class="eff trsum"><b>지금 함대 특기 효과</b> ${L.map(t=>`<span>${t}</span>`).join('')}</div>`:'';}
@@ -4324,7 +4324,7 @@ tavernHire=function(p){spSync();const per=tavPer(),left=TAV_DAYS-(Math.floor(S.d
   const nd=30-(Math.floor(S.day)%30);
   h+=`<div class="spbox"><h4>✨ 특별한 항해자 수소문 <small>(항구마다 한 달에 한 번)</small></h4>`;
   if(q){h+=S.mt[q.id]?`<p class="hint">이번 달 이 항구의 인재 <b>${q.name}</b>은(는) 이미 함대에 있습니다. 다음 수소문은 ${nd}일 뒤.</p>`:mateCard(q.id,spHireBtn(q))+`<p class="hint">이번 달이 끝나면(${nd}일 뒤) 다른 곳으로 떠납니다.</p>`;}
-  else h+=`<p>주점 주인에게 값을 치르면 이 바다에서 이름난 사람을 한 명 소개해 줍니다. 대개 <b>✦ 뛰어난 인재</b>, 가끔 <b>★ 영웅급</b>, 아주 드물게 <b>👑 전설</b>의 항해자를 만납니다. 능력치가 높고 그 사람만의 <b>특별 특기</b>가 있습니다.</p>
+  else h+=`<p>주점 주인에게 값을 치르면 이 바다에서 이름난 사람을 한 명 소개해 줍니다. 대개 <b>✦ 뛰어난 인재</b>, 가끔 <b>★ 영웅급</b>, 아주 드물게 <b>👑 전설</b>의 항해자를 만납니다. 능력치가 높고 그 사람만의 <b>특별 특기</b>가 있습니다.${typeof fameTier==='function'&&fameTier()<FAME_LEGEND?` <br><small>👑 전설의 항해자는 명성 ${FAME_T[FAME_LEGEND][0].toLocaleString()}('${FAME_T[FAME_LEGEND][1]}') 이상이어야 합류합니다.</small>`:''}</p>
     <button data-spq="1" ${S.gold<SPQ_COST?'disabled':''}>주점 주인에게 수소문하기 (${SPQ_COST}골드)</button> <small class="hint">다른 항구에서는 또 다른 인재를 찾을 수 있습니다.</small>`;
   return h+'</div>';};
 {const th0=tavHome;tavHome=function(id){spSync();const s=th0(id),ok=S.spq[id]!==tavMo();
@@ -4865,6 +4865,45 @@ setInterval(()=>{try{if(!Snd.on||!S)return;if(!wxsInit())return;const on=Snd.opt
   else if(inPort<0){const A=(typeof WXV!=='undefined'&&WXV.a)||{};rain=Math.min(1,(A.rain||0)+(A.storm||0)*.4);wind=A.storm||0;}
   else{let w=null;try{w=wxHere(PORTS[inPort].lat,PORTS[inPort].lon,S.day);}catch(e){}const k=w&&(w.k||w);rain=(k==='rain'?.35:k==='storm'?.5:0);wind=k==='storm'?.3:0;}
   if(off){rain=0;wind=0;}const t=WXSND.ac.currentTime;WXSND.rain.gain.setTargetAtTime(.16*rain*on,t,.8);WXSND.rainLo.gain.setTargetAtTime(.1*rain*on,t,.8);WXSND.wind.gain.setTargetAtTime(.3*wind*on,t,1.2);}catch(e){}},300);
+
+// ===== 명성 단계: 칭호와 혜택 =====
+// 명성이 쌓이면 칭호가 오르고, 단계마다 교역 값·주점 인연·전설 항해자 합류 같은 혜택이 따라온다.
+const FAME_T=[[0,'무명 선장'],[300,'알려진 선장'],[1000,'이름난 선장'],[2500,'바다의 명사'],[5000,'대양의 영웅'],[10000,'전설의 제독'],[20000,'뒤집힌 바다의 전설']];
+const FAME_LEGEND=3; // 전설 항해자가 합류하는 최소 단계
+function fameTier(f){f=f==null?((S&&S.fame)||0):f;let t=0;while(t<FAME_T.length-1&&f>=FAME_T[t+1][0])t++;return t;}
+const fameTitle=t=>FAME_T[t==null?fameTier():t][1];
+const fameBuyMul=()=>1-.01*fameTier(),fameSellMul=()=>1+.005*fameTier();
+function spChance(){return .06+.015*fameTier();}         // 주점 단골 자리에 특별 항해자가 끼어 있을 확률
+function spSearchOdds(){const t=fameTier();return [.05+.01*t,.30+.03*t];} // 수소문: [전설, 영웅급] 확률
+function famePerks(t){const L=[];if(t>0)L.push(`교역소에서 사는 값 −${t}% · 파는 값 +${(t*.5).toFixed(1)}%`);
+  L.push(`주점에 특별 항해자가 있을 확률 ${((.06+.015*t)*100).toFixed(1)}%`);
+  const o=[.05+.01*t,.3+.03*t];L.push(`수소문: 전설 ${(o[0]*100).toFixed(0)}% · 영웅급 ${(o[1]*100).toFixed(0)}%`);
+  L.push(t>=FAME_LEGEND?'👑 전설의 항해자가 함대에 합류함':`👑 전설의 항해자는 '${FAME_T[FAME_LEGEND][1]}' 이상이 되어야 합류`);return L;}
+// 교역 값
+{const b0=buyPrice;buyPrice=function(p,g){return Math.max(1,Math.round(b0(p,g)*fameBuyMul()));};}
+{const s0=sellPrice;sellPrice=function(p,g){return Math.max(1,Math.round(s0(p,g)*fameSellMul()));};}
+// 전설 항해자는 명성이 있어야 합류
+{const h0=hire;hire=function(id){const m=MATES[id];if(m&&m.sp===3&&!S.mt[id]&&fameTier()<FAME_LEGEND){sfx('fail');toast(`👑 ${m.name}: "${fameTitle(FAME_LEGEND)}쯤 되는 선장이라면 모를까…" — 전설의 항해자는 명성 ${FAME_T[FAME_LEGEND][0].toLocaleString()} 이상('${FAME_T[FAME_LEGEND][1]}')이어야 합류합니다. 지금 ${fameTitle()} · ${(S.fame||0).toLocaleString()}`,true);return;}return h0.apply(this,arguments);};}
+// 칭호가 오르면 알림
+setInterval(()=>{try{if(!S)return;const t=fameTier();if(S.fameT==null){S.fameT=t;return;}if(t>S.fameT){S.fameT=t;sfx('mission');toast(`⭐ 칭호가 올랐습니다: <b>${fameTitle(t)}</b>! ${famePerks(t)[0]}`,true);try{save();}catch(e){}}}catch(e){}},1000);
+// 명성 창
+function fameHTML(){const f=S.fame||0,t=fameTier(f),nx=FAME_T[t+1],pc=nx?Math.min(100,(f-FAME_T[t][0])/(nx[0]-FAME_T[t][0])*100):100;
+  return `<div class="fwbox"><div class="fwh"><b>⭐ 명성과 칭호</b><button class="fwx">✕</button></div>
+   <div class="fwcur">${fameTitle(t)} <small>명성 ${f.toLocaleString()}</small></div>
+   <div class="fwbar"><div style="width:${pc.toFixed(1)}%"></div></div><div class="hint">${nx?`다음 칭호 '${nx[1]}'까지 ${(nx[0]-f).toLocaleString()}`:'가장 높은 칭호입니다.'}</div>
+   <h4>지금 받는 혜택</h4><ul>${famePerks(t).map(x=>`<li>${x}</li>`).join('')}</ul>
+   <h4>칭호 단계</h4><table class="mt">${FAME_T.map(([v,n],i)=>`<tr class="${i===t?'fwon':i<t?'fwdone':''}"><td>${i<=t?'⭐':'☆'} <b>${n}</b></td><td class="n">${v.toLocaleString()}</td><td class="hint">${i?`사는 값 −${i}%`:'—'}${i===FAME_LEGEND?' · 👑 전설 합류':''}</td></tr>`).join('')}</table>
+   <div class="hint" style="margin-top:6px">명성을 얻는 길: 발견물 보고(가장 큼) · 항구 투자 · 해적 두목 토벌 · 내륙 도시 첫 방문 · 바다 위 사건과 숨은 건물</div></div>`;}
+function openFame(){let d=document.getElementById('famewin');if(!d){d=document.createElement('div');d.id='famewin';document.body.appendChild(d);}d.innerHTML=fameHTML();d.style.display='flex';d.querySelector('.fwx').onclick=()=>d.style.display='none';d.onclick=e=>{if(e.target===d)d.style.display='none';};}
+document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('.famechip')){e.stopPropagation();openFame();}},true);
+document.addEventListener('keydown',e=>{const d=document.getElementById('famewin');if(e.key==='Escape'&&d&&d.style.display==='flex'){d.style.display='none';e.stopPropagation();}},true);
+{const st=document.createElement('style');st.textContent=`.famechip{cursor:pointer;pointer-events:auto}.famechip:hover{text-decoration:underline}
+#famewin{position:fixed;inset:0;z-index:9000;background:rgba(20,12,4,.45);display:none;align-items:center;justify-content:center}
+.fwbox{background:#f3e8cf;border:3px solid #5a3e22;border-radius:12px;padding:14px 18px;width:min(520px,94vw);max-height:88vh;overflow:auto;font-size:14px;color:#2d1c0e}
+.fwh{display:flex;justify-content:space-between;align-items:center;font-size:17px}.fwx{border:0;background:#5a3e22;color:#f6ecd4;border-radius:6px;width:28px;height:28px;cursor:pointer}
+.fwcur{font-size:22px;font-weight:700;margin:8px 0 4px;color:#7a4a12}.fwcur small{font-size:13px;color:#5a4a3a;font-weight:400;margin-left:6px}
+.fwbar{height:10px;background:#e3d3b0;border-radius:5px;overflow:hidden}.fwbar div{height:100%;background:linear-gradient(90deg,#c9a24a,#e8c25a)}
+.fwbox h4{margin:12px 0 4px}.fwbox ul{margin:0;padding-left:20px}.fwon td{background:#f6e2a8}.fwdone td{color:#6a5a3a}`;document.head.appendChild(st);}
 
 // ===== 바람과 해류를 '흐름'으로 보여 주기 =====
 // 보기: 0 흐름(하얀 바람 줄기 + 해류의 띠와 물결) · 1 화살표(예전 방식) · 2 끔. V 키로 바꾼다.
