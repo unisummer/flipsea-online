@@ -2319,6 +2319,8 @@ function drawBattle(){ctx.setTransform(DPR,0,0,DPR,0,0);const F=B.flag,z=bz(),t=
 function drawShipB(s,X,Y,z){const sinkK=s.out==='sunk'?Math.min(1,s.outT/4):0;if(sinkK>=1)return;
   ctx.save();ctx.translate(X(s.x),Y(s.y));ctx.rotate(s.hd*DEG);ctx.scale(z*(1-sinkK*.3),z*(1-sinkK*.3));ctx.globalAlpha=1-sinkK;const L=s.L,W=s.W;
   ctx.fillStyle='rgba(0,0,0,.22)';ctx.beginPath();ctx.ellipse(3,4,W*.6,L*.55,0,0,7);ctx.fill();
+  let ok3=false;if(typeof ship3D==='function'&&ship3D()&&!s.out){try{ctx.save();ctx.rotate(-Math.PI/2);const k3=L/((SHIPDEF[s.t]||SHIPDEF[0]).L*SF_K)*1.4;ctx.scale(k3,k3);ok3=drawShipSprite(ctx,s.t,[0,.55,1][s.sail],{pirate:s.side===1,boss:!!s.boss});ctx.restore();}catch(e){ctx.restore();}}
+  if(!ok3){
   const hull=s.side?(s.boss?'#3a1a16':'#2a2220'):'#7a4c26',deck=s.side?'#4a3c34':'#b08350';
   ctx.fillStyle=hull;ctx.strokeStyle='#140c06';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(0,-L/2);ctx.quadraticCurveTo(W*.55,-L*.2,W*.45,L*.35);ctx.lineTo(W*.33,L/2);ctx.lineTo(-W*.33,L/2);ctx.lineTo(-W*.45,L*.35);ctx.quadraticCurveTo(-W*.55,-L*.2,0,-L/2);ctx.fill();ctx.stroke();
   ctx.fillStyle=deck;ctx.beginPath();ctx.moveTo(0,-L*.4);ctx.quadraticCurveTo(W*.38,-L*.15,W*.32,L*.33);ctx.lineTo(-W*.32,L*.33);ctx.quadraticCurveTo(-W*.38,-L*.15,0,-L*.4);ctx.fill();
@@ -2329,6 +2331,7 @@ function drawShipB(s,X,Y,z){const sinkK=s.out==='sunk'?Math.min(1,s.outT/4):0;if
       const hw=s.T.rig==='가로돛'?W*.95:W*.6;ctx.beginPath();ctx.moveTo(-hw*sl,0);ctx.quadraticCurveTo(0,6*sl+2,hw*sl,0);ctx.lineTo(hw*sl,-1.5);ctx.quadraticCurveTo(0,4*sl,-hw*sl,-1.5);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();}}
   ctx.fillStyle=s.side?'#111':'#2f5d73';ctx.fillRect(-1,L*.42,7,4);if(s.side){ctx.fillStyle='#eee';ctx.fillRect(2,L*.43,2,2);}
   if(s.out==='captured'){ctx.fillStyle='#fff';ctx.fillRect(-1,L*.42,7,4);}
+  }
   ctx.restore();ctx.globalAlpha=1;
   if(s.out==='sunk')return;
   const sx=X(s.x),sy=Y(s.y)-s.L*.7*z-10,w=46;ctx.fillStyle='rgba(20,14,8,.6)';ctx.fillRect(sx-w/2-1,sy-1,w+2,8);
@@ -4793,6 +4796,75 @@ function shipArt(t,pirate,boss){const k=t+(pirate?'p':'')+(boss?'b':'');if(SA_C[
   fg.drawImage(wk,dx,dy,wk.width*sc,wk.height*sc);fg.strokeStyle=INK;fg.lineWidth=3;fg.strokeRect(1.5,1.5,Wc-3,Hc-3);
   return SA_C[k]=cv.toDataURL('image/png');}
 function shipPic(t,pirate){try{return shipArt(t,pirate);}catch(e){console.warn(e);return '';}}
+
+// ===== 날씨 2단계: 해전의 날씨, 밤의 해전, 비·폭풍 바람·천둥 소리 =====
+// 원칙: 바다가 살아 있음을 느끼게 하되, 적과 나에게 똑같이 작용하고 이겨낼 수 있을 만큼만.
+const BWX={rain:{ic:'🌧',n:'비',d:'젖은 화약 · 장전 15% 느림 · 포탄이 조금 흩어짐'},storm:{ic:'⛈',n:'폭풍',d:'거센 바람과 파도 · 장전 20% 느림 · 포탄이 크게 흩어짐'},
+  fog:{ic:'🌫',n:'안개',d:'먼 배가 가려짐 · 먼 거리 포격이 흩어짐 · 달아나기 좋음'},snow:{ic:'🌨',n:'눈',d:'언 돛줄 · 배 속도 8% 느림'},calm:{ic:'🍃',n:'무풍',d:'바람이 약해 모두 느리게 움직임'}};
+const bwxK=()=>(typeof B!=='undefined'&&B&&B.wx)?B.wx.k:null;
+// ---- 해전 시작: 그 자리의 날씨를 가져온다 ----
+{const sb0=startBattle;startBattle=function(p,mode){const r=sb0.apply(this,arguments);try{if(B){let w={k:'clear',st:0};try{w=wxNow();}catch(e){}B.wx={k:w.k,st:w.st||0,P:[],flash:0,nextFl:performance.now()+3000+Math.random()*4000,thT:0};
+  if(w.k==='storm')B.ws=Math.min(1.6,(B.ws||.6)*1.35+.2);if(w.k==='calm')B.ws=(B.ws||.6)*.5;
+  const I=BWX[w.k];if(I)setTimeout(()=>{try{toast(`${I.ic} ${I.n} 속의 해전 — ${I.d}. 적에게도 똑같이 적용됩니다.`,true);}catch(e){}},900);}}catch(e){}return r;};}
+// ---- 포격: 장전 시간과 탄착 흩어짐 ----
+{const v0=volley;volley=function(s,side,kind){const n0=B?B.balls.length:0,r=v0.apply(this,arguments);try{const k=bwxK();if(r!==false&&k&&B.balls.length>n0){
+  const rm=k==='rain'?1.15:k==='storm'?1.2:1;if(rm!==1)s.rl[side]*=rm;
+  for(let i=n0;i<B.balls.length;i++){const b=B.balls[i],d=Math.hypot(b.tx-b.sx,b.ty-b.sy),e=k==='rain'?d*.025:k==='storm'?d*.05:k==='fog'?Math.max(0,d-180)*.08:0;if(e){b.tx+=gauss()*e;b.ty+=gauss()*e;}}}}catch(e){}return r;};}
+{const sv0=shipVmax;shipVmax=function(s){const v=sv0.apply(this,arguments);return bwxK()==='snow'?v*.92:v;};}
+// ---- 해전 화면 연출: 어두운 하늘, 빗줄기·눈, 안개, 번개, 밤과 등불 ----
+function bwxDraw(){if(!B||!B.wx)return;const W=B.wx,k=W.k,lv=S&&S.opt&&S.opt.wxfx!=null?S.opt.wxfx:2,now=performance.now(),dt=Math.min(.1,(now-(W.last||now))/1000);W.last=now;
+  const z=bz(),X=x=>(x-B.camx)*z+VW/2,Y=y=>(y-B.camy)*z+VH/2,F=B.flag,mob=typeof MOB!=='undefined'&&MOB;
+  ctx.save();ctx.setTransform(DPR,0,0,DPR,0,0);
+  // 밤: 어둠 + 배의 등불
+  let dk=0;try{dk=dnInfo().dark*Math.min(.7,(S.opt&&S.opt.nightA!=null)?S.opt.nightA:.45)*dnInfo().mf;}catch(e){}
+  if(dk>.01){ctx.fillStyle=`rgba(10,18,50,${dk})`;ctx.fillRect(0,0,VW,VH);ctx.globalCompositeOperation='lighter';
+    for(const s of B.ships){if(s.out==='sunk')continue;const x=X(s.x),y=Y(s.y),R=(30+s.L*.6)*z,g=ctx.createRadialGradient(x,y,0,x,y,R);g.addColorStop(0,`rgba(255,200,110,${.5*dk})`);g.addColorStop(1,'rgba(255,200,110,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,R,0,7);ctx.fill();}
+    ctx.globalCompositeOperation='source-over';}
+  if(lv&&(k==='rain'||k==='storm'||k==='cloud'||k==='snow')){ctx.fillStyle=`rgba(40,48,60,${k==='storm'?.3:k==='cloud'?.1:.16})`;ctx.fillRect(0,0,VW,VH);}
+  // 폭풍의 큰 너울
+  if(k==='storm'&&lv){ctx.strokeStyle='rgba(255,255,255,.16)';ctx.lineWidth=2;const t=B.t,wx=Math.sin(B.wt*DEG),wy=-Math.cos(B.wt*DEG);for(let i=0;i<14;i++){const ph=(t*.25+i/14)%1,x=(i*197%VW)+wx*ph*160,y=(i*131%VH)+wy*ph*160;ctx.globalAlpha=Math.sin(ph*Math.PI);ctx.beginPath();ctx.moveTo(x-40,y);ctx.quadraticCurveTo(x,y-10,x+40,y);ctx.stroke();}ctx.globalAlpha=1;}
+  // 빗줄기·눈
+  if(lv&&(k==='rain'||k==='storm'||k==='snow')){const want=Math.round((k==='snow'?90:k==='storm'?170:120)*(lv===1?.45:1)*(mob?.55:1));while(W.P.length<want)W.P.push({x:Math.random()*VW,y:Math.random()*VH,s:.6+Math.random()*.8});if(W.P.length>want)W.P.length=want;
+    const snow=k==='snow',vx=snow?-20:k==='storm'?-320:-140,vy=snow?55:k==='storm'?900:620;ctx.strokeStyle=`rgba(225,232,240,${k==='storm'?.6:.45})`;ctx.fillStyle='rgba(250,252,255,.9)';ctx.lineWidth=1.2;ctx.beginPath();
+    for(const p of W.P){p.x+=vx*p.s*dt;p.y+=vy*p.s*dt;if(snow)p.x+=Math.sin(now/600+p.s*9)*.4;if(p.y>VH+10||p.x<-20){p.y=-10;p.x=Math.random()*(VW+200);}
+      if(snow){ctx.moveTo(p.x+1.8,p.y);ctx.arc(p.x,p.y,1.8*p.s,0,7);}else{ctx.moveTo(p.x,p.y);ctx.lineTo(p.x-vx*.025,p.y-vy*.025);}}snow?ctx.fill():ctx.stroke();}
+  // 안개: 내 기함 둘레만 트여 있다
+  if(k==='fog'&&F){const x=X(F.x),y=Y(F.y),R=Math.max(140,260*z),g=ctx.createRadialGradient(x,y,R*.55,x,y,R*1.9);g.addColorStop(0,'rgba(232,234,232,0)');g.addColorStop(.5,'rgba(232,234,232,.6)');g.addColorStop(1,'rgba(228,230,228,.9)');ctx.fillStyle=g;ctx.fillRect(0,0,VW,VH);}
+  // 번개와 천둥 (폭풍)
+  if(k==='storm'){if(now>W.nextFl){W.nextFl=now+7000+Math.random()*8000;if(lv===2&&!(S.opt&&S.opt.wxnoflash))W.flash=1;W.thT=now+300+Math.random()*1200;}
+    if(W.thT&&now>W.thT){W.thT=0;try{wxThunder(.9);}catch(e){}}
+    if(W.flash>0){ctx.fillStyle=`rgba(255,255,250,${.5*W.flash})`;ctx.fillRect(0,0,VW,VH);W.flash-=dt*3;}}
+  // 날씨 표시
+  const I=BWX[k];if(I){const x=mob?VW/2:VW/2+215,y=mob?124:98;ctx.font='bold 12px serif';const tx=`${I.ic} ${I.n}`,sub=I.d;ctx.textAlign='center';ctx.lineWidth=3;ctx.strokeStyle='rgba(20,14,8,.75)';
+    ctx.strokeText(tx,x,y);ctx.fillStyle='#fff4dc';ctx.fillText(tx,x,y);if(!mob){ctx.font='11px serif';ctx.strokeText(sub,x,y+15);ctx.fillStyle='#e8dcc0';ctx.fillText(sub,x,y+15);}ctx.textAlign='left';}
+  ctx.restore();}
+{const du0=drawBattleUI;drawBattleUI=function(){try{bwxDraw();}catch(e){}return du0.apply(this,arguments);};}
+// ---- 소리: 빗소리, 폭풍 바람, 천둥 ----
+const WXSND={};
+function wxsInit(){if(WXSND.ok)return true;let tp;try{tp=Snd._tap();}catch(e){return false;}if(!tp||!tp.ac)return false;const ac=tp.ac;WXSND.ac=ac;WXSND.out=ac.createGain();WXSND.out.gain.value=1;WXSND.out.connect(tp.master);
+  const nb=ac.createBuffer(1,ac.sampleRate*3,ac.sampleRate),d=nb.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;WXSND.nb=nb;
+  // 빗소리: 높은 쉬익 + 낮게 두드리는 소리
+  const r1=ac.createBufferSource();r1.buffer=nb;r1.loop=true;const hp=ac.createBiquadFilter();hp.type='highpass';hp.frequency.value=1400;const pk=ac.createBiquadFilter();pk.type='peaking';pk.frequency.value=4200;pk.gain.value=4;
+  WXSND.rain=ac.createGain();WXSND.rain.gain.value=0;r1.connect(hp);hp.connect(pk);pk.connect(WXSND.rain);WXSND.rain.connect(WXSND.out);r1.start();
+  const r2=ac.createBufferSource();r2.buffer=nb;r2.loop=true;r2.playbackRate.value=.7;const bp=ac.createBiquadFilter();bp.type='bandpass';bp.frequency.value=700;bp.Q.value=.7;WXSND.rainLo=ac.createGain();WXSND.rainLo.gain.value=0;r2.connect(bp);bp.connect(WXSND.rainLo);WXSND.rainLo.connect(WXSND.out);r2.start();
+  // 폭풍 바람: 낮게 우는 소리가 천천히 오르내린다
+  const w1=ac.createBufferSource();w1.buffer=nb;w1.loop=true;w1.playbackRate.value=.5;const wf=ac.createBiquadFilter();wf.type='bandpass';wf.frequency.value=380;wf.Q.value=3;const lfo=ac.createOscillator(),lg=ac.createGain();lfo.frequency.value=.13;lg.gain.value=180;lfo.connect(lg);lg.connect(wf.frequency);lfo.start();
+  WXSND.wind=ac.createGain();WXSND.wind.gain.value=0;w1.connect(wf);wf.connect(WXSND.wind);WXSND.wind.connect(WXSND.out);w1.start();WXSND.ok=true;return true;}
+function wxThunder(v){if(!Snd.on||!Snd.opt.sfx||!wxsInit())return;const ac=WXSND.ac,t=ac.currentTime;v=v||1;
+  const mk=(dur,type,f,gv,q)=>{const s=ac.createBufferSource();s.buffer=WXSND.nb;s.playbackRate.value=type==='lowpass'?.5:1;const fl=ac.createBiquadFilter();fl.type=type;fl.frequency.value=f;if(q)fl.Q.value=q;const g=ac.createGain();s.connect(fl);fl.connect(g);g.connect(WXSND.out);return {s,fl,g};};
+  // 갈라지는 소리
+  {const a=mk(.4,'highpass',900);a.g.gain.setValueAtTime(0,t);a.g.gain.linearRampToValueAtTime(.32*v,t+.01);a.g.gain.exponentialRampToValueAtTime(.001,t+.35);a.s.start(t,Math.random()*2);a.s.stop(t+.4);}
+  // 오래 굴러가는 우르릉
+  {const b=mk(4,'lowpass',260,.6);b.g.gain.setValueAtTime(0,t);b.g.gain.linearRampToValueAtTime(.55*v,t+.12);for(let i=1;i<9;i++)b.g.gain.linearRampToValueAtTime((.25+Math.random()*.4)*v*(1-i/10),t+.12+i*.38);b.g.gain.linearRampToValueAtTime(0,t+3.8);
+    b.fl.frequency.setValueAtTime(320,t);b.fl.frequency.exponentialRampToValueAtTime(90,t+3.6);b.s.start(t,Math.random()*2);b.s.stop(t+4);}}
+// 바다 위 번개에도 갈라지는 천둥소리를 더한다
+{const sf0=sfx;sfx=function(k){if(k==='rumble'&&!(typeof B!=='undefined'&&B)){try{wxThunder(.8);return;}catch(e){}}return sf0.apply(this,arguments);};}
+// 날씨에 맞춰 빗소리·바람 크기를 부드럽게 바꾼다 (효과음을 끄면 함께 꺼짐)
+setInterval(()=>{try{if(!Snd.on||!S)return;if(!wxsInit())return;const on=Snd.opt.sfx?1:0;let rain=0,wind=0;const tt=document.getElementById('title');const off=tt&&tt.style.display==='flex';
+  if(typeof B!=='undefined'&&B&&B.wx){const k=B.wx.k;rain=k==='rain'?.7:k==='storm'?1:0;wind=k==='storm'?1:0;}
+  else if(inPort<0){const A=(typeof WXV!=='undefined'&&WXV.a)||{};rain=Math.min(1,(A.rain||0)+(A.storm||0)*.4);wind=A.storm||0;}
+  else{let w=null;try{w=wxHere(PORTS[inPort].lat,PORTS[inPort].lon,S.day);}catch(e){}const k=w&&(w.k||w);rain=(k==='rain'?.35:k==='storm'?.5:0);wind=k==='storm'?.3:0;}
+  if(off){rain=0;wind=0;}const t=WXSND.ac.currentTime;WXSND.rain.gain.setTargetAtTime(.16*rain*on,t,.8);WXSND.rainLo.gain.setTargetAtTime(.1*rain*on,t,.8);WXSND.wind.gain.setTargetAtTime(.3*wind*on,t,1.2);}catch(e){}},300);
 
 // ===== 바람과 해류를 '흐름'으로 보여 주기 =====
 // 보기: 0 흐름(하얀 바람 줄기 + 해류의 띠와 물결) · 1 화살표(예전 방식) · 2 끔. V 키로 바꾼다.
