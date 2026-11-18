@@ -1198,7 +1198,7 @@ function openLog(){if(!S)return;const R=regionStats();
    <table class="mt"><tr><th>바다 지역</th><th class="n">그린 바다</th><th class="n">발견한 항구</th><th class="n">발견물</th><th></th></tr>${R.map((r,k)=>`<tr><td><b>${r.n}</b></td><td class="n">${r.pct.toFixed(1)}%</td><td class="n">${r.ports.filter(p=>known(p.id)).length}/${r.ports.length}</td><td class="n">${r.disc.filter(d=>S.df[d.id]).length}/${r.disc.length}</td><td>${S.rg.includes(k)?'✔ 가 봄':''}</td></tr>`).join('')}</table>
    <h4>내륙 도시의 선물 <small>(처음 닿으면 영구 효과, 큰길을 놓으면 두 배)</small></h4><div class="dgrid">${CITIES.map((c,i)=>{const lv=perkLv(i),t=CITY_PERK[i][0];return `<span class="dcell${lv?'':' un'}" style="${lv?'border-color:'+PERK_DEF[t][1]:''}" title="${PERK_DEF[t][0]}">${lv?c.name+' · '+CITY_PERK[i][1]+(lv>1?' ×2':''):'? · '+PERK_DEF[t][0]}</span>`;}).join('')}</div>
    <p class="hint">지금 효과: 물 소모 ×${waterMul().toFixed(2)} · 식량 소모 ×${foodMul().toFixed(2)} · 부스터 ${boostMax()}일 · 속도 +${perkSum('speed')*3}% · 파는 값 +${perkSum('sell')*3}%</p>
-   ${dreamHTML()}${legendHTML()}<h4>발견물 도감</h4><div class="dgrid">${DISC.map(d=>S.df[d.id]?`<button class="dcell" data-d="${d.id}" style="border-color:${DTYPE_COL[d.t]}">${DTYPE_ICO[d.t]} ${d.n}</button>`:`<span class="dcell un">${S.dd[d.id]?'? '+d.t:'?'}</span>`).join('')}</div></div>`;
+   ${dreamHTML()}${legendHTML()}<h4>발견물 도감 <small>(${Object.keys(S.df).length} / ${DISC.length})</small></h4>${typeof discAlbumHTML==='function'?discAlbumHTML():''}</div>`;
   $('info').style.display='flex';infoOpen=true;$('ix').onclick=closeInfo;$('infobox').querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>showDisc(+b.dataset.d,false));}
 // 증기기관
 const ENG_MAX=10;
@@ -1599,7 +1599,7 @@ const cityIdx=id=>CITIES.findIndex(c=>c.id===id);
 function perkLv(i){const id=CITIES[i].id;if(!S.cf.includes(id))return 0;let big=false;for(const k in (S.links||{})){const [p,c]=k.split('_').map(Number);if(c===id&&S.links[k].lv>=3)big=true;}return big?2:1;}
 function perkSum(type){let t=0;for(let i=0;i<CITIES.length;i++)if(CITY_PERK[i][0]===type)t+=perkLv(i);return t;}
 const waterMul=()=>Math.max(.35,Math.pow(.85,perkSum('water'))*(typeof toolPct==='function'?1-toolPct('water'):1));
-const foodMul=()=>Math.max(.35,Math.pow(.85,perkSum('food'))*(typeof toolPct==='function'?1-toolPct('food'):1));
+const foodMul=()=>Math.max(.35,Math.pow(.85,perkSum('food'))*(typeof toolPct==='function'?1-toolPct('food'):1)*(typeof dsetFoodMul==='function'?dsetFoodMul():1));
 function perkHTML(id){const i=cityIdx(id);if(i<0)return '';const [t,n]=CITY_PERK[i],lv=perkLv(i);
   return `<div class="tipbox"><b>이 도시의 선물: ${n}</b> — ${PERK_DEF[t][0]}${lv?` <b style="color:#3b7a3b">✔ 받음${lv>1?' (큰길로 두 배)':''}</b>`:''}<br><small>처음 닿으면 함대가 영구히 받습니다. 이 도시까지 큰길을 놓으면 효과가 두 배가 됩니다.</small></div>`;}
 const linkKey=(p,c)=>p+'_'+c;
@@ -4929,6 +4929,64 @@ document.addEventListener('keydown',e=>{const d=document.getElementById('famewin
 .fwcur{font-size:22px;font-weight:700;margin:8px 0 4px;color:#7a4a12}.fwcur small{font-size:13px;color:#5a4a3a;font-weight:400;margin-left:6px}
 .fwbar{height:10px;background:#e3d3b0;border-radius:5px;overflow:hidden}.fwbar div{height:100%;background:linear-gradient(90deg,#c9a24a,#e8c25a)}
 .fwbox h4{margin:12px 0 4px}.fwbox ul{margin:0;padding-left:20px}.fwon td{background:#f6e2a8}.fwdone td{color:#6a5a3a}`;document.head.appendChild(st);}
+
+// ===== 발견물의 쓸모: 그림 도감, 종류별 모음 보너스, 부산 박물관 =====
+// 종류마다 25%·50%·전부를 모으면 영구 보너스가 단계별로 붙는다. 조합에 보고한 발견물은 고향 부산의 박물관에 전시되어 입장료와 명성을 모은다.
+const DSET=[
+  {t:'동물',ic:'🐾',n:'박물학자의 기록',fx:'식량 소모',v:[.05,.10,.15],u:'−'},
+  {t:'식물',ic:'❦',n:'약초 지식',fx:'폭풍 선원 피해 줄임',v:[.05,.10,.15],u:'+'},
+  {t:'경관',ic:'⛰',n:'탐험가의 눈',fx:'시야(발견 거리)',v:[.10,.20,.30],u:'+'},
+  {t:'고대 유물',ic:'⌂',n:'고고학자의 명성',fx:'발견물 보고 보상',v:[.15,.30,.50],u:'+'},
+  {t:'옛 세계 유물',ic:'⚙',n:'옛 세계의 지식',fx:'함대 속도',v:[.02,.04,.06],u:'+'},
+  {t:'작동 유물',ic:'✦',n:'살아 있는 전시품',fx:'박물관 입장료',v:[.15,.30,.50],u:'+'}];
+const DSET_STEP=[.25,.5,1];
+function dsetInfo(t){const all=DISC.filter(d=>d.t===t),have=all.filter(d=>S.df&&S.df[d.id]).length,need=DSET_STEP.map(f=>Math.max(1,Math.ceil(all.length*f)));let lv=0;while(lv<3&&have>=need[lv])lv++;return {all:all.length,have,need,lv};}
+function dsetVal(t){const s=DSET.find(x=>x.t===t);if(!s||!S)return 0;const lv=dsetInfo(t).lv;return lv?s.v[lv-1]:0;}
+// 효과 연결
+{const w0=wxMit;wxMit=function(){return Math.min(.9,w0.apply(this,arguments)+dsetVal('식물'));};}
+{const v0=wxVisMul;wxVisMul=function(){return v0.apply(this,arguments)*(1+dsetVal('경관'));};}
+{const n0=navMul;navMul=function(){return n0.apply(this,arguments)*(1+dsetVal('옛 세계 유물'));};}
+const dsetFoodMul=()=>1-dsetVal('동물');
+{const r0=reportAll;reportAll=function(){const un=Object.keys(S.df).map(Number).filter(i=>!S.df[i].rep),b=dsetVal('고대 유물');let base=0;for(const i of un)base+=discReward(DISC[i]);
+  const r=r0.apply(this,arguments);if(b>0&&un.length){const ex=Math.round(base*b);S.gold+=ex;toast(`⌂ 고고학자의 명성: 보고 보상 +${Math.round(b*100)}% (${ex.toLocaleString()}골드 더)`,true);save();}
+  if(un.length)setTimeout(()=>toast(`🏛 보고한 발견물 ${un.length}개가 부산 박물관에 전시됩니다.`),400);return r;};}
+// 모음 단계가 오르면 알림
+setInterval(()=>{try{if(!S||!S.df)return;S.dsl=S.dsl||{};for(const s of DSET){const lv=dsetInfo(s.t).lv;if(lv>(S.dsl[s.t]||0)){S.dsl[s.t]=lv;sfx('mission');toast(`${s.ic} ${s.t} 모음 ${lv}단계 — ${s.n}: ${s.fx} ${s.u}${Math.round(s.v[lv-1]*100)}%`,true);try{save();}catch(e){}}}}catch(e){}},1500);
+// ---------- 그림 도감 ----------
+function dsetHTML(){return `<div class="dsets">${DSET.map(s=>{const I=dsetInfo(s.t);return `<div class="dset"><div><b>${s.ic} ${s.t}</b> <small>${I.have}/${I.all}</small></div><div class="dsbar">${I.need.map((n,k)=>`<i class="${I.have>=n?'on':''}" title="${n}개: ${s.fx} ${s.u}${Math.round(s.v[k]*100)}%">${k+1}</i>`).join('')}</div><div class="hint">${s.n} · ${s.fx} ${I.lv?`<b>${s.u}${Math.round(s.v[I.lv-1]*100)}%</b>`:'없음'}${I.lv<3?` · 다음 ${I.need[I.lv]}개`:' · 완성!'}</div></div>`;}).join('')}</div>`;}
+function discAlbumHTML(onlyRep){let h=dsetHTML();
+  for(const s of DSET){const L=DISC.filter(d=>d.t===s.t);h+=`<h5 class="dah" style="border-color:${DTYPE_COL[s.t]}">${s.ic} ${s.t} <small>${L.filter(d=>S.df[d.id]).length}/${L.length}</small></h5><div class="dalb">`+
+    L.map(d=>{const f=S.df[d.id];if(f&&(!onlyRep||f.rep))return `<button class="dcard" data-d="${d.id}" title="${d.n}"><img src="${discPic(d.id)}" alt="" loading="lazy"><span>${d.n}</span>${f.rep?'':'<em>보고 전</em>'}</button>`;
+      if(f)return `<span class="dcard un wait" title="${d.n}"><img src="${discPic(d.id)}" alt="" loading="lazy"><span>조합에 보고하면 전시</span></span>`;
+      return `<span class="dcard un"><b>${S.dd&&S.dd[d.id]?s.ic:'?'}</b><span>${S.dd&&S.dd[d.id]?'위치를 아는 곳':'?'}</span></span>`;}).join('')+'</div>';}
+  return h;}
+// ---------- 부산 박물관 ----------
+const MUS_LV=[[0,'빈 전시실',1],[10,'작은 박물관',1.2],[30,'항구 박물관',1.5],[60,'바다 박물관',2],[100,'세계 박물관',2.2],[143,'뒤집힌 세상의 박물관',2.5]];
+const musEx=()=>DISC.filter(d=>S.df[d.id]&&S.df[d.id].rep);
+function musLv(){const n=musEx().length;let l=0;while(l<MUS_LV.length-1&&n>=MUS_LV[l+1][0])l++;return l;}
+function musDaily(){const ex=musEx();const base=ex.reduce((a,d)=>a+[2,4,8][d.r-1],0);return Math.round(base*MUS_LV[musLv()][2]*(1+dsetVal('작동 유물')));}
+function musPending(){S.mus=S.mus||{t:Math.floor(S.day)};const days=Math.max(0,Math.min(90,Math.floor(S.day)-S.mus.t));return {days,gold:days*musDaily(),fame:Math.floor(days*musEx().length/40)};}
+function musCollect(){const P=musPending();if(P.gold<=0){toast('아직 쌓인 입장료가 없습니다.');return;}S.gold+=P.gold;S.fame=(S.fame||0)+P.fame;S.mus.t=Math.floor(S.day);sfx('coin');toast(`🏛 박물관 입장료 ${P.gold.toLocaleString()}골드${P.fame?`, 명성 +${P.fame}`:''}을 받았습니다 (${P.days}일치).`,true);save();drawPort();}
+function museumBody(id){const ex=musEx(),l=musLv(),nx=MUS_LV[l+1],P=musPending(),D=musDaily();
+  return `<div class="note" style="border-left:4px solid #8a6a44"><b style="font-size:16px">🏛 ${MUS_LV[l][1]}</b> <small>전시 ${ex.length} / ${DISC.length}${nx?` · '${nx[1]}'까지 ${nx[0]-ex.length}개`:' · 모두 모았습니다!'}</small>
+    <div class="hint">조합에 보고한 발견물이 이곳에 전시됩니다. 귀한 것(★)일수록 구경꾼이 많이 옵니다. 박물관이 커지면 입장료가 ×${MUS_LV[l][2]}로 늘어납니다.</div>
+    <div class="musrow"><div>하루 입장료 <b>${D.toLocaleString()}</b>골드<br><small class="hint">쌓이는 기간은 최대 90일 · 지금 ${P.days}일째</small></div>
+    <button class="main" data-mus="1" ${P.gold>0?'':'disabled'}>입장료 받기 · ${P.gold.toLocaleString()}골드${P.fame?` · 명성 +${P.fame}`:''}</button></div></div>`+
+   (ex.length?`<h4>전시실</h4>${discAlbumHTML(true)}`:'<p class="hint">아직 전시된 발견물이 없습니다. 바다에서 발견물을 찾아 조합에 보고하세요.</p>');}
+TOWN_B.splice(TOWN_B.findIndex(b=>b.k==='hidden'),0,{k:'museum',n:'박물관',ic:'🏛',tabs:[['mus','전시실']],d:'발견물 전시·입장료',sea:1,need:id=>id===HOME});
+BODY.mus=museumBody;CUSTOM_T.add('mus');
+{const bb0=bBind;bBind=function(box){bb0(box);box.querySelectorAll('[data-mus]').forEach(b=>b.onclick=musCollect);box.querySelectorAll('.dalb [data-d]').forEach(b=>b.onclick=()=>showDisc(+b.dataset.d,false));};}
+// 부산에 들어오면 쌓인 입장료를 알려 준다
+{const ep0=enterPort;enterPort=function(id){const r=ep0.apply(this,arguments);try{if(id===HOME&&musEx().length){const P=musPending();if(P.gold>0)setTimeout(()=>toast(`🏛 박물관에 입장료 ${P.gold.toLocaleString()}골드가 쌓여 있습니다.`,true),700);}}catch(e){}return r;};}
+{const st=document.createElement('style');st.textContent=`
+.dsets{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;margin:6px 0 10px}.dset{border:1px solid #d9c9a8;border-radius:8px;padding:6px 8px;background:#fffaf0;font-size:13px}
+.dsbar{display:flex;gap:3px;margin:3px 0}.dsbar i{flex:1;height:14px;border-radius:3px;background:#e6d8bc;font:10px/14px sans-serif;text-align:center;color:#8a7a5a;font-style:normal}.dsbar i.on{background:#c9a24a;color:#fff}
+.dah{margin:10px 0 4px;padding-left:6px;border-left:4px solid}.dalb{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px}
+.dcard{display:flex;flex-direction:column;align-items:stretch;padding:3px;border:1px solid #cdb68e;border-radius:7px;background:#fff8e8;cursor:pointer;position:relative;font:12px/1.3 inherit;color:#2d1c0e;min-width:0}
+.dcard img{width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:5px;display:block}.dcard span{padding:2px 2px 1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}
+.dcard em{position:absolute;top:5px;left:5px;background:rgba(168,50,42,.85);color:#fff;font-style:normal;font-size:10px;padding:0 4px;border-radius:3px}
+.dcard.un{cursor:default;background:repeating-linear-gradient(45deg,#ece2cc 0 6px,#e4d8be 6px 12px);border-style:dashed;color:#9a8a6a}.dcard.un b{display:flex;align-items:center;justify-content:center;aspect-ratio:3/2;font-size:22px}
+.dcard.wait img{filter:grayscale(1) opacity(.45)}.musrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:8px}`;document.head.appendChild(st);}
 
 // ===== 상품 그림 (제미나이로 그린 그림을 잘라 넣음; 없는 상품은 코드 그림) =====
 const GIMG={"0":"","1":"","2":"","3":"","4":"","5":"","6":"","7":"","8":"","9":"","10":"","11":"","12":"","13":"","14":"","15":"","16":"","17":"","18":"","19":"","20":"","21":"","22":"","23":"","24":"","25":"","26":"","27":"","28":"","29":"","30":"","31":"","32":"","33":"","34":"","35":"","36":"","37":"","38":"","39":"","40":"","41":"","42":"","43":"","44":"","45":"","46":"","47":"","48":"","49":"","50":"","51":"","52":"","53":"","54":"","55":"","56":"","57":"","58":"","59":"","60":"","61":"","62":"","63":"","64":"","65":"","66":"","67":"","68":"","69":"","70":"","71":"","72":"","73":"","74":"","75":"","76":"","77":"","78":"","79":"","80":"","81":"","82":"","83":"","84":"","85":"","86":"","87":"","88":"","89":"","90":"","91":"","92":"","93":"","94":"","95":"","96":"","97":"","98":"","99":"","100":"","101":"","102":"","103":"","104":"","105":"","106":"","107":"","108":"","109":"","110":"","111":"","112":"","113":"","114":"","115":"","116":"","117":"","118":"","119":"","120":"","121":"","122":"","123":"","124":"","125":"","126":"","127":"","128":"","129":"","130":"","131":"","132":"","133":"","134":"","135":"","136":"","137":"","138":"","139":"","140":"","141":"","142":"","143":"","144":"","145":"","146":"","147":"","148":"","149":"","150":"","151":"","152":"","153":"","154":"","155":"","156":"","157":"","158":"","159":"","160":"","161":"","162":"","163":"","164":"","165":"","166":"","167":"","168":"","169":"","170":"","171":"","172":"","173":"","174":"","175":"","176":"","177":"","178":"","179":"","180":"","181":"","182":"","183":"","184":"","185":"","186":"","187":"","188":"","189":"","190":"","191":"","192":"","193":"","194":"","195":"","196":"","197":"","198":"","199":"","200":"","201":"","202":"","203":"","204":"","205":"","206":"","207":"","208":"","209":"","210":"","211":"","212":"","213":"","214":""};
