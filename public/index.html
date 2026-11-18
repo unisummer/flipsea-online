@@ -1888,21 +1888,30 @@ let hudT=0;
 function updateHud(){
   const dt=dateOf(S.day), use=S.crew/12;
   const kn=nav.sp/1.852/24, w=nav.w||{u:0,v:1,s:0,zone:''}, cm=Math.hypot(nav.cur[0],nav.cur[1]);
+  if(inPort>=0||S.vStart==null)S.vStart=S.day;const vd=Math.max(0,Math.floor(S.day-S.vStart));
+  const spd=Math.round(Math.hypot(nav.ve,nav.vn)),rem=route&&route.length?routeKm(route,[S.lat,S.lon]):0;
+  // 왼쪽 상태판: 항해에 꼭 필요한 것만 (선원·물·식량·항해 일자·빠르기·바람과 해류·남은 거리). 나머지는 위쪽 정보 줄로.
   $('hud').innerHTML=`<div class="big">${SHIP.name} · ${dt.y}년 ${dt.m}월 ${dt.d}일</div>
-  <div class="row"><span class="k">골드</span><b>${S.gold}</b></div>
+  <div class="row"><span class="k">항해</span><span>${inPort>=0?'항구에 머묾':`출항 ${vd}일째`}</span></div>
   <div class="row"><span class="k">선원</span><span>${S.crew} / ${SHIP.crewMax}명</span></div>${bar(S.crew,SHIP.crewMax,'')}
   <div class="row"><span class="k">물</span><span>${Math.floor(S.water)}통 · ${use?Math.floor(S.water/(use*supplyMul()*waterMul())):'-'}일분</span></div>${bar(S.water,SHIP.water,'w')}
   <div class="row"><span class="k">식량</span><span>${Math.floor(S.food)}자루 · ${use?Math.floor(S.food/(use*supplyMul()*foodMul())):'-'}일분</span></div>${bar(S.food,SHIP.food,'f')}
-  <div class="row"><span class="k">명성 · 발견물</span><span>${S.fame||0} · ${Object.keys(S.df).length}/${DISC.length} (J)</span></div>${boostMax()>0?`<div class="row"><span class="k">${hasRelic('engine')?'증기기관':'순풍 부스터'} (G)</span><span>${S.engine?`<b style="color:#a8322a">가동 · 속도 ${boostMul()}배</b> · `:''}남은 ${(S.engDays==null?boostMax():Math.min(S.engDays,boostMax())).toFixed(1)}/${boostMax()}일</span></div>`:''}
-  ${S.car?`<div class="row"><span class="k">대상</span><span><b style="color:#7a4a2a">${S.car.ph==='go'?'가는 길':S.car.ph==='back'?'돌아오는 길':'도시에 머묾'}</b> ${Math.floor(S.car.t)}/${Math.round(S.car.dur)}일</span></div>`:''}
-  <div class="row"><span class="k">함대</span><span>${S.fleet.length}척 · 항해자 ${hiredIds().length}명 (T)</span></div>
-  <div class="row"><span class="k">자동 항로</span><span>${S.opt.safe?'항구 경유':'최단'} (R)${legs.length?` · 경유 ${legs.length-1>0?legs.length-1+'곳 남음':'끝'}`:''}</span></div>
-  <div class="row"><span class="k">화물칸</span><span>상품 ${cargoT()}톤 · 남은 ${freeT()}톤</span></div>
-  <div class="row"><span class="k">돛</span><span>${['내림','반','가득'][S.sail]}${autop?' · 자동 항해':''}</span></div>
-  <div class="row"><span class="k">빠르기</span><span>${Math.round(Math.hypot(nav.ve,nav.vn))} km/일 (${(Math.hypot(nav.ve,nav.vn)/1.852/24).toFixed(1)}노트)</span></div>
-  <div class="row"><span class="k">바람</span><span>${dirName(-w.u,-w.v)}풍 · ${w.s<.35?'약함':w.s<.8?'보통':'강함'} · ${relName(nav.rel)}</span></div>
-  <div class="row"><span class="k">해류</span><span>${cm<6?'거의 없음':dirName(nav.cur[0],nav.cur[1])+'쪽 '+Math.round(cm)+' km/일'}</span></div>
-  ${route&&route.length?`<div class="row"><span class="k">남은 거리</span><span>${Math.round(routeKm(route,[S.lat,S.lon]))} km${nav.sp>5?' · 약 '+Math.ceil(routeKm(route,[S.lat,S.lon])/Math.max(20,Math.hypot(nav.ve,nav.vn)))+'일':''}</span></div>`:''}`;
+  <div class="row"><span class="k">빠르기</span><span><b>${spd} km/일</b> (${(spd/1.852/24).toFixed(1)}노트) · 돛 ${['내림','반','가득'][S.sail]}${autop?' · 자동':''}${S.engine?' · <b style="color:#a8322a">증기</b>':''}</span></div>
+  <div class="row"><span class="k">바람 · 해류</span><span>${dirName(-w.u,-w.v)}풍 ${w.s<.35?'약':w.s<.8?'보통':'강'} (${relName(nav.rel)}) · ${cm<6?'해류 없음':dirName(nav.cur[0],nav.cur[1])+'쪽 '+Math.round(cm)+'km'}</span></div>
+  ${rem?`<div class="row"><span class="k">남은 거리</span><span>${Math.round(rem)} km${nav.sp>5?' · 약 '+Math.ceil(rem/Math.max(20,spd))+'일':''}</span></div>`:''}`;
+  // 위쪽 정보 줄: 항해에 꼭 필요하지 않은 정보
+  {let ti=$('topinfo');if(!ti){ti=document.createElement('div');ti.id='topinfo';document.body.appendChild(ti);}
+   const tih=`<span title="가진 돈">💰 <b>${S.gold.toLocaleString()}</b></span><span title="명성">⭐ ${S.fame||0}</span><span title="발견물 (J)">🔍 ${Object.keys(S.df).length}/${DISC.length}</span><span title="함대와 항해자 (T)">⛵ ${S.fleet.length}척 · 👥 ${hiredIds().length}명</span><span title="화물칸">📦 ${cargoT()}/${cargoT()+freeT()}톤</span>`+
+    (boostMax()>0?`<span title="${hasRelic('engine')?'증기기관':'순풍 부스터'} (G)">⚙ ${S.engine?`<b style="color:#ffb08a">가동 ×${boostMul()}</b> `:''}${(S.engDays==null?boostMax():Math.min(S.engDays,boostMax())).toFixed(1)}/${boostMax()}일</span>`:'')+
+    (S.car?`<span title="대상">🐪 ${S.car.ph==='go'?'가는 길':S.car.ph==='back'?'돌아오는 길':'도시'} ${Math.floor(S.car.t)}/${Math.round(S.car.dur)}일</span>`:'')+
+    `<span title="자동 항로 (R)">🧭 ${S.opt.safe?'항구 경유':'최단'}${legs.length>1?` · 경유 ${legs.length-1}곳`:''}</span>`;if(ti._h!==tih){ti._h=tih;ti.innerHTML=tih;}}
+  // 아이콘: 항구 찾기(P), 판매 장소 조언(N)
+  {let dk=$('navdock');if(!dk){dk=document.createElement('div');dk.id='navdock';document.body.appendChild(dk);
+     dk.addEventListener('mousedown',e=>{const b=e.target.closest('[data-dk]');if(!b)return;e.stopPropagation();e.preventDefault();uiToggle(b.dataset.dk);updateHud();});}
+   const hasCargo=Object.keys(S.cargo).length>0;
+   const dkh=`<button data-dk="near" class="${uiShown('near')?'on':''}" title="가까운 항구 찾기 (P)">🔎<span>항구 찾기</span><kbd>P</kbd></button>`+
+     `<button data-dk="adv" class="${uiShown('adv')?'on':''}${hasCargo?'':' dim'}" title="짐을 어디서 팔면 좋은지 (N)">💰<span>판매 장소</span><kbd>N</kbd></button>`;if(dk._h!==dkh){dk._h=dkh;dk.innerHTML=dkh;}
+   dk.style.top=($('hud').getBoundingClientRect().bottom+8)+'px';dk.style.left=$('hud').getBoundingClientRect().left+'px';}
   const nb=nearest4();
   setH('near','<h3 class="fh" data-fold="near">가까운 항구 <span class="tg">'+(S.opt.nearFold?'▸ 펼치기':'▾ 접기')+'</span> <span style="font-weight:400;color:#7a5f40;font-size:12px">(누르면 자동 항해)</span></h3>'+nb.map(o=>{const id=o.p.id,k=known(id),r=rumored(id);
     return `<div class="np" data-p="${id}"><span class="ar" style="transform:rotate(${Math.round(o.b)}deg)">↑</span><span class="nm">${k||r?o.p.name:'이름 모를 항구'}${k?'':' <small>(소문)</small>'}</span><span class="km">${dirName(Math.sin(o.b*DEG),Math.cos(o.b*DEG))}쪽 ${Math.round(o.d/10)*10} km</span></div>`;}).join(''));
@@ -1915,10 +1924,10 @@ function updateHud(){
     const row=(o,lab)=>`<div class="np" data-p="${o.p}"><span class="ar">${lab}</span><span class="nm">${GOODS[g][0]} → ${PORTS[o.p].name} <b>${o.v}</b>${o.isEst?'<small>추정</small>':''} <small style="color:${o.v>c.c?'#3b7a3b':'#a8322a'}">(${o.v>c.c?'+':''}${Math.round(o.v-c.c)})</small></span><span class="km">${Math.round(o.d/100)*100}km</span></div>`;
     return row(a.best,'최고')+(a.near&&a.near.p!==a.best.p?row(a.near,'가까운'):'');}).join('')+(eR(3)>0?'':'<div class="hint">회계사를 앉히면 안 가 본 항구의 값도 추정해 줍니다.</div>'):'');
   $('adv').style.display=ck.length?'block':'none';
-  {const top=$('hud').offsetHeight+$('near').offsetHeight+34,room=VH-top-(MINI.h+30);const a=$('adv');a.style.top=top+'px';
+  {const top=$('hud').offsetHeight+(uiShown('near')?$('near').offsetHeight:0)+(MOB?34:86),room=VH-top-(MINI.h+30);const a=$('adv');a.style.top=top+'px';
    a.classList.toggle('fold',!!S.opt.advFold||room<70);a.style.maxHeight=Math.max(40,room)+'px';}
   $('near').classList.toggle('fold',!!S.opt.nearFold);$('mis').classList.toggle('fold',!!S.opt.misFold);$('help').classList.toggle('fold',!!S.opt.helpFold);$('helptg').textContent=S.opt.helpFold?'▸ 펼치기':'▾ 접기';
-  $('near').style.top=($('hud').offsetHeight+22)+'px';
+  $('near').style.top=($('hud').offsetHeight+(MOB?22:72))+'px';
   $('mis').style.top=($('help').style.display==='none'||$('help').classList.contains('uihide')?12:$('help').offsetHeight+24)+'px';
   renderSpeed();if(MOB)mobTop();
   const np=inPort<0?nearPort():-1, nd=inPort<0?nearDisc():-1; const pr=$('prompt'); const ps=[];if(np>=0)ps.push(`E: ${PORTS[np].name}에 입항`);if(nd>=0)ps.push(`Q: ${DISC[nd].t} 조사하기`);if(ps.length){pr.style.display='block';if(MOB){const h=(np>=0?`<button data-k="e">⚓ ${PORTS[np].name} 입항</button>`:'')+(nd>=0?`<button data-k="q">🔍 ${DISC[nd].t} 조사</button>`:'');if(pr.dataset.h!==h){pr.dataset.h=h;pr.innerHTML=h;}}else{pr.dataset.h='';pr.textContent=ps.join('   ·   ');}}else pr.style.display='none';
@@ -2881,11 +2890,13 @@ function drawSlots(){const el=$('slots');if(!el||S)return;el.innerHTML=[1,2,3].m
 
 // ===== 화면 창 관리 (PC) — 단축키 바, 열고 닫기, 접기, 끌어 옮기기, 배치 기억 =====
 // 창: [id, 이름, 단축키, 처음에 보이기, 캔버스 그림인지]
-const UIW=[['hud','상태판','U',1],['help','조작법','H',1],['near','가까운 항구','P',1],['adv','판매 조언','N',1],['mis','이야기·과제','K',1],['where','지금 자리','C',1],['tut','튜토리얼','Y',1],['mini','미니맵','Z',1,1],['comp','나침반','X',1,1]];
+const UIW=[['hud','상태판','U',1],['help','조작법','H',1],['near','가까운 항구','P',0],['adv','판매 조언','N',0],['mis','이야기·과제','K',1],['where','지금 자리','C',1],['tut','튜토리얼','Y',1],['mini','미니맵','Z',1,1],['comp','나침반','X',1,1]];
 const UI_SHORT={hud:'상태',help:'조작',near:'항구',adv:'조언',mis:'과제',where:'위치',tut:'배우기',mini:'지도',comp:'나침반',rankw:'순위',onp:'온라인'};
 const UI_KEY='flipsea_ui_v1';
 let UIS={v:{},pos:{},bar:1};
 try{const o=JSON.parse(localStorage.getItem(UI_KEY)||'null');if(o)UIS=Object.assign(UIS,o);}catch(e){}
+// 항해 화면 단순화(2026-11): 가까운 항구·판매 조언은 아이콘으로 열고 닫는다 → 처음 한 번 닫아 둔다
+if(!UIS.mig2){UIS.mig2=1;delete UIS.v.near;delete UIS.v.adv;try{localStorage.setItem(UI_KEY,JSON.stringify(UIS));}catch(e){}}
 const uiSave=()=>{try{localStorage.setItem(UI_KEY,JSON.stringify(UIS));}catch(e){}};
 const uiDef=id=>UIW.find(w=>w[0]===id);
 const uiShown=id=>{const w=uiDef(id);return UIS.v[id]!=null?!!UIS.v[id]:!!(w&&w[3]);};
@@ -3084,6 +3095,15 @@ setInterval(()=>{try{if(S&&!MOB&&uiShown('opts'))optsDraw();}catch(e){}},1500);
 {const dm=drawMenu;drawMenu=function(){const r=dm.apply(this,arguments);const b=$('mmBody');if(b&&S){const d=document.createElement('div');d.innerHTML='<h4>⚙ 설정</h4>'+optsHTML();b.appendChild(d);optsBind(d);}return r;};}
 (()=>{const st=document.createElement('style');st.textContent=`#opts{right:290px;top:260px;width:300px;padding:10px 14px;font-size:13px}#opts h3{margin:0 0 6px}
 .optr{margin:8px 0}.optr input[type=range]{width:100%}.optv{float:right;font-weight:700;color:#2f5d73}`;document.head.appendChild(st);})();
+// ===== 항해 화면 단순화: 위쪽 정보 줄, 왼쪽 아이콘(항구 찾기·판매 장소) =====
+{const st=document.createElement('style');st.textContent=`#topinfo{position:fixed;left:50%;top:74px;transform:translateX(-50%);z-index:4;display:flex;gap:4px;white-space:nowrap;font-size:12.5px;pointer-events:none}
+#topinfo span{background:rgba(59,42,26,.78);color:#f6ecd4;padding:2px 9px;border-radius:10px}#topinfo b{color:#ffe7a8}
+#navdock{position:fixed;z-index:4;display:flex;gap:6px}
+#navdock button{display:flex;align-items:center;gap:5px;background:rgba(246,236,212,.95);border:1.5px solid #6a4a28;border-radius:16px;padding:3px 10px 3px 7px;font:inherit;font-size:13px;color:#3b2a1a;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+#navdock button:hover{background:#fff6dc}#navdock button.on{background:#5a3e22;color:#f6ecd4}#navdock button.dim{opacity:.55}
+#navdock kbd{font-size:10.5px;background:rgba(0,0,0,.12);border-radius:4px;padding:0 4px}
+body:not(.on) #topinfo,body:not(.on) #navdock,body.battle #topinfo,body.battle #navdock,body.mob #topinfo,body.mob #navdock{display:none!important}
+body:not(.mob) #toast{top:104px}`;document.head.appendChild(st);}
 
 // ===== 투자의 쓸모: 공업 투자 → 특별 주문 배, 시장 투자 → 명품 상품 =====
 // 등급은 그 항구에 넣은 '투자 골드'로만 오른다 (거래로는 오르지 않음).
@@ -4521,6 +4541,10 @@ function seaGlint(){if(!S||inPort>=0||cam.z<1.4)return;const now=performance.now
     ctx.strokeStyle=i0.dark>.5?`rgba(215,228,255,${a*.8})`:`rgba(255,255,248,${a})`;ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(p.x-p.L,p.y);ctx.quadraticCurveTo(p.x,p.y-1.6,p.x+p.L,p.y);ctx.stroke();}
   ctx.restore();}
 {const di1=drawInland;drawInland=function(){try{seaGlint();}catch(e){}return di1.apply(this,arguments);};}
+// 상태판에 날씨·시각 줄이 붙은 뒤에 아이콘과 창 위치를 맞춘다
+{const u9=updateHud;updateHud=function(){u9.apply(this,arguments);try{if(!S||(typeof MOB!=='undefined'&&MOB))return;const h=$('hud'),r=h.getBoundingClientRect(),dk=$('navdock');
+  if(dk){dk.style.top=(r.bottom+8)+'px';dk.style.left=r.left+'px';}const base=h.offsetHeight+(dk?dk.offsetHeight+30:22);
+  const n=$('near');if(n&&!(UIS.pos&&UIS.pos.near))n.style.top=base+'px';const a=$('adv');if(a&&!(UIS.pos&&UIS.pos.adv))a.style.top=(base+(uiShown('near')?n.offsetHeight+12:0))+'px';}catch(e){}};}
 
 // ===== 온라인 (Render 서버용) — ONLINE 빌드에서만 들어간다 =====
 const ON={live:false,id:0,nm:'',tok:'',ws:null,wsOk:false,W:{mk:{},dev:{},disc:{},inv:{},nm:{}},players:[],chat:[],unread:0,tab:'chat',qmk:{},qdev:{},rank:null,rankT:0,open:false,retry:0,posT:0};
