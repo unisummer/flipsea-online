@@ -5043,7 +5043,7 @@ const DIMG={"0":"","1":"","2":"","3":"","4":"","5":"","6":"","7":"","8":"","9":"
 {const d0=discPic;discPic=function(id){return DIMG[id]||d0(id);};}
 
 // ===== 도시 그림 (제미나이 그림; 문화권별) =====
-const CIMG={"busan":""};
+const CIMG={"af":"","am_temp":"","am_trop":"","busan":"","ea":"","eu_med":"","eu_north":"","in_dry":"","in_green":"","jp":"","me":"","oc":"","po":"","sa":"","sea":""};
 function cityKey(id){const P=PORTS[id];if(id===HOME)return 'busan';const c=culOf(id),la=Math.abs(-P.lat);
   if(P.inland)return ['me','af','sa','ea'].includes(c)?'in_dry':'in_green';
   if(c==='eu')return la<46?'eu_med':'eu_north';if(c==='am')return la<23.5?'am_trop':'am_temp';return c;}
@@ -5637,7 +5637,7 @@ function otherAt(sx,sy){if(!ON.live)return null;const now=performance.now();let 
 
 
 // ===== 그림 묶음 불러오기 (게임 파일 밖 a/*.json) =====
-const ASSET_B=[["FACES", "a/faces.0642fb67e5.json"], ["CIMG", "a/cimg.f7d26a8042.json"], ["GIMG", "a/gimg.90b64b3902.json"], ["IGART", "a/igart.4ec7b2794b.json"], ["DIMG", "a/dimg.35a5e20d11.json"]];const ASSET_OK={};
+const ASSET_B=[["FACES", "a/faces.0642fb67e5.json"], ["CIMG", "a/cimg.46ef3f47fd.json"], ["GIMG", "a/gimg.90b64b3902.json"], ["IGART", "a/igart.4ec7b2794b.json"], ["DIMG", "a/dimg.35a5e20d11.json"]];const ASSET_OK={};
 function assetFill(t,s){for(const k in s){const v=s[k];if(v&&typeof v==='object'){if(!t[k]||typeof t[k]!=='object')t[k]=Array.isArray(v)?[]:{};assetFill(t[k],v);}else t[k]=v;}}
 const ASSET_TGT={FACES:()=>FACES,CIMG:()=>CIMG,GIMG:()=>GIMG,IGART:()=>IGART,DIMG:()=>DIMG};
 const ASSET_AFTER={IGART:()=>{try{window.IGS_FILL&&IGS_FILL();}catch(e){}}};
