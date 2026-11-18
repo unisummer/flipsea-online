@@ -1758,7 +1758,7 @@ function render(){
   ctx.setTransform(DPR,0,0,DPR,0,0);ctx.fillStyle='#241a12';ctx.fillRect(0,0,VW,VH);
   if(follow){const p=proj(S.lat,S.lon);cam.x=p[0];cam.y=p[1];}
   ctx.save();ctx.translate(VW/2,VH/2);ctx.scale(cam.z,cam.z);ctx.translate(-cam.x,-cam.y);
-  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(world,0,0);drawTiles(ctx);ctx.drawImage(fog,0,0);ctx.restore();
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(world,0,0);drawTiles(ctx);ctx.drawImage(fog,0,0);try{drawDesk(ctx);}catch(e){}ctx.restore();
   // 바람·해류 화살표
   if(layers){const sp=Math.max(46,Math.min(90,60));
     for(let sy=sp/2;sy<VH;sy+=sp)for(let sx=sp/2;sx<VW;sx+=sp){
@@ -4443,6 +4443,58 @@ function dnDraw(){if(!S||inPort>=0)return;const i=dnInfo(),A=Math.min(.7,(S.opt&
 // BODY 표가 처음 함수를 직접 들고 있으므로, 덧입힌 함수를 쓰도록 다시 연결
 BODY.tav=id=>tavHome(id);BODY.hidden=id=>hiddenBody(id);
 
+// ===== 지도 바깥: 선장의 지도 탁자 =====
+// 둥근 세계 지도(양피지)가 짙은 나무 책상 위에 펼쳐져 있고, 금빛 테두리와 그림자, 구석에 항해 소품이 놓여 있다.
+const DESK={path:null,wood:null,props:null};
+function deskOval(){if(DESK.path)return DESK.path;const p=new Path2D();const N=180;
+  for(let i=0;i<=N;i++){const lat=90-180*i/N,q=proj(lat,CM+179.999);i?p.lineTo(q[0],q[1]):p.moveTo(q[0],q[1]);}
+  for(let i=0;i<=N;i++){const lat=-90+180*i/N,q=proj(lat,CM-179.999);p.lineTo(q[0],q[1]);}p.closePath();return DESK.path=p;}
+function deskWood(){if(DESK.wood)return DESK.wood;const c=document.createElement('canvas');c.width=c.height=512;const g=c.getContext('2d');
+  g.fillStyle='#3a2516';g.fillRect(0,0,512,512);
+  // 널빤지 4장
+  for(let b=0;b<4;b++){const y0=b*128,r=srand(31+b);g.fillStyle=`rgb(${62+r()*14|0},${40+r()*8|0},${24+r()*6|0})`;g.fillRect(0,y0,512,126);
+    for(let k=0;k<26;k++){const yy=y0+4+r()*118,a=.05+r()*.09,ph=r()*6;g.strokeStyle=`rgba(${r()<.5?20:120},${r()<.5?12:80},${r()<.5?6:44},${a})`;g.lineWidth=.6+r()*1.8;g.beginPath();
+      for(let x=0;x<=512;x+=8){const y=yy+Math.sin(x/(60+r()*0)+ph)*2.2+Math.sin(x/17+ph*2)*.6;x?g.lineTo(x,y):g.moveTo(x,y);}g.stroke();}
+    // 옹이
+    if(r()<.8){const kx=r()*512,ky=y0+20+r()*86;for(let q=0;q<5;q++){g.strokeStyle=`rgba(25,14,6,${.25-q*.04})`;g.lineWidth=1.2;g.beginPath();g.ellipse(kx,ky,6+q*5,3+q*2.4,0,0,7);g.stroke();}}
+    g.fillStyle='rgba(15,8,3,.7)';g.fillRect(0,y0+126,512,2);}
+  const pat=document.createElement('canvas').getContext('2d').createPattern(c,'repeat');return DESK.wood=pat;}
+// 소품: 나침반 장미, 디바이더, 촛불, 잉크병과 깃펜
+function deskProps(){if(DESK.props)return DESK.props;const mk=(w,h,f)=>{const c=document.createElement('canvas');c.width=w;c.height=h;f(c.getContext('2d'),w,h);return c;};
+  const rose=mk(420,420,(g,w)=>{const c=w/2;g.translate(c,c);g.fillStyle='rgba(0,0,0,.35)';g.beginPath();g.arc(8,10,190,0,7);g.fill();
+    g.fillStyle='#e9dcb8';g.beginPath();g.arc(0,0,190,0,7);g.fill();g.strokeStyle='#6a4a28';g.lineWidth=6;g.stroke();g.lineWidth=2;g.beginPath();g.arc(0,0,172,0,7);g.stroke();
+    for(let i=0;i<32;i++){g.save();g.rotate(i*Math.PI/16);g.beginPath();g.moveTo(0,-172);g.lineTo(0,-(i%4?160:150));g.stroke();g.restore();}
+    const star=(R,r,n,c1,c2,rot)=>{for(let i=0;i<n;i++){g.save();g.rotate(rot+i*2*Math.PI/n);g.fillStyle=c1;g.beginPath();g.moveTo(0,-R);g.lineTo(r,0);g.lineTo(0,0);g.fill();g.fillStyle=c2;g.beginPath();g.moveTo(0,-R);g.lineTo(-r,0);g.lineTo(0,0);g.fill();g.restore();}};
+    star(120,22,8,'#8a6a40','#c9a77a',Math.PI/8);star(158,30,4,'#7a1f18','#c8a060',0);g.fillStyle='#3b2a1a';g.beginPath();g.arc(0,0,10,0,7);g.fill();
+    g.fillStyle='#3b2a1a';g.font='bold 30px serif';g.textAlign='center';g.textBaseline='middle';[['북',0,-130],['남',0,132],['동',132,0],['서',-132,0]].forEach(([t,x,y])=>g.fillText(t,x,y));});
+  const divider=mk(260,420,(g)=>{g.translate(130,40);g.strokeStyle='rgba(0,0,0,.35)';g.lineWidth=12;g.beginPath();g.moveTo(8,8);g.lineTo(-62,368);g.moveTo(8,8);g.lineTo(88,368);g.stroke();
+    g.strokeStyle='#b8a888';g.lineWidth=9;g.lineCap='round';g.beginPath();g.moveTo(0,0);g.lineTo(-70,360);g.moveTo(0,0);g.lineTo(80,360);g.stroke();g.strokeStyle='#6a5a40';g.lineWidth=2;g.stroke();
+    g.fillStyle='#c9a24a';g.beginPath();g.arc(0,0,16,0,7);g.fill();g.strokeStyle='#5a4020';g.stroke();});
+  const ink=mk(300,360,(g)=>{g.fillStyle='rgba(0,0,0,.35)';g.beginPath();g.ellipse(160,300,95,30,0,0,7);g.fill();
+    const gr=g.createLinearGradient(70,0,230,0);gr.addColorStop(0,'#1a1a2a');gr.addColorStop(.4,'#3a3a5a');gr.addColorStop(1,'#141420');g.fillStyle=gr;g.beginPath();g.moveTo(80,290);g.quadraticCurveTo(60,200,110,170);g.lineTo(110,140);g.lineTo(190,140);g.lineTo(190,170);g.quadraticCurveTo(240,200,220,290);g.closePath();g.fill();
+    g.fillStyle='#8a6a40';g.fillRect(105,128,90,16);
+    g.strokeStyle='#efe6d0';g.lineWidth=5;g.beginPath();g.moveTo(150,135);g.quadraticCurveTo(170,60,260,10);g.stroke();g.fillStyle='rgba(240,232,212,.95)';g.beginPath();g.moveTo(170,90);g.quadraticCurveTo(230,20,268,6);g.quadraticCurveTo(215,70,180,108);g.closePath();g.fill();});
+  const candle=mk(220,420,(g)=>{g.fillStyle='rgba(0,0,0,.35)';g.beginPath();g.ellipse(115,385,90,22,0,0,7);g.fill();g.fillStyle='#8a6a40';g.beginPath();g.ellipse(110,375,90,22,0,0,7);g.fill();g.fillStyle='#a8844e';g.beginPath();g.ellipse(110,366,90,22,0,0,7);g.fill();
+    const gr=g.createLinearGradient(80,0,140,0);gr.addColorStop(0,'#e6dcc0');gr.addColorStop(.5,'#fbf4e2');gr.addColorStop(1,'#d8ccaa');g.fillStyle=gr;g.fillRect(82,170,56,196);g.fillStyle='#f4ecd6';g.beginPath();g.ellipse(110,170,28,8,0,0,7);g.fill();
+    g.strokeStyle='#2a1a0a';g.lineWidth=3;g.beginPath();g.moveTo(110,170);g.lineTo(110,150);g.stroke();});
+  return DESK.props={rose,divider,ink,candle};}
+function drawDesk(c){if(!S)return;const z=cam.z;
+  c.save();
+  // 책상: 지도 바깥 전체 (나뭇결은 화면 크기에 맞게)
+  const big=new Path2D();big.rect(-IMW*3,-IMH*3,IMW*7,IMH*7);big.addPath(deskOval());const pat=deskWood();try{pat.setTransform(new DOMMatrix().scale(1/z));}catch(e){}
+  c.fillStyle=pat;c.fill(big,'evenodd');
+  // 지도가 책상에 드리운 그림자와 테두리
+  c.save();c.clip(big,'evenodd');c.shadowColor='rgba(0,0,0,.65)';c.shadowBlur=28*DPR;c.strokeStyle='rgba(20,10,4,.9)';c.lineWidth=10/z;c.stroke(deskOval());c.restore();
+  c.strokeStyle='#4a2f18';c.lineWidth=7/z;c.stroke(deskOval());c.strokeStyle='#c9a24a';c.lineWidth=2.2/z;c.stroke(deskOval());
+  // 소품 (책상 위의 물건이라 지도와 함께 커지고 작아진다)
+  const P=deskProps(),u=IMH/1000;const put=(img,x,y,s,rot)=>{c.save();c.translate(x,y);c.rotate(rot||0);c.drawImage(img,-img.width*s*u/2,-img.height*s*u/2,img.width*s*u,img.height*s*u);c.restore();};
+  put(P.rose,IMW*.06,IMH*.12,.5,-.15);put(P.divider,IMW*.955,IMH*.12,.42,.75);put(P.ink,IMW*.04,IMH*.88,.42,-.35);put(P.candle,IMW*.96,IMH*.84,.5,0);
+  // 촛불 (흔들리는 불꽃과 불빛, 밤엔 더 밝게)
+  {const t=performance.now()/1000,fx=IMW*.96,fy=IMH*.84-(420/2-148)*.5*u,fl=1+Math.sin(t*9)*.06+Math.sin(t*23)*.04,dk=(()=>{try{return dnInfo().dark;}catch(e){return 0;}})();
+   c.globalCompositeOperation='lighter';const R=IMH*(.09+.05*dk)*fl,g=c.createRadialGradient(fx,fy,0,fx,fy,R);g.addColorStop(0,`rgba(255,190,90,${.35+.25*dk})`);g.addColorStop(1,'rgba(255,160,60,0)');c.fillStyle=g;c.beginPath();c.arc(fx,fy,R,0,7);c.fill();
+   c.globalCompositeOperation='source-over';c.fillStyle='#ffd27a';c.beginPath();c.ellipse(fx,fy-8*u*fl,5*u,13*u*fl,Math.sin(t*5)*.08,0,7);c.fill();c.fillStyle='#fff6d8';c.beginPath();c.ellipse(fx,fy-5*u,2.4*u,6*u,0,0,7);c.fill();}
+  c.restore();}
+
 // ===== 바람과 해류를 '흐름'으로 보여 주기 =====
 // 보기: 0 흐름(하얀 바람 줄기 + 해류의 띠와 물결) · 1 화살표(예전 방식) · 2 끔. V 키로 바꾼다.
 const FLOW_NAMES=['바람·해류 흐름','바람·해류 화살표','표시 끔'];
@@ -4514,7 +4566,7 @@ function flClouds(){if(!S||inPort>=0||flowMode()===2)return;const now=performanc
   while(CL.L.length<want){const c={};clSpawn(c,false);c.a=Math.random();CL.L.push(c);}
   const W=VW/cam.z,H=VH/cam.z,x0=cam.x-W/2,y0=cam.y-H/2,m=260/cam.z,ST=flStorms(),sp0=toScr(...proj(S.lat,S.lon));
   const grey=wx==='storm'?.45:wx==='rain'||wx==='snow'?.7:wx==='cloud'?.85:1;
-  ctx.save();
+  ctx.save();try{const T=ctx.getTransform();ctx.setTransform(DPR,0,0,DPR,0,0);ctx.translate(VW/2,VH/2);ctx.scale(cam.z,cam.z);ctx.translate(-cam.x,-cam.y);ctx.clip(deskOval());ctx.setTransform(T);}catch(e){}
   for(let pass=0;pass<2;pass++)for(let i=CL.L.length-1;i>=0;i--){const c=CL.L[i];
     if(pass===0){if(c.k--<=0){c.k=12;const ll=inv(c.x,c.y);if(ll){const w=windAt(ll.lat,ll.lon,S.day),dv=dirOnScreen(ll.lat,ll.lon,w.u,w.v);let vx=dv[0],vy=dv[1],s=Math.min(1.6,w.s);
         const sc=toScr(c.x,c.y);for(const q of ST){const dx=sc[0]-q[0],dy=sc[1]-q[1],r=Math.hypot(dx,dy);if(r<q[2]*1.3&&r>1){const k=Math.min(1,1.4-r/q[2]);vx=vx*(1-k)+(-dy/r*q[3])*k;vy=vy*(1-k)+(dx/r*q[3])*k;s=Math.max(s,1.5*k);}}
