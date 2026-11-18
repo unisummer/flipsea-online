@@ -194,7 +194,7 @@ function onMsg(c, info, raw) {
   const now = Date.now(), num = (x, a, b) => typeof x === 'number' && isFinite(x) && x >= a && x <= b;
   if (m.type === 'pos') {
     if (!num(m.lat, -90, 90) || !num(m.lon, -400, 400)) return;
-    info.pos = { lat: m.lat, lon: m.lon, hd: num(m.hd, -720, 720) ? m.hd : 0, port: Number.isInteger(m.port) ? m.port : -1, ships: Number.isInteger(m.ships) ? m.ships : 1, fl: String(m.fl || '').slice(0, 20), day: num(m.day, 0, 1e7) ? Math.floor(m.day) : 0, bat: !!m.bat, asset: num(m.asset, 0, 1e13) ? Math.round(m.asset) : 0, t: now };
+    info.pos = { lat: m.lat, lon: m.lon, hd: num(m.hd, -720, 720) ? m.hd : 0, port: Number.isInteger(m.port) ? m.port : -1, ships: Number.isInteger(m.ships) ? m.ships : 1, ts: Array.isArray(m.ts) ? m.ts.slice(0, 5).filter(x => Number.isInteger(x) && x >= 0 && x < 40) : [], fl: String(m.fl || '').slice(0, 20), day: num(m.day, 0, 1e7) ? Math.floor(m.day) : 0, bat: !!m.bat, asset: num(m.asset, 0, 1e13) ? Math.round(m.asset) : 0, t: now };
   } else if (m.type === 'dask' || m.type === 'dans' || m.type === 'dack' || m.type === 'igc') {
     DUEL.onMsg(info, m);
   } else if (m.type === 'chat') {
