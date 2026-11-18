@@ -1047,7 +1047,7 @@ function drawPort(){const p=PORTS[inPort],dt=dateOf(S.day),m=dt.m,id=inPort;
   $('portbox').innerHTML=`<img class="pban" src="${portBanner(id)}" alt="">`+head+`<div class="pbody">${body}</div>`;
   $('px').onclick=p.inland?leaveCity:leavePort;bindCaravan($('portbox'),drawPort);if(p.inland)bindRoad($('portbox'),drawPort);
   $('portbox').querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{portTab=b.dataset.tab;if(portTab==='info')S.st.info=1;checkMissions();drawPort();});
-  $('portbox').querySelectorAll('[data-inv]').forEach(b=>b.onclick=()=>{const v=+b.dataset.inv;if(S.gold<v)return;S.gold-=v;S.fame=(S.fame||0)+Math.round(v/200);S.st.invest=(S.st.invest||0)+v;addDev(inPort,'inv',v);toast(`${PORTS[inPort].name}에 ${v.toLocaleString()}골드를 투자했습니다.`);checkMissions();save();drawPort();});
+  $('portbox').querySelectorAll('[data-inv]').forEach(b=>b.onclick=()=>{const v=+b.dataset.inv;if(S.gold<v)return;S.gold-=v;fameAdd(Math.round(v/200),'trd');S.st.invest=(S.st.invest||0)+v;addDev(inPort,'inv',v);toast(`${PORTS[inPort].name}에 ${v.toLocaleString()}골드를 투자했습니다.`);checkMissions();save();drawPort();});
   {const rb=$('portbox').querySelector('#rep');if(rb)rb.onclick=()=>{reportAll();drawPort();};}
   bindYard($('portbox'),drawPort);bindRepair($('portbox'),drawPort);bindBounty($('portbox'),drawPort);bindFleet($('portbox'),drawPort);
   $('portbox').querySelectorAll('[data-hire]').forEach(b=>b.onclick=()=>{hire(+b.dataset.hire);drawPort();});
@@ -1186,7 +1186,7 @@ function guildHTML(){const un=Object.keys(S.df).map(Number).filter(i=>!S.df[i].r
   else h+=`<table class="mt"><tr><th>발견물</th><th>종류</th><th class="n">보상</th></tr>${un.map(i=>`<tr><td>${DISC[i].n}</td><td>${DISC[i].t} ${'★'.repeat(DISC[i].r)}</td><td class="n">${discReward(DISC[i])}골드 · 명성 ${DISC[i].r*100}</td></tr>`).join('')}</table><button class="main" id="rep">모두 보고하기</button>`;
   h+=`<div class="note">학자의 학식이 높을수록 보고 보상이 커집니다. 바다 지역 12곳의 탐험 정도는 항해 일지(J)에서 볼 수 있습니다.</div>`;return h;}
 function reportAll(){const un=Object.keys(S.df).map(Number).filter(i=>!S.df[i].rep);let g=0,f=0;for(const i of un){S.df[i].rep=1;g+=discReward(DISC[i]);f+=DISC[i].r*100;}
-  S.gold+=g;S.fame=(S.fame||0)+f;S.st.rep=(S.st.rep||0)+un.length;toast(`발견물 ${un.length}개를 보고했습니다. ${g}골드, 명성 +${f}`,true);checkMissions();save();}
+  S.gold+=g;fameAdd(f,'adv');S.st.rep=(S.st.rep||0)+un.length;toast(`발견물 ${un.length}개를 보고했습니다. ${g}골드, 명성 +${f}`,true);checkMissions();save();}
 // 지역별 탐험
 let REGSEA=null;
 function regionStats(){if(!REGSEA){REGSEA=new Array(12).fill(0);for(let i=0;i<EXH;i++)for(let j=0;j<EXW;j++)if(EXSEAMASK[i*EXW+j])REGSEA[regionOf(89-i*2,-29+j*2)]++;}
@@ -1654,8 +1654,8 @@ const CEV=[
  {t:'모래폭풍',w:2,txt:'하늘이 누렇게 변하며 모래폭풍이 몰려옵니다.',ch:[['멈춰서 기다린다',c=>{c.dur+=2;return '이틀을 기다렸다가 다시 떠났습니다.';}],['서둘러 지나간다',c=>{if(Math.random()<.5){c.dur+=4;return '길을 잃어 나흘을 헤맸습니다.';}return '무사히 폭풍을 빠져나왔습니다.';}]]},
  {t:'강 건너기',w:2,txt:'불어난 강이 길을 막고 있습니다.',ch:[['뗏목을 빌린다 (80골드)',c=>{S.gold=Math.max(0,S.gold-80);return '뗏목으로 건넜습니다.';}],['얕은 곳을 찾는다',c=>{c.dur+=1.5;return '하루 반을 돌아 얕은 여울로 건넜습니다.';}]]},
  {t:'오아시스',w:3,txt:'야자수 그늘 아래 맑은 샘이 있습니다. 낙타들이 기뻐합니다.',ch:[['쉬어 간다',c=>{c.dur=Math.max(c.t+.5,c.dur-1);return '푹 쉰 대상이 하루를 앞당겼습니다.';}]]},
- {t:'길 잃은 여행자',w:2,txt:'지친 여행자가 물을 청합니다.',ch:[['물과 음식을 나눈다',c=>{S.fame=(S.fame||0)+30;if(Math.random()<.5){const p=CITIES.find(x=>!S.cf.includes(x.id));if(p){S.cr=S.cr||[];if(!S.cr.includes(p.id))S.cr.push(p.id);return `고마워하며 '${p.name}'(옛 ${p.old} 자리)이라는 내륙 도시 이야기를 들려주었습니다. 명성 +30`;}}return '여행자가 고마워했습니다. 명성 +30';}],['지나친다',c=>'못 본 척 지나쳤습니다.']]},
- {t:'옛 문명의 흔적',w:1,txt:'모래 속에 반쯤 묻힌 이상한 쇳조각과 돌기둥이 보입니다.',ch:[['파 본다',c=>{const g=Math.round(300+Math.random()*700);S.gold+=g;S.fame=(S.fame||0)+50;return `옛 세계의 물건 조각을 찾아 ${g}골드에 팔 만한 것을 얻었습니다. 명성 +50`;}],['그냥 간다',c=>'발길을 재촉했습니다.']]},
+ {t:'길 잃은 여행자',w:2,txt:'지친 여행자가 물을 청합니다.',ch:[['물과 음식을 나눈다',c=>{fameAdd(30,'adv');if(Math.random()<.5){const p=CITIES.find(x=>!S.cf.includes(x.id));if(p){S.cr=S.cr||[];if(!S.cr.includes(p.id))S.cr.push(p.id);return `고마워하며 '${p.name}'(옛 ${p.old} 자리)이라는 내륙 도시 이야기를 들려주었습니다. 명성 +30`;}}return '여행자가 고마워했습니다. 명성 +30';}],['지나친다',c=>'못 본 척 지나쳤습니다.']]},
+ {t:'옛 문명의 흔적',w:1,txt:'모래 속에 반쯤 묻힌 이상한 쇳조각과 돌기둥이 보입니다.',ch:[['파 본다',c=>{const g=Math.round(300+Math.random()*700);S.gold+=g;fameAdd(50,'adv');return `옛 세계의 물건 조각을 찾아 ${g}골드에 팔 만한 것을 얻었습니다. 명성 +50`;}],['그냥 간다',c=>'발길을 재촉했습니다.']]},
  {t:'장터 마을',w:2,txt:'길가에 작은 장터가 열렸습니다.',ch:[['구경한다',c=>{const g=Math.round(100+Math.random()*300);S.gold+=g;return `가져간 짐 일부를 좋은 값에 바꿔 ${g}골드를 벌었습니다.`;}]]},
 ];
 let carEvOpen=false;
@@ -1671,7 +1671,7 @@ function showCarEvent(e){carEvOpen=true;paused=true;sfx(e.t==='산적'?'warn':'d
     $('cecl').onclick=()=>{closeInfo();paused=false;carEvOpen=false;save();};});}
 // ---- 내륙 도시 ----
 let inCity=false;
-function arriveCity(){const c=S.car,city=PORTS[c.to];c.ph='city';if(!S.cf.includes(city.id)){S.cf.push(city.id);const i=cityIdx(city.id),pk=CITY_PERK[i];S.gold+=1000;S.fame=(S.fame||0)+150;sfx('relic');
+function arriveCity(){const c=S.car,city=PORTS[c.to];c.ph='city';if(!S.cf.includes(city.id)){S.cf.push(city.id);const i=cityIdx(city.id),pk=CITY_PERK[i];S.gold+=1000;fameAdd(150,'adv');sfx('relic');
     toast(`새 내륙 도시: ${city.name} (옛 ${city.old} 자리). 첫 방문 보상 1,000골드, 명성 +150`,true);toast(`도시의 선물 '${pk[1]}': ${PERK_DEF[pk[0]][0]} (영구)`,true);if(pk[0]==='boost')S.engDays=boostMax();}
   S.st.carArr=(S.st.carArr||0)+1;S._ship=S.cargo;S.cargo=c.cargo;inCity=true;checkMissions();enterPort(city.id);}
 function leaveCity(){const c=S.car;c.cargo=S.cargo;S.cargo=S._ship;delete S._ship;inCity=false;
@@ -2087,15 +2087,15 @@ function nearHarbor(lat,lon,km){return SEAPORTS.some(q=>Math.abs(q.lat-lat)<2&&g
 function pirTick(days){if(!S.pir||!S.pir.length||encOpen||B)return;const mp=myPower();
   for(const p of S.pir){const km=gcDist(S.lat,S.lon,p.lat,p.lon),pp=fleetPower(p.ships,p.lv),calm=p.calm>S.day,chaseR=(p.boss!=null?420:330)*(typeof toolPct==='function'?1-toolPct('luck'):1);
     let want,spd=110;
-    if(!calm&&km<chaseR&&pp>=mp*.55){want=gcBear(p.lat,p.lon,S.lat,S.lon);spd=200+p.lv*10;p.mode='chase';}
-    else if(km<chaseR&&mp>pp*1.8&&p.boss==null){want=gcBear(S.lat,S.lon,p.lat,p.lon);spd=170;p.mode='flee';}
+    const avd=typeof pirAvoid==='function'&&pirAvoid(p);if(!calm&&km<chaseR&&pp>=mp*.55&&!avd){want=gcBear(p.lat,p.lon,S.lat,S.lon);spd=200+p.lv*10;p.mode='chase';}
+    else if(km<chaseR&&(mp>pp*1.8||avd)&&p.boss==null){want=gcBear(S.lat,S.lon,p.lat,p.lon);spd=170;p.mode='flee';}
     else{p.mode='roam';if(Math.random()<days*.5)p.hd=(p.hd+(Math.random()-.5)*90+360)%360;want=p.hd;
       if(p.home&&gcDist(p.lat,p.lon,p.home[0],p.home[1])>260)want=gcBear(p.lat,p.lon,p.home[0],p.home[1]);}
     const d=spd*days*(typeof pirSpd==='function'?pirSpd():1);let moved=false;
     for(const off of [0,35,-35,70,-70,120,-120]){const h=(want+off)*DEG,la=p.lat+Math.cos(h)*d/111.2,lo=p.lon+Math.sin(h)*d/(111.2*Math.max(.2,Math.cos(p.lat*DEG)));
       if(Math.abs(la)<82&&!isLand(la,lo)){p.lat=la;p.lon=wrapLon(lo);p.hd=(want+off+360)%360;moved=true;break;}}
     if(!moved)p.hd=(p.hd+150)%360;
-    if(!p.seen&&pirVisible(p)){p.seen=1;slowDown();sfx('warn');toast(`☠ ${p.boss!=null?'현상범 '+p.name:'해적 '+p.name}의 함대가 보입니다 (위험도 ${'★'.repeat(p.lv)}). ${pp>=mp*.55?'이쪽으로 올지도 모릅니다. 달아나려면 순풍을 받으세요.':'우리를 피하는 눈치입니다.'}`,true);}
+    if(!p.seen&&pirVisible(p)){p.seen=1;slowDown();sfx('warn');toast(`☠ ${p.boss!=null?'현상범 '+p.name:'해적 '+p.name}의 함대가 보입니다 (위험도 ${'★'.repeat(p.lv)}). ${avd?'전투 명성을 듣고 우리를 피해 달아납니다.':pp>=mp*.55?'이쪽으로 올지도 모릅니다. 달아나려면 순풍을 받으세요.':'우리를 피하는 눈치입니다.'}`,true);}
     if(!calm&&anchorAt<0){if(p.mode==='chase'&&km<55&&!nearHarbor(S.lat,S.lon,90)){startEncounter(p,true);return;}
       if(p.mode!=='chase'&&km<40){startEncounter(p,false);return;}}}}
 function drawPirates(){if(!S.pir)return;const t=performance.now()/1000;
@@ -2267,7 +2267,7 @@ function finishBattle(kind){const p=B.p,lv=p.lv;let gold=0,fame=0;const L=[];
   else{const lostG=Math.round(S.gold*.15);S.gold-=lostG;let lostC=0;for(const g in S.cargo){const c=S.cargo[g],q=Math.ceil(c.q/2);c.q-=q;lostC+=q;if(c.q<=0)delete S.cargo[g];}
     const F=S.fleet[0];F.hp=Math.max(F.hp,Math.round(hpMaxK(0)*.15));p.calm=S.day+15;pushAway(p,1.5);fame=-50;
     L.push(`해적이 배에 올라와 ${lostG.toLocaleString()}골드와 짐 ${lostC}톤을 빼앗아 갔습니다. 목숨은 건졌습니다.`);}
-  S.gold+=gold;S.fame=Math.max(0,(S.fame||0)+fame);
+  S.gold+=Math.round(gold*(gold>0&&typeof batGoldMul==='function'?batGoldMul():1));fameAdd(fame,'bat');
   const lostCrew=crew0-S.crew;
   B.cap=cap.map(o=>({t:o.t,hp:Math.round(Math.max(o.hp,o.hpMax*.3)),done:0}));
   const title={win:'승리!',escape:'달아났습니다',lose:'패배했습니다'}[kind];
@@ -3155,7 +3155,7 @@ const modTxt=x=>x.mods.map(m=>`${SMOD.find(s=>s.k===m[0]).t} ${m[2]>0?'+':''}${m
   const rv=yardReveal&&yardReveal.p===p?`<div class="note" style="background:#fff3cf;border:2px solid #e0a21a"><b style="font-size:16px">🎉 새 배: ${yardReveal.name} — ${yardReveal.full}</b><br>${modTxt(yardReveal.x)}<br><small class="hint">함대 탭과 「내 함대」에서 확인하세요. 팔 때도 보정만큼 비싸게 팔립니다.</small></div>`:'';
   return rv+top+h.replace('<h4>내 함대</h4>',sp+'<h4>내 함대</h4>');};}
 {const by0=bindYard;bindYard=function(root,redraw){by0(root,redraw);
-  root.querySelectorAll('[data-yinv]').forEach(b=>b.onclick=()=>{const v=+b.dataset.yinv,p=inPort;if(S.gold<v)return;const l0=yardLv(p);S.gold-=v;S.yinv=S.yinv||{};S.yinv[p]=(S.yinv[p]||0)+v;S.fame=(S.fame||0)+Math.round(v/200);S.st.invest=(S.st.invest||0)+v;
+  root.querySelectorAll('[data-yinv]').forEach(b=>b.onclick=()=>{const v=+b.dataset.yinv,p=inPort;if(S.gold<v)return;const l0=yardLv(p);S.gold-=v;S.yinv=S.yinv||{};S.yinv[p]=(S.yinv[p]||0)+v;fameAdd(Math.round(v/200),'trd');S.st.invest=(S.st.invest||0)+v;
     const l1=yardLv(p);sfx(l1>l0?'mission':'coin');toast(l1>l0?`🏗 ${PORTS[p].name} 공업 ${l1}등급! ${YARD_PERK[l1]}`:`${PORTS[p].name} 공업(조선소·대장간)에 ${v.toLocaleString()}골드를 투자했습니다.`,l1>l0);save();redraw();});
   root.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{const t=+b.dataset.sp,p=inPort,c=spPrice(t),T=SHIPTYPES[t];if(S.gold<c||S.fleet.length>=5||!spLeft(p)||yardLv(p)<3)return;
     S.gold-=c;const x=rollShip(yardLv(p));S.ysp=S.ysp||{};const w=spWin();if(!S.ysp[p]||S.ysp[p].w!==w)S.ysp[p]={w,n:0};S.ysp[p].n++;
@@ -3806,7 +3806,7 @@ function bindHidden(box){const id=inPort;
     const pool=ITEMS.filter(x=>['w','a','t'].includes(x.k)&&x.tier>=3&&!/^chart/.test(x.id)),B0=pool[Math.floor(Math.random()*pool.length)];
     const x=rollItem(B0.k,5);x.nm='고대의 '+x.nm;x.anc=1;if(B0.k==='w')x.atk=+((x.atk||1)*1.1).toFixed(3);else if(B0.k==='a')x.def=+((x.def||1)*1.1).toFixed(3);else x.fx=+((x.fx||1)*1.15).toFixed(3);x.val=+(x.val+.4).toFixed(2);
     gearInit();if(S.inv2.length>=INV_MAX){toast('소지품이 가득 차서 유적의 물건을 가져올 수 없습니다. 도구점에서 소지품을 먼저 파세요.');return;}
-    S.gold-=500;const it=addItem(B0.id,x),g=800+Math.floor(Math.random()*17)*100;S.gold+=g;S.fame=(S.fame||0)+100;
+    S.gold-=500;const it=addItem(B0.id,x),g=800+Math.floor(Math.random()*17)*100;S.gold+=g;fameAdd(100,'adv');
     S.ruin=S.ruin||{};S.ruin[id]={it:itName(it),g};sfx('relic');toast(`🏺 유적에서 「${itName(it)}」와 금화 ${g.toLocaleString()}골드를 찾았습니다! (${itDesc(it)}) 명성 +100`,true);save();drawPort();};}
 
 // ---------- 교역소 ----------
@@ -4139,7 +4139,7 @@ function sp0spawn(lv,at){const p=spawnPir(lv,pirShipsFor(lv),null,at);return p;}
 // 전투 결과: 해적단 토벌 횟수, 수배금, 두목 토벌
 {const fb0=finishBattle;finishBattle=function(kind){const p=B&&B.p;const r=fb0.apply(this,arguments);
   try{if(kind==='win'&&p){S.gk=S.gk||{};let msg='';
-    if(p.chief){const g=gangBy(p.chief);S.bd[p.chief]=1;S.gold+=g.b;S.fame=(S.fame||0)+Math.round(g.b/10);S.st.boss=(S.st.boss||0)+1;
+    if(p.chief){const g=gangBy(p.chief);S.bd[p.chief]=1;S.gold+=g.b;fameAdd(Math.round(g.b/10),'bat');S.st.boss=(S.st.boss||0)+1;
       msg=`<b>🏴‍☠️ ${g.n} 토벌 완료!</b> 두목을 잡았습니다. 수배금 ${g.b.toLocaleString()}골드 · 명성 +${Math.round(g.b/10)}`;}
     else if(p.boss!=null){msg=`<b>🏴‍☠️ ${BOSS[p.boss].n}의 해적단 토벌 완료!</b>`;}
     else if(p.g){const g=gangBy(p.g),n=(S.gk[p.g]=(S.gk[p.g]||0)+1);
@@ -4966,7 +4966,7 @@ const musEx=()=>DISC.filter(d=>S.df[d.id]&&S.df[d.id].rep);
 function musLv(){const n=musEx().length;let l=0;while(l<MUS_LV.length-1&&n>=MUS_LV[l+1][0])l++;return l;}
 function musDaily(){const ex=musEx();const base=ex.reduce((a,d)=>a+[2,4,8][d.r-1],0);return Math.round(base*MUS_LV[musLv()][2]*(1+dsetVal('작동 유물')));}
 function musPending(){S.mus=S.mus||{t:Math.floor(S.day)};const days=Math.max(0,Math.min(90,Math.floor(S.day)-S.mus.t));return {days,gold:days*musDaily(),fame:Math.floor(days*musEx().length/40)};}
-function musCollect(){const P=musPending();if(P.gold<=0){toast('아직 쌓인 입장료가 없습니다.');return;}S.gold+=P.gold;S.fame=(S.fame||0)+P.fame;S.mus.t=Math.floor(S.day);sfx('coin');toast(`🏛 박물관 입장료 ${P.gold.toLocaleString()}골드${P.fame?`, 명성 +${P.fame}`:''}을 받았습니다 (${P.days}일치).`,true);save();drawPort();}
+function musCollect(){const P=musPending();if(P.gold<=0){toast('아직 쌓인 입장료가 없습니다.');return;}S.gold+=P.gold;fameAdd(P.fame,'adv');S.mus.t=Math.floor(S.day);sfx('coin');toast(`🏛 박물관 입장료 ${P.gold.toLocaleString()}골드${P.fame?`, 명성 +${P.fame}`:''}을 받았습니다 (${P.days}일치).`,true);save();drawPort();}
 function museumBody(id){const ex=musEx(),l=musLv(),nx=MUS_LV[l+1],P=musPending(),D=musDaily();
   return `<div class="note" style="border-left:4px solid #8a6a44"><b style="font-size:16px">🏛 ${MUS_LV[l][1]}</b> <small>전시 ${ex.length} / ${DISC.length}${nx?` · '${nx[1]}'까지 ${nx[0]-ex.length}개`:' · 모두 모았습니다!'}</small>
     <div class="hint">조합에 보고한 발견물이 이곳에 전시됩니다. 귀한 것(★)일수록 구경꾼이 많이 옵니다. 박물관이 커지면 입장료가 ×${MUS_LV[l][2]}로 늘어납니다.</div>
@@ -4987,6 +4987,52 @@ BODY.mus=museumBody;CUSTOM_T.add('mus');
 .dcard em{position:absolute;top:5px;left:5px;background:rgba(168,50,42,.85);color:#fff;font-style:normal;font-size:10px;padding:0 4px;border-radius:3px}
 .dcard.un{cursor:default;background:repeating-linear-gradient(45deg,#ece2cc 0 6px,#e4d8be 6px 12px);border-style:dashed;color:#9a8a6a}.dcard.un b{display:flex;align-items:center;justify-content:center;aspect-ratio:3/2;font-size:22px}
 .dcard.wait img{filter:grayscale(1) opacity(.45)}.musrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:8px}`;document.head.appendChild(st);}
+
+// ===== 명성 세 갈래: 모험·교역·전투 =====
+// 명성을 얻는 길마다 따로 쌓고, 전체 명성(S.fame)은 세 갈래의 합. 칭호 단계와 그 혜택(fame.js)은 전체 명성으로 그대로.
+const FTRK=[
+  {k:'adv',ic:'🧭',n:'모험 명성',how:'발견물 보고 · 내륙 도시 첫 방문 · 바다 위 사건 · 숨은 곳 · 박물관',
+   T:['풋내기 탐험가','호기심 많은 탐험가','이름난 탐험가','지도 위의 개척자','대탐험가','전설의 탐험가','세상 끝의 탐험가']},
+  {k:'trd',ic:'⚖️',n:'교역 명성',how:'거래로 남긴 이익 · 항구 투자 · 명품 거래',
+   T:['행상','장사꾼','이름난 상인','큰손 상인','상단의 우두머리','바다의 거상','전설의 거상']},
+  {k:'bat',ic:'⚔️',n:'전투 명성',how:'해적 토벌 · 현상범 두목 · 일기토와 결투 승리',
+   T:['풋내기 뱃사람','싸움꾼','이름난 무사','해적 사냥꾼','바다의 맹장','무적의 함장','바다의 수호신']}];
+const FTRK_V=[0,100,300,750,1500,3000,6000];
+function fmInit(){if(!S)return;if(S.fm)return;const tot=S.fame||0;
+  // 갈래 기록이 없던 저장: 지금까지의 행적으로 나눠 넣는다
+  let adv=0;for(const id in (S.df||{}))if(S.df[id].rep)adv+=(DISC[id]?DISC[id].r:1)*100;adv+=((S.cf||[]).length)*15;
+  let trd=Math.round(((S.st&&S.st.invest)||0)/200);adv=Math.min(adv,tot);trd=Math.min(trd,tot-adv);S.fm={adv,trd,bat:Math.max(0,tot-adv-trd)};}
+function fameAdd(x,k){if(!S)return;fmInit();x=Math.round(x||0);if(!x)return;S.fm[k]=Math.max(0,(S.fm[k]||0)+x);S.fame=S.fm.adv+S.fm.trd+S.fm.bat;}
+function fmTier(k){if(!S)return 0;fmInit();const v=S.fm[k]||0;let t=0;while(t<FTRK_V.length-1&&v>=FTRK_V[t+1])t++;return t;}
+const fmTitle=k=>FTRK.find(x=>x.k===k).T[fmTier(k)];
+// ---- 갈래별 혜택 ----
+// 모험: 시야 +3%/단계 · 발견물 보고 보상 +5%/단계
+{const v0=wxVisMul;wxVisMul=function(){return v0.apply(this,arguments)*(1+.03*fmTier('adv'));};}
+{const r0=reportAll;reportAll=function(){const un=Object.keys(S.df).map(Number).filter(i=>!S.df[i].rep),b=.05*fmTier('adv');let base=0;for(const i of un)base+=discReward(DISC[i]);
+  const r=r0.apply(this,arguments);if(b>0&&un.length){const ex=Math.round(base*b);S.gold+=ex;toast(`🧭 ${fmTitle('adv')}: 보고 보상 +${Math.round(b*100)}% (${ex.toLocaleString()}골드 더)`);save();}return r;};}
+// 교역: 파는 값 +0.5%/단계 · 오늘의 명품 물량 +10%/단계 · 거래 이익이 교역 명성이 된다
+{const s0=sellPrice;sellPrice=function(p,g){return Math.max(1,Math.round(s0(p,g)*(1+.005*fmTier('trd'))));};}
+{const l0=luxOffers;luxOffers=function(p){const L=l0.apply(this,arguments),m=1+.1*fmTier('trd');if(m>1)for(const o of L){const base=Math.max(0,10+10*mktLv(p)),used=(S.luxB&&S.luxB[o.key])||0;o.qty=Math.max(0,Math.round(base*m)-used);}return L;};}
+function trdFame(profit){if(!(profit>0))return;S.fmFr=(S.fmFr||0)+profit/2500;const n=Math.floor(S.fmFr);if(n>0){S.fmFr-=n;fameAdd(n,'trd');}}
+{const s0=sell;sell=function(g,n){const c=S.cargo[g],cost=c?c.c:0,q0=c?c.q:0,g0=S.gold;const r=s0.apply(this,arguments);try{const c1=S.cargo[g],q1=c1?c1.q:0,sold=q0-q1;if(sold>0)trdFame((S.gold-g0)-sold*Math.max(0,cost));}catch(e){}return r;};}
+{const s0=luxSell;luxSell=function(i,n){const l=S.lux&&S.lux[i],cost=l?l.c:0,q0=l?l.q:0,g0=S.gold;const r=s0.apply(this,arguments);try{const sold=Math.min(n,q0);if(sold>0)trdFame((S.gold-g0)-sold*cost);}catch(e){}return r;};}
+// 전투: 해전 승리 금화 +5%/단계 · 약한 해적이 달아난다 (2단계 ★1, 4단계 ★2 이하, 6단계 ★3 이하 — 두목은 그대로)
+const batGoldMul=()=>1+.05*fmTier('bat');
+const pirAvoidLv=()=>{const t=fmTier('bat');return t>=6?3:t>=4?2:t>=2?1:0;};
+function pirAvoid(p){return p&&p.boss==null&&!p.chief&&p.lv<=pirAvoidLv();}
+function fmPerks(k,t){if(k==='adv')return t?[`시야 +${3*t}%`,`발견물 보고 보상 +${5*t}%`]:['단계가 오르면 시야와 발견물 보고 보상이 늘어납니다'];
+  if(k==='trd')return t?[`파는 값 +${(t*.5).toFixed(1)}%`,`오늘의 명품 물량 +${10*t}%`]:['단계가 오르면 파는 값과 명품 물량이 늘어납니다'];
+  const a=t>=6?3:t>=4?2:t>=2?1:0;return [t?`해전 승리 금화 +${5*t}%`:'단계가 오르면 해전 승리 금화가 늘어납니다',a?`★${a} 이하 해적이 이름을 듣고 달아남 (두목 제외)`:'2단계부터 약한 해적이 달아남'];}
+// 단계가 오르면 알림
+setInterval(()=>{try{if(!S)return;fmInit();S.fmT=S.fmT||{};for(const x of FTRK){const t=fmTier(x.k);if(S.fmT[x.k]==null){S.fmT[x.k]=t;continue;}
+  if(t>S.fmT[x.k]){S.fmT[x.k]=t;sfx('mission');toast(`${x.ic} ${x.n} ${t+1}단계: <b>${x.T[t]}</b> — ${fmPerks(x.k,t).join(' · ')}`,true);try{save();}catch(e){}}}}catch(e){}},1200);
+// ---- 명성 창에 세 갈래 ----
+function fmHTML(){fmInit();return `<h4>명성의 세 갈래 <small class="hint">(셋을 더한 값이 전체 명성)</small></h4><div class="fmgrid">${FTRK.map(x=>{const v=S.fm[x.k]||0,t=fmTier(x.k),nx=FTRK_V[t+1],pc=nx?Math.min(100,(v-FTRK_V[t])/(nx-FTRK_V[t])*100):100;
+  return `<div class="fmc"><div class="fmh">${x.ic} <b>${x.n}</b> <span>${v.toLocaleString()}</span></div><div class="fmt">${t+1}단계 · ${x.T[t]}</div><div class="fwbar"><div style="width:${pc.toFixed(1)}%"></div></div>
+   <div class="hint">${nx?`다음 '${x.T[t+1]}'까지 ${(nx-v).toLocaleString()}`:'가장 높은 단계'}</div><ul>${fmPerks(x.k,t).map(p=>`<li>${p}</li>`).join('')}</ul><div class="hint">얻는 길: ${x.how}</div></div>`;}).join('')}</div>`;}
+{const f0=fameHTML;fameHTML=function(){const h=f0.apply(this,arguments);return h.replace('<h4>지금 받는 혜택</h4>',fmHTML()+'<h4>칭호(전체 명성)로 받는 혜택</h4>');};}
+{const st=document.createElement('style');st.textContent=`.fmgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}.fmc{border:1px solid #d9c9a8;border-radius:8px;padding:8px;background:#fffaf0;font-size:13px;min-width:0}
+.fmh{display:flex;gap:4px;align-items:baseline}.fmh span{margin-left:auto;font-weight:700}.fmt{color:#7a4a12;font-weight:700;margin:2px 0 4px}.fmc ul{margin:4px 0;padding-left:16px}.fwbox{width:min(640px,94vw)}`;document.head.appendChild(st);}
 
 // ===== 상품 그림 (제미나이로 그린 그림을 잘라 넣음; 없는 상품은 코드 그림) =====
 const GIMG={"0":"","1":"","2":"","3":"","4":"","5":"","6":"","7":"","8":"","9":"","10":"","11":"","12":"","13":"","14":"","15":"","16":"","17":"","18":"","19":"","20":"","21":"","22":"","23":"","24":"","25":"","26":"","27":"","28":"","29":"","30":"","31":"","32":"","33":"","34":"","35":"","36":"","37":"","38":"","39":"","40":"","41":"","42":"","43":"","44":"","45":"","46":"","47":"","48":"","49":"","50":"","51":"","52":"","53":"","54":"","55":"","56":"","57":"","58":"","59":"","60":"","61":"","62":"","63":"","64":"","65":"","66":"","67":"","68":"","69":"","70":"","71":"","72":"","73":"","74":"","75":"","76":"","77":"","78":"","79":"","80":"","81":"","82":"","83":"","84":"","85":"","86":"","87":"","88":"","89":"","90":"","91":"","92":"","93":"","94":"","95":"","96":"","97":"","98":"","99":"","100":"","101":"","102":"","103":"","104":"","105":"","106":"","107":"","108":"","109":"","110":"","111":"","112":"","113":"","114":"","115":"","116":"","117":"","118":"","119":"","120":"","121":"","122":"","123":"","124":"","125":"","126":"","127":"","128":"","129":"","130":"","131":"","132":"","133":"","134":"","135":"","136":"","137":"","138":"","139":"","140":"","141":"","142":"","143":"","144":"","145":"","146":"","147":"","148":"","149":"","150":"","151":"","152":"","153":"","154":"","155":"","156":"","157":"","158":"","159":"","160":"","161":"","162":"","163":"","164":"","165":"","166":"","167":"","168":"","169":"","170":"","171":"","172":"","173":"","174":"","175":"","176":"","177":"","178":"","179":"","180":"","181":"","182":"","183":"","184":"","185":"","186":"","187":"","188":"","189":"","190":"","191":"","192":"","193":"","194":"","195":"","196":"","197":"","198":"","199":"","200":"","201":"","202":"","203":"","204":"","205":"","206":"","207":"","208":"","209":"","210":"","211":"","212":"","213":"","214":""};
@@ -5408,7 +5454,7 @@ function duelResult(m){if(!S){ON.dq.push(m);return;}
   if(S.dlog&&S.dlog[m.id]){wsSend({type:'dack',id:m.id});return;}
   // 결과를 먼저 저장에 반영 (창을 닫아도 남도록)
   const fin=me==='a'?m.ha:m.hb;S.fleet.forEach((sh,k)=>{const s=mine.ships[k];if(s&&s.t===sh.t&&fin[k]!=null)sh.hp=Math.min(hpK(k),fin[k]);});
-  const g=won?m.bet:-Math.min(m.bet,Math.floor(S.gold));S.gold+=g;S.fame=Math.max(0,(S.fame||0)+(won?5:-1));
+  const g=won?m.bet:-Math.min(m.bet,Math.floor(S.gold));S.gold+=g;fameAdd((won?5:-1),'bat');
   S.dlog=S.dlog||{};S.dlog[m.id]=1;const ks=Object.keys(S.dlog);if(ks.length>50)delete S.dlog[ks[0]];save();wsSend({type:'dack',id:m.id});
   // 해전 장면
   const hp0={a:m.a.ships.map(s=>s.hp),b:m.b.ships.map(s=>s.hp)};
@@ -5554,7 +5600,7 @@ function igPvpStart(m){if(ON.duelOpen)duelClose();const me=m.me,op=me==='A'?'B':
   igStart({mode:'pvp',pvp:m.id,me,A,B:Bf,me0:{...A},foe0:{...Bf},title:'선장 대전'+(m.fair?' · 공정 모드':'')+(m.bet?` · 내기 ${m.bet.toLocaleString()}`:''),send:c=>wsSend({type:'igc',id:m.id,c}),
     after:()=>{if(inPort<0&&!infoOpen)paused=false;}});IG.deadline=Date.now()+(m.ms||10000);}
 function igPvpEnd(m){const me=m.a===ON.id?'A':'B',won=m.win===me;S.dlog=S.dlog||{};if(S.dlog['ig'+m.id]){wsSend({type:'dack',id:m.id});return;}
-  const g=won?m.bet:-Math.min(m.bet,Math.floor(S.gold));S.gold+=g;S.fame=Math.max(0,(S.fame||0)+(won?8:0));S.dlog['ig'+m.id]=1;const t=(m.why?m.why+' · ':'')+(m.bet?`내기 ${won?'+':'−'}${Math.abs(g).toLocaleString()}골드 · `:'')+`검객 점수 ${won?'+':'−'}${m.dr}`+(IG&&IG.pvp===m.id&&IG.foe0?hsVs(won?12:5,IG.me0,IG.foe0):hsGain(won?12:5));
+  const g=won?m.bet:-Math.min(m.bet,Math.floor(S.gold));S.gold+=g;fameAdd((won?8:0),'bat');S.dlog['ig'+m.id]=1;const t=(m.why?m.why+' · ':'')+(m.bet?`내기 ${won?'+':'−'}${Math.abs(g).toLocaleString()}골드 · `:'')+`검객 점수 ${won?'+':'−'}${m.dr}`+(IG&&IG.pvp===m.id&&IG.foe0?hsVs(won?12:5,IG.me0,IG.foe0):hsGain(won?12:5));
   save();wsSend({type:'dack',id:m.id});if(IG&&IG.pvp===m.id)igFinish(won,t);else toast(`🗡 일기토 ${won?'승리':'패배'} · ${t.replace(/<[^>]+>/g,'')}`,true);}
 {const w2=onWs;onWs=function(m){
   if(m.type==='init'){ON.W.ig=(m.world&&m.world.ig)||{};}
