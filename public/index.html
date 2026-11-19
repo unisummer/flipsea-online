@@ -2132,7 +2132,7 @@ function startEncounter(p,theyAttack){encOpen=true;encP=p;paused=true;sfx('warn'
 function pushAway(p,deg){const b=gcBear(S.lat,S.lon,p.lat,p.lon)*DEG;for(const f of [1,.6,.3]){const la=p.lat+Math.cos(b)*deg*f,lo=p.lon+Math.sin(b)*deg*f/Math.max(.3,Math.cos(p.lat*DEG));if(!isLand(la,lo)){p.lat=la;p.lon=wrapLon(lo);return;}}}
 // ----- 해전 -----
 let B=null;
-const ARENA=1500, RANGE={n:360,c:260,f:300};
+let ARENA=1500; const RANGE={n:360,c:260,f:300};
 const gauss=()=>(Math.random()+Math.random()+Math.random()-1.5)*1.15;
 const bear=(a,b)=>(Math.atan2(b.x-a.x,-(b.y-a.y))/DEG+360)%360;
 const crewF=s=>Math.max(.3,Math.min(1,s.crew/(s.crewMax*.6)));
@@ -2176,7 +2176,7 @@ function applyHit(o,b){const s=b.from,m=1+Math.min(120,s.gun)/250;
   else{o.hp-=2.6*m;if(Math.random()<.2){if(!o.fire)flt(o,'불이 붙었다!','#e0601a');o.fire=Math.max(o.fire,9);}}
   B.fx.push({k:'hit',x:b.tx,y:b.ty,t:0,T:.5});for(let i=0;i<3;i++)B.fx.push({k:'chip',x:b.tx,y:b.ty,vx:(Math.random()-.5)*60,vy:(Math.random()-.5)*60,t:0,T:.7});bsfx('hit');
   if(s.side===0)crewXp(s.k,4,.12);
-  if(o.hp<=0)shipDown(o);else if(o.side===1&&!o.out&&o.crew<o.crewMax*.12){o.out='captured';B.res.cap.push(o);flt(o,'백기! 항복했다','#fff');bsfx('board');}}
+  if(o.hp<=0)shipDown(o);else if(o.side===1&&!o.out&&o.crew<o.crewMax*.12){o.out='struck';o.struck=1;B.res.sunk.push(o);flt(o,'백기! 배는 접현·일기토로만 빼앗는다','#fff');bsfx('board');}}
 function shipDown(o){o.hp=0;o.fire=0;if(o.side===1){o.out='sunk';B.res.sunk.push(o);flt(o,'격침!','#ffd36a');bsfx('sink');}
   else{o.out='disabled';o.crew=Math.round(o.crew*.6);flt(o,o.flag?'기함이 무너진다!':'전투 불능','#ff9a8a');bsfx('sink');}}
 function flt(s,txt,col){B.fl.push({x:s.x,y:s.y-s.L*.6,txt,col,t:0});}
@@ -2295,6 +2295,7 @@ function drawBattle(){ctx.setTransform(DPR,0,0,DPR,0,0);const F=B.flag,z=bz(),t=
   // 전장 테두리
   ctx.strokeStyle='rgba(255,240,200,.35)';ctx.setLineDash([10,10]);ctx.lineWidth=2;ctx.beginPath();ctx.arc(X(B.cx),Y(B.cy),ARENA*z,0,7);ctx.stroke();ctx.setLineDash([]);
   if(Math.hypot(F.x-B.cx,F.y-B.cy)>ARENA-350){ctx.fillStyle='rgba(255,240,200,.8)';ctx.font='13px serif';ctx.textAlign='center';ctx.fillText('점선 밖으로 나가면 싸움에서 달아납니다',VW/2,VH/2+90);ctx.textAlign='left';}
+  if(typeof drawTerrain==='function')drawTerrain(X,Y,z);
   // 항적
   for(const s of B.ships){if(s.tr.length<2)continue;ctx.lineWidth=Math.max(1,s.W*.4*z);for(let i=1;i<s.tr.length;i++){ctx.strokeStyle=`rgba(255,255,255,${.22*i/s.tr.length})`;ctx.beginPath();ctx.moveTo(X(s.tr[i-1][0]),Y(s.tr[i-1][1]));ctx.lineTo(X(s.tr[i][0]),Y(s.tr[i][1]));ctx.stroke();}}
   // 기함 사격 부채꼴
@@ -2318,7 +2319,7 @@ function drawBattle(){ctx.setTransform(DPR,0,0,DPR,0,0);const F=B.flag,z=bz(),t=
     else if(f.k==='hit'){ctx.fillStyle=`rgba(255,200,90,${1-k})`;ctx.beginPath();ctx.arc(X(f.x),Y(f.y),(6*(1-k)+2)*z,0,7);ctx.fill();}
     else if(f.k==='chip'){ctx.fillStyle=`rgba(90,60,30,${1-k})`;ctx.fillRect(X(f.x),Y(f.y),2.5*z,2.5*z);}}
   ctx.textAlign='center';ctx.font='bold 14px serif';for(const f of B.fl){ctx.globalAlpha=Math.max(0,1-f.t/2.2);ctx.lineWidth=3;ctx.strokeStyle='rgba(20,14,8,.85)';ctx.strokeText(f.txt,X(f.x),Y(f.y)-f.t*22);ctx.fillStyle=f.col;ctx.fillText(f.txt,X(f.x),Y(f.y)-f.t*22);}ctx.globalAlpha=1;ctx.textAlign='left';
-  drawBattleUI();}
+  if(typeof drawFog==='function')drawFog(X,Y,z);drawBattleUI();}
 function drawShipB(s,X,Y,z){const sinkK=s.out==='sunk'?Math.min(1,s.outT/4):0;if(sinkK>=1)return;
   ctx.save();ctx.translate(X(s.x),Y(s.y));ctx.rotate(s.hd*DEG);ctx.scale(z*(1-sinkK*.3),z*(1-sinkK*.3));ctx.globalAlpha=1-sinkK;const L=s.L,W=s.W;
   ctx.fillStyle='rgba(0,0,0,.22)';ctx.beginPath();ctx.ellipse(3,4,W*.6,L*.55,0,0,7);ctx.fill();
@@ -3735,7 +3736,7 @@ function igFromBattle(){if(!B||B.end)return;gearInit();if(B.igDone){toast('이�
   const o=boardTarget();if(!o){toast('일기토: 적선 바로 옆까지 다가가세요. 선장끼리 마주 봐야 합니다.');return;}
   const p=B.p,me=heroFighter(),foe=pirateFighter(p,o);B.pause=true;B.igDone=1;
   igStart({A:me,B:foe,title:o.name,onEnd:won=>{let t;
-      if(won){o.out='captured';o.v*=.3;B.res.cap.push(o);flt(o,'선장이 쓰러졌다! 항복!','#ffd36a');for(const s of B.ships)if(s.side===1&&!s.out)s.crew=Math.round(s.crew*.85);S.fame=(S.fame||0)+20+(p.lv||1)*10;
+      if(won){o.out='captured';o.duel=1;B.duelWon=1;o.v*=.3;B.res.cap.push(o);flt(o,'선장이 쓰러졌다! 항복!','#ffd36a');for(const s of B.ships)if(s.side===1&&!s.out)s.crew=Math.round(s.crew*.85);S.fame=(S.fame||0)+20+(p.lv||1)*10;
         if(p.boss!=null&&o.boss){S.gold+=BOSS[p.boss].b;t=`두목을 일기토로 꺾었습니다! 추가 현상금 ${BOSS[p.boss].b.toLocaleString()}골드`;}else t=`${J(o.name,'이','가')} 항복했습니다. 적 선원들의 사기가 꺾였습니다`;t+=hsVs(15+(p.lv||1)*8,me,foe);S.st.igWin=(S.st.igWin||0)+1;}
       else{const F=B.flag;F.crew=Math.max(1,Math.round(F.crew*.85));F.boardCd=30;S.hs.inj=S.day+5;t=`우리 선원들의 사기가 떨어졌습니다 (선원 −15%, 30초 동안 접현 불가). ${J(MATES[HY].name,'은','는')} 5일 동안 일기토를 할 수 없습니다`+hsVs(6,me,foe);}
       save();return t;},after:()=>{if(B){B.pause=false;}}});}
@@ -5660,6 +5661,142 @@ img.pt[data-g]{box-sizing:border-box;border:3px solid #9a8a6a;border-radius:8px}
 .chip.grc1{background:#3f8a3a}.chip.grc2{background:#2f66a8}.chip.grc3{background:#d0761a}.chip.grc4{background:#7a3fa8}.nick{color:#7a3fa8;font-style:normal;font-size:12px;margin-left:3px}
 .mctl{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;margin-top:4px;font-size:12px}.mctl select,.mctl input{font-size:12px;padding:1px 3px;max-width:150px}.mctl input{width:70px}.mctl button.on{background:#7a3fa8;color:#fff}
 #promowin{position:fixed;inset:0;z-index:9000;background:rgba(20,12,4,.45);display:none;align-items:center;justify-content:center}.prgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px}.prgrid button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:2px}`;document.head.appendChild(st);}
+
+// ===== 로드맵 E. 전투 (1차): 전장 확대·지형 · 나포·토벌 규칙 · 패배·항복·보험·은행 · 연습 모드 =====
+// ---------- 전장 확대와 지형 ----------
+// 빠른 배가 있을수록 전장이 넓어진다(최대 1.8배). 위험도 4 이상 해적·현상범과는 섬·암초·안개가 있는 바다에서 싸운다.
+function terGen(hard){const T={isl:[],reef:[],fog:0},r=Math.random,A=ARENA;if(!hard)return T;
+  const far=(x,y,m)=>B.ships.every(s=>Math.hypot(s.x-x,s.y-y)>m)&&T.isl.every(i=>Math.hypot(i.x-x,i.y-y)>i.r+m*.6);
+  for(let t=0,n=2+Math.floor(r()*2);t<80&&T.isl.length<n;t++){const a=r()*7,d=r()*A*.75,x=B.cx+Math.cos(a)*d,y=B.cy+Math.sin(a)*d,rr=110+r()*110;if(far(x,y,rr+180))T.isl.push({x,y,r:rr,s:r()});}
+  for(let t=0,n=6+Math.floor(r()*5);t<120&&T.reef.length<n;t++){const a=r()*7,d=r()*A*.85,x=B.cx+Math.cos(a)*d,y=B.cy+Math.sin(a)*d,rr=24+r()*30;if(far(x,y,rr+140))T.reef.push({x,y,r:rr,s:r()});}
+  if(r()<.6||(B.p&&B.p.boss!=null))T.fog=480+r()*120;return T;}
+{const sb0=startBattle;startBattle=function(p,mode){const o=(window.PRAC_OPT||{});ARENA=1500;const r=sb0.apply(this,arguments);try{
+  const mx=Math.max(...B.ships.map(s=>s.T.spd||1));ARENA=Math.round(1500*Math.min(1.8,Math.max(1,.7+.45*mx)));
+  const hard=o.ter!=null?o.ter:((p.lv||1)>=4||p.boss!=null);const TT=B.ter=terGen(hard);if(hard)setTimeout(()=>toast(`🏝 험한 바다: 섬 ${TT.isl.length}개 · 암초 ${TT.reef.length}곳${TT.fog?' · 짙은 안개(가까운 적만 보임)':''}. 섬은 포탄을 막고, 암초에 걸리면 배가 상합니다.`,true),1200);}catch(e){console.warn(e);}return r;};}
+// 섬·암초와 부딪힘
+{const u0=battleUpdate;battleUpdate=function(dt){u0.apply(this,arguments);try{if(!B||B.pause||!B.ter)return;dt=Math.min(dt,.05);
+  for(const s of B.ships){if(s.out==='sunk')continue;
+    for(const i of B.ter.isl){const dx=s.x-i.x,dy=s.y-i.y,d=Math.hypot(dx,dy)||1,m=i.r+s.L*.3;if(d<m){s.x=i.x+dx/d*m;s.y=i.y+dy/d*m;s.v*=.8;if(!s.out&&s.v>12&&Math.random()<dt*2){s.hp-=s.hpMax*.01;flt(s,'섬에 부딪혔다!','#ffcf8a');}}}
+    for(const f of B.ter.reef){if(Math.hypot(s.x-f.x,s.y-f.y)<f.r+s.W*.5){s.v*=Math.pow(.6,dt);if(!s.out){s.hp-=s.hpMax*.045*dt;if(!s.reefT||B.t-s.reefT>3){s.reefT=B.t;flt(s,'암초에 걸렸다!','#ffb08a');bsfx('hit');}if(s.hp<=0)shipDown(s);}}}}}catch(e){}};}
+// 컴퓨터 배는 섬을 피해서 돈다
+{const a0=ai;ai=function(s,dt){a0.apply(this,arguments);try{if(!B||!B.ter)return;const L=Math.min(180,40+s.v*3);const hx=Math.sin(s.hd*DEG),hy=-Math.cos(s.hd*DEG);
+  for(const i of B.ter.isl.concat(B.ter.reef)){const ax=s.x+hx*L,ay=s.y+hy*L;if(Math.hypot(ax-i.x,ay-i.y)<i.r+45){const b=bear(s,i),side=(((b-s.hd+540)%360)-180)>0?-1:1;steerTo(s,(b+side*100+360)%360,dt*1.6);break;}}}catch(e){}};}
+// 섬은 포탄을 막는다
+function segHit(x1,y1,x2,y2,c){const dx=x2-x1,dy=y2-y1,L2=dx*dx+dy*dy||1;let t=((c.x-x1)*dx+(c.y-y1)*dy)/L2;t=Math.max(0,Math.min(1,t));const px=x1+dx*t,py=y1+dy*t;return Math.hypot(px-c.x,py-c.y)<c.r?t:-1;}
+{const v0=volley;volley=function(s,side,kind){const n0=B.balls.length,r=v0.apply(this,arguments);try{if(r&&B&&B.ter&&B.ter.isl.length)for(let k=n0;k<B.balls.length;k++){const b=B.balls[k];for(const i of B.ter.isl){const t=segHit(b.sx,b.sy,b.tx,b.ty,i);if(t>=0){b.tx=b.sx+(b.tx-b.sx)*t;b.ty=b.sy+(b.ty-b.sy)*t;b.T*=Math.max(.2,t);break;}}}}catch(e){}return r;};}
+function drawTerrain(X,Y,z){if(!B||!B.ter)return;const T=B.ter;
+  for(const f of T.reef){ctx.fillStyle='rgba(120,190,200,.35)';ctx.beginPath();ctx.arc(X(f.x),Y(f.y),f.r*z*1.25,0,7);ctx.fill();ctx.fillStyle='rgba(70,60,50,.75)';
+    for(let k=0;k<5;k++){const a=k*1.3+f.s*6,d=f.r*.55*((k*37%10)/10);ctx.beginPath();ctx.arc(X(f.x+Math.cos(a)*d),Y(f.y+Math.sin(a)*d),Math.max(1.5,f.r*.22*z),0,7);ctx.fill();}}
+  for(const i of T.isl){const x=X(i.x),y=Y(i.y),R=i.r*z;ctx.fillStyle='rgba(180,220,220,.35)';ctx.beginPath();ctx.arc(x,y,R*1.12,0,7);ctx.fill();
+    const g=ctx.createRadialGradient(x-R*.2,y-R*.2,R*.1,x,y,R);g.addColorStop(0,'#7f9a52');g.addColorStop(.75,'#5f7a3a');g.addColorStop(1,'#d9c58e');ctx.fillStyle=g;ctx.beginPath();
+    for(let k=0;k<=18;k++){const a=k/18*Math.PI*2,rr=R*(.86+.14*Math.sin(a*3+i.s*9));k?ctx.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr):ctx.moveTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr);}ctx.closePath();ctx.fill();
+    ctx.fillStyle='rgba(70,95,45,.35)';ctx.beginPath();ctx.arc(x+R*.1,y-R*.1,R*.32,0,7);ctx.fill();}}
+// 안개: 우리 배 가까이만 보인다
+const fogSee=s=>!B||!B.ter||!B.ter.fog||s.side===0||s.out||B.ships.some(o=>o.side===0&&!o.out&&Math.hypot(o.x-s.x,o.y-s.y)<B.ter.fog);
+{const d0=drawBattle;drawBattle=function(){if(!B||!B.ter||!B.ter.fog)return d0.apply(this,arguments);const all=B.ships;B.ships=all.filter(fogSee);try{return d0.apply(this,arguments);}finally{B.ships=all;}};}
+let FOGC=null;function drawFog(X,Y,z){if(!B||!B.ter||!B.ter.fog)return;if(!FOGC)FOGC=document.createElement('canvas');const c=FOGC;c.width=VW;c.height=VH;const g=c.getContext('2d');
+  g.fillStyle='rgba(205,212,214,.78)';g.fillRect(0,0,VW,VH);g.globalCompositeOperation='destination-out';
+  for(const s of B.ships){if(s.side!==0||s.out)continue;const R=B.ter.fog*z,gr=g.createRadialGradient(X(s.x),Y(s.y),R*.55,X(s.x),Y(s.y),R);gr.addColorStop(0,'rgba(0,0,0,1)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.beginPath();g.arc(X(s.x),Y(s.y),R,0,7);g.fill();}
+  g.globalCompositeOperation='source-over';ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(c,0,0,VW,VH,0,0,VW*DPR,VH*DPR);ctx.restore();ctx.setTransform(DPR,0,0,DPR,0,0);}
+// 안개 속 적은 클릭으로 고를 수 없다
+{const c0=battleClick;battleClick=function(sx,sy){if(B&&B.ter&&B.ter.fog){const all=B.ships;B.ships=all.filter(fogSee);try{return c0.apply(this,arguments);}finally{B.ships=all;}}return c0.apply(this,arguments);};}
+// ---------- 나포와 토벌 ----------
+// 포격만으로는 배를 빼앗지 못한다(백기 든 배는 상품만). 해적 두목은 일기토로 쓰러뜨려야 토벌된다.
+{const f0=finishBattle;finishBattle=function(kind){if(B&&B.practice){setTimeout(()=>pracEnd(kind),0);return;}
+  if(kind==='lose'){setTimeout(()=>defeat('battle'),0);return;}
+  const p=B.p,boss=p.boss,duel=!!B.duelWon;let undo=false;
+  if(kind==='win'&&!duel){undo=true;if(boss!=null)p.boss=null;}
+  const r=f0.apply(this,arguments);
+  if(undo){const left=B.ships.filter(s=>s.side===1&&s.out!=='sunk'&&s.out!=='captured').map(s=>s.t);p.boss=boss;p.ships=left.length?left.slice(0,3):[1];p.calm=S.day+20;p.seen=0;if(!S.pir.includes(p))S.pir.push(p);try{pushAway(p,2.2);}catch(e){}
+    setTimeout(()=>toast(`☠ ${boss!=null?'현상범 '+p.name:p.name+'의 두목'}은(는) 작은 배로 달아났습니다. 일기토(T)로 두목을 쓰러뜨려야 토벌됩니다.`,true),600);}
+  else if(kind==='win'&&duel)setTimeout(()=>toast(`⚔ 일기토로 두목을 꺾어 ${p.name}을(를) 토벌했습니다!`,true),600);
+  return r;};}
+// ---------- 패배 · 항복 · 게임 오버 ----------
+// 싱글: 바다에서 굶어 선원을 모두 잃거나 해전에서 지면 게임 오버(마지막 항구에서 다시). 온라인 수업판: 자동 항복(부산에서 재기).
+const IS_ON=()=>typeof ONLINE!=='undefined'&&ONLINE;
+const CKEY=()=>'flipsea_ck_'+(typeof SLOT!=='undefined'?SLOT:1)+(window.KEYP||'');
+{const e0=enterPort;enterPort=function(id){const r=e0.apply(this,arguments);try{if(S&&!PORTS[id].inland&&!B&&!(window.PRAC_SNAP)){S.ckP=id;localStorage.setItem(CKEY(),JSON.stringify(S));}}catch(e){}return r;};}
+function battleOff(){$('bat').style.display='none';B=null;document.body.classList.remove('battle');encOpen=false;}
+function defeat(why){if(B)battleOff();if(IS_ON())return surrender(why,true);gameOver(why);}
+{const w0=wreck;wreck=function(){if(window.PRAC_SNAP)return;if(IS_ON()){surrender('wreck',true);return;}gameOver('wreck');};}
+function gameOver(why){paused=true;RAIL_OFF();const has=(()=>{try{return !!localStorage.getItem(CKEY());}catch(e){return false;}})();
+  modal('☠ 게임 오버',`<p>${why==='battle'?'해전에서 패했습니다. 해적들이 배를 차지하고 선원들은 뿔뿔이 흩어졌습니다.':'바다 한가운데서 물과 식량이 떨어져 선원을 모두 잃었습니다.'}</p>
+   <p class="hint">${has?'마지막으로 입항한 항구의 모습으로 돌아가 다시 시작할 수 있습니다. 그 뒤에 한 일은 사라집니다.':'돌아갈 항구 기록이 없습니다.'}</p>`,
+   [has?['main','마지막 항구에서 다시 시작',()=>ckLoad()]:null,['','부산에서 재기 (항복과 같은 손해)',()=>surrender(why,false)]].filter(Boolean));}
+function RAIL_OFF(){try{if(typeof RAIL!=='undefined')RAIL=null;}catch(e){}}
+function ckLoad(){try{const ck=JSON.parse(localStorage.getItem(CKEY()));if(!ck)return;S=ck;spSync&&spSync();battleOff();inPort=-1;paused=false;RAIL_OFF();try{$('wreck').style.display='none';}catch(e){}
+  const p=S.ckP!=null?S.ckP:HOME;S.lat=PORTS[p].lat;S.lon=PORTS[p].lon;toast('마지막 항구로 돌아왔습니다.',true);enterPort(p);save();}catch(e){console.warn(e);toast('기록을 불러오지 못했습니다.');}}
+function fleetVal(){return S.fleet.reduce((a,sh)=>a+(SHIPTYPES[sh.t].legend?0:ST(sh).price),0);}
+// 항복: 가진 돈·짐·함대를 잃고 부산에서 새 배 한 척으로 재기. 항해자·소지품·투자·은행·도크는 남는다. 보험이 일부를 돌려준다.
+function surrender(why,auto){if(B)battleOff();RAIL_OFF();try{$('wreck').style.display='none';}catch(e){}
+  const lostG=S.gold,lostV=fleetVal(),lostC=Object.values(S.cargo).reduce((a,c)=>a+c.q,0)+(S.lux||[]).reduce((a,l)=>a+l.q,0);
+  const legs=S.fleet.filter(sh=>SHIPTYPES[sh.t].legend);legs.forEach(sh=>{sh.as=[];(S.dock=S.dock||[]).push(sh);});
+  S.fleet.forEach(sh=>sh.as.slice().forEach(a=>{}));
+  S.gold=0;S.cargo={};S.lux=[];S.fleet=[{t:0,name:'새벽호',as:[],hp:SHIPTYPES[0].hp,md:[],cn:'std'}];
+  const I=insNow(),pay=I?Math.round(lostV*INS[I].ship+lostG*INS[I].cash):0;S.gold+=pay;
+  const H=PORTS[HOME];S.lat=H.lat;S.lon=H.lon;S.sail=0;S.crew=20;S.cq=0;S.water=60;S.food=60;S.thirst=S.hunger=0;S.engine=0;S.voy=null;S.fat=0;S.scurvy=0;S.pir=(S.pir||[]).filter(p=>p.boss!=null);
+  S.st.surr=(S.st.surr||0)+1;paused=true;route=null;autop=false;try{legs.length&&0;}catch(e){}
+  modal('🏳 항복 — 부산에서 재기',`<p>${auto?'(수업판에서는 게임 오버 대신 자동으로 항복합니다.) ':''}${why==='battle'?'해적에게 항복했습니다.':why==='wreck'?'표류하던 배를 부산 사람들이 끌어왔습니다.':'항복했습니다.'}</p>
+   <table class="mt"><tr><td>잃은 돈</td><td class="n">${lostG.toLocaleString()}골드</td></tr><tr><td>잃은 배</td><td class="n">값 ${lostV.toLocaleString()}골드어치</td></tr><tr><td>잃은 짐</td><td class="n">${lostC}톤</td></tr>
+   <tr><td>보험금</td><td class="n"><b>${pay?'+'+pay.toLocaleString()+'골드':'없음'}</b></td></tr></table>
+   <p class="hint">항해자·소지품·항구 투자·은행 예금·도크의 배는 그대로입니다.${legs.length?' 전설의 배는 가라앉지 않고 도크로 돌아왔습니다.':''} 새 배 한 척과 선원 20명으로 다시 시작합니다.${I?'':' 다음에는 시장의 집에서 보험에 들어 두세요.'}</p>`,
+   [['main','부산에 입항',()=>{paused=false;enterPort(HOME);save();}]]);}
+function modal(title,body,btns){let d=document.getElementById('b2m');if(!d){d=document.createElement('div');d.id='b2m';document.body.appendChild(d);}
+  d.innerHTML=`<div class="vrbox"><h3>${title}</h3>${body}<div class="btns">${btns.map((b,i)=>`<button class="${b[0]}" data-b2="${i}">${b[1]}</button>`).join('')}</div></div>`;d.style.display='flex';
+  d.querySelectorAll('[data-b2]').forEach(x=>x.onclick=()=>{d.style.display='none';btns[+x.dataset.b2][2]();});}
+// 해전 중 항복 버튼과 조우 창의 항복
+{const b=document.createElement('button');b.id='bsur';b.textContent='🏳 항복';b.title='싸움을 포기하고 항복합니다';document.body.appendChild(b);
+  b.onclick=()=>{if(!B||B.end)return;B.pause=true;if(B.practice){modal('연습 그만두기','<p>연습을 끝낼까요?</p>',[['main','끝내기',()=>pracEnd('quit')],['','계속',()=>{B.pause=false;}]]);return;}
+    modal('🏳 항복할까요?',`<p>항복하면 가진 돈 ${S.gold.toLocaleString()}골드와 짐, 함대(전설의 배 제외)를 잃고 부산에서 새 배로 다시 시작합니다.</p><p class="hint">항해자·소지품·투자·은행 예금·도크의 배는 남습니다.${insNow()?` 보험 ${INS[insNow()].n}이 일부를 돌려줍니다.`:' 보험이 없습니다.'}</p>`,
+      [['main','항복',()=>surrender('battle',false)],['','계속 싸우기',()=>{if(B)B.pause=false;}]]);};}
+{const e0=startEncounter;startEncounter=function(p,theyAttack){const r=e0.apply(this,arguments);try{const bt=$('batbox').querySelector('.btns');if(bt&&theyAttack){const x=document.createElement('button');x.textContent='🏳 항복';x.onclick=()=>{$('bat').style.display='none';encOpen=false;surrender('battle',false);};bt.appendChild(x);}}catch(e){}return r;};}
+// ---------- 보험 ----------
+const INS=[null,{n:'기본 보험',ship:.3,cash:0,fee:.01},{n:'든든 보험',ship:.55,cash:.25,fee:.02},{n:'완전 보험',ship:.8,cash:.5,fee:.035}];
+const insNow=()=>S&&S.ins&&S.ins.g&&S.ins.until>=S.day?S.ins.g:0;
+const insFee=g=>Math.max(100,Math.round(fleetVal()*INS[g].fee));
+function insBuy(g){const f=insFee(g);if(S.gold<f)return;S.gold-=f;const keep=insNow()===g?S.ins.until:S.day;S.ins={g,until:Math.max(keep,S.day)+30,auto:S.ins?S.ins.auto:1};sfx('coin');toast(`🛡 ${INS[g].n}에 들었습니다 (30일 · ${f.toLocaleString()}골드).`,true);save();drawPort();}
+function insBody(){const g=insNow();return `<div class="note"><b>🛡 해상 보험</b> — 항복하거나 바다에서 모든 것을 잃었을 때, 잃은 배 값과 돈의 일부를 돌려받습니다. 보험료는 30일마다 함대 값(${fleetVal().toLocaleString()}골드)에 따라 정해집니다.
+  <br>지금: ${g?`<b>${INS[g].n}</b> · ${Math.ceil(S.ins.until-S.day)}일 남음 · <label><input type="checkbox" data-insauto ${S.ins.auto?'checked':''}> 끝나면 자동으로 다시 들기</label>`:'<b style="color:#a8322a">보험 없음</b>'}</div>
+  <table class="mt"><tr><th>등급</th><th>배 값 보상</th><th>잃은 돈 보상</th><th>30일 보험료</th><th></th></tr>${[1,2,3].map(k=>`<tr><td><b>${INS[k].n}</b></td><td class="n">${INS[k].ship*100}%</td><td class="n">${INS[k].cash*100}%</td><td class="n">${insFee(k).toLocaleString()}</td><td class="b"><button data-ins="${k}" ${S.gold<insFee(k)?'disabled':''}>${g===k?'30일 늘리기':'들기'}</button></td></tr>`).join('')}</table>
+  <p class="hint">은행에 맡긴 돈과 도크의 배는 항복해도 잃지 않으니, 보험과 함께 쓰면 든든합니다.</p>`;}
+// ---------- 은행 ----------
+const BANK_MAX=1000000;
+function bankBody(){const b=S.bank||0,room=BANK_MAX-b;return `<div class="note"><b>🏦 은행</b> — 맡긴 돈은 항복·게임 오버·해적의 약탈에도 사라지지 않습니다. 어느 항구의 시장의 집에서나 넣고 뺄 수 있고, 30일마다 이자 0.5%가 붙습니다 (한도 ${BANK_MAX.toLocaleString()}골드).</div>
+  <div class="grid"><b>예금</b><span><b>${b.toLocaleString()}</b>골드 / ${BANK_MAX.toLocaleString()}</span><b>가진 돈</b><span>${S.gold.toLocaleString()}골드</span></div>
+  <div class="btns">${[1000,10000,100000].map(v=>`<button data-bin="${v}" ${S.gold<1||room<1?'disabled':''}>${v.toLocaleString()} 넣기</button>`).join('')}<button class="main" data-bin="all" ${S.gold<1||room<1?'disabled':''}>모두 넣기</button></div>
+  <div class="btns">${[1000,10000,100000].map(v=>`<button data-bout="${v}" ${b<1?'disabled':''}>${v.toLocaleString()} 빼기</button>`).join('')}<button class="main" data-bout="all" ${b<1?'disabled':''}>모두 빼기</button></div>`;}
+function bankMove(v,dir){const b=S.bank||0;if(dir>0){const n=Math.min(v==='all'?S.gold:+v,S.gold,BANK_MAX-b);if(n<=0)return;S.gold-=n;S.bank=b+n;}else{const n=Math.min(v==='all'?b:+v,b);if(n<=0)return;S.bank=b-n;S.gold+=n;}sfx('coin');save();drawPort();}
+{const d0=dailyTick;dailyTick=function(){const r=d0.apply(this,arguments);try{const day=Math.floor(S.day);
+  if(day%30===0&&S.bank>0){const it=Math.min(BANK_MAX-S.bank,Math.floor(S.bank*.005));if(it>0){S.bank+=it;toast(`🏦 은행 이자 ${it.toLocaleString()}골드가 붙었습니다.`);}}
+  if(S.ins&&S.ins.g&&S.ins.until<S.day&&!S.ins.lapsed){const g=S.ins.g,f=insFee(g);if(S.ins.auto&&S.gold+(S.bank||0)>=f){if(S.gold>=f)S.gold-=f;else{S.bank-=f-S.gold;S.gold=0;}S.ins.until=S.day+30;toast(`🛡 ${INS[g].n}을 30일 연장했습니다 (${f.toLocaleString()}골드).`);}else{S.ins.lapsed=1;toast('🛡 보험이 끝났습니다. 시장의 집에서 다시 들 수 있습니다.',true);}}}catch(e){}return r;};}
+// 시장의 집에 은행·보험 탭, 조합에 연습장 탭
+TOWN_B.find(b=>b.k==='invest').tabs.push(['bank','🏦 은행'],['ins','🛡 보험']);
+TOWN_B.find(b=>b.k==='guild').tabs.push(['prac','⚔ 연습장']);
+BODY.bank=bankBody;BODY.ins=insBody;BODY.prac=pracBody;['bank','ins','prac'].forEach(t=>CUSTOM_T.add(t));
+{const bb=bBind;bBind=function(box){bb(box);
+  box.querySelectorAll('[data-bin]').forEach(b=>b.onclick=()=>bankMove(b.dataset.bin,1));box.querySelectorAll('[data-bout]').forEach(b=>b.onclick=()=>bankMove(b.dataset.bout,-1));
+  box.querySelectorAll('[data-ins]').forEach(b=>b.onclick=()=>insBuy(+b.dataset.ins));const ia=box.querySelector('[data-insauto]');if(ia)ia.onchange=()=>{S.ins.auto=ia.checked?1:0;save();};
+  box.querySelectorAll('[data-pbat]').forEach(b=>b.onclick=()=>pracBattle(+b.dataset.pbat,box.querySelector('#pter')&&box.querySelector('#pter').checked));
+  box.querySelectorAll('[data-pduel]').forEach(b=>b.onclick=()=>pracDuel(+b.dataset.pduel));};}
+// ---------- 연습 모드 ----------
+// 조합의 연습장: 해전·일기토를 따로 연습한다. 끝나면 모든 것이 연습 전으로 돌아간다(보상도 손해도 없음).
+function pracBody(){return `<div class="note"><b>⚔ 연습장</b> — 진짜 싸움 전에 몸을 풀어 보세요. 연습에서는 무엇을 얻지도 잃지도 않습니다. 끝나면 연습 전 그대로 돌아옵니다.</div>
+  <h4>🚢 해전 연습</h4><p class="hint">지금 내 함대로 해적과 싸웁니다.</p><label><input type="checkbox" id="pter"> 섬·암초·안개가 있는 험한 바다</label>
+  <div class="btns">${[1,2,3,4,5].map(l=>`<button data-pbat="${l}">위험도 ${'★'.repeat(l)}</button>`).join('')}<button data-pbat="9">☠ 현상범과</button></div>
+  <h4>🤺 일기토 연습</h4><p class="hint">${S.duelist!=null&&MATES[S.duelist]&&!MATES[S.duelist].hero?`일기토 대표 ${MATES[S.duelist].name}`:'호연'}이(가) 해적 선장과 겨룹니다.</p>
+  <div class="btns">${[1,2,3,4,5].map(l=>`<button data-pduel="${l}">상대 ${'★'.repeat(l)}</button>`).join('')}<button data-pduel="9">☠ 두목급</button></div>`;}
+function pracSnap(){window.PRAC_SNAP={s:JSON.stringify(S),port:inPort};}
+function pracRestore(){const P=window.PRAC_SNAP;if(!P)return;S=JSON.parse(P.s);window.PRAC_SNAP=null;window.PRAC_OPT=null;try{spSync();}catch(e){}inPort=P.port;paused=true;
+  try{$('port').style.display='flex';drawPort();}catch(e){}}
+function pracBattle(lv,ter){pracSnap();const boss=lv===9;window.PRAC_OPT={ter:!!ter||boss};const p={id:-1,lat:S.lat,lon:S.lon,hd:0,lv:boss?6:lv,ships:boss?BOSS[0].ships.slice():pirShipsFor(lv),boss:boss?0:null,name:boss?BOSS[0].n+' (연습)':'연습 해적단',born:S.day,calm:0,seen:1,mode:'roam'};
+  $('port').style.display='none';startBattle(p,'normal');B.practice=1;toast('⚔ 해전 연습을 시작합니다. 무엇을 얻지도 잃지도 않습니다. 끝내려면 🏳 버튼.',true);}
+function pracEnd(kind){const t={win:'🏆 연습 승리!',escape:'전장을 벗어났습니다',lose:'연습 패배',quit:'연습을 그만두었습니다'}[kind]||'연습 끝';const st=B?{sunk:B.res.sunk.length,cap:B.res.cap.length}:{sunk:0,cap:0};
+  battleOff();modal(t,`<p>격침·백기 ${st.sunk}척 · 나포 ${st.cap}척</p><p class="hint">연습이었으므로 모든 것이 연습 전으로 돌아갑니다.</p>`,[['main','조합으로 돌아가기',()=>pracRestore()]]);}
+function pracDuel(lv){pracSnap();const boss=lv===9,p={lv:boss?6:lv,boss:boss?2:null,name:boss?BOSS[2].n:'연습 상대',lat:S.lat,lon:S.lon};$('port').style.display='none';
+  let me;try{me=heroFighter(false);}catch(e){me=heroFighter();}const foe=pirateFighter(p,{name:boss?BOSS[2].n:'연습 상대 해적',boss:boss});
+  igStart({A:me,B:foe,title:'일기토 연습',mode:'pve',onEnd:won=>won?'연습 승리! (기록되지 않음)':'연습 패배 (부상도 없습니다)',after:()=>pracRestore()});}
+{const st=document.createElement('style');st.textContent=`#bsur{position:fixed;right:12px;top:118px;z-index:30;display:none;background:#f6ecd4;border:2px solid #6b4a2a;border-radius:8px;padding:4px 10px;font-weight:700}
+body.battle #bsur{display:block}#b2m{position:fixed;inset:0;z-index:9200;background:rgba(20,12,4,.55);display:none;align-items:center;justify-content:center}#b2m .btns{display:flex;gap:6px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap}`;document.head.appendChild(st);}
 
 // ===== 바람과 해류를 '흐름'으로 보여 주기 =====
 // 보기: 0 흐름(하얀 바람 줄기 + 해류의 띠와 물결) · 1 화살표(예전 방식) · 2 끔. V 키로 바꾼다.
