@@ -536,7 +536,7 @@ const SHIPNAMES=['샛별호','바람꽃호','물푸레호','갈매기호','은�
 const FT_SQ=[[0,1],[30,1],[60,.98],[90,.9],[110,.78],[125,.64],[135,.55],[150,.4],[180,.3]];
 const FT_FA=[[0,.82],[30,.9],[60,.97],[90,1],[110,.92],[125,.8],[135,.68],[150,.48],[180,.34]];
 function rigF(rig,rel){if(rig==='증기 겸용')return .72+.28*rigF('가로돛',rel);const T=rig==='가로돛'?FT_SQ:FT_FA;for(let i=1;i<T.length;i++)if(rel<=T[i][0]){const a=T[i-1],b=T[i],t=(rel-a[0])/(b[0]-a[0]);return a[1]+(b[1]-a[1])*t;}return T[T.length-1][1];}
-function shipRole(k,r){let v=0;for(const a of S.fleet[k].as)if(a.r===r)v+=a.aux?curSt(a.m,r)*.5:curSt(a.m,r);if(r===4&&typeof traitV==='function')v+=traitV('gun');if(r===5&&typeof traitV==='function')v+=traitV('rep');return Math.min(120,v);}
+function shipRole(k,r){let v=0;for(const a of S.fleet[k].as)if(a.r===r)v+=a.aux?curSE(a.m,r)*.5:curSE(a.m,r);if(r===4&&typeof traitV==='function')v+=traitV('gun');if(r===5&&typeof traitV==='function')v+=traitV('rep');return Math.min(120,v);}
 const hasCap=k=>k===0||S.fleet[k].as.some(a=>a.r===0&&!a.aux);
 function shipF(k,rel){const T=ST(S.fleet[k]);return T.spd*rigF(T.rig,rel)*upMulK(k)*(1+.25*shipRole(k,1)/100)*(hasCap(k)?1:.9)*(.75+.25*Math.min(1,hpK(k)/hpMaxK(k)));}
 function fleetSail(rel){let t=0;for(let k=0;k<S.fleet.length;k++)t+=shipF(k,rel);return t/S.fleet.length;} // 함대 속도 = 배들의 평균
@@ -612,17 +612,18 @@ function makeFlag(k){if(k<=0)return;const sh=S.fleet[k],old=S.fleet[0];const cap
   if(cap){if(seatsUsed(old)<SHIPTYPES[old.t].seats)old.as.push({m:cap.m,r:0,aux:0});else toast(`${MATES[cap.m].name}은(는) 자리가 없어 대기합니다.`);}
   S.fleet.splice(k,1);S.fleet.unshift(sh);ensureHero();toast(`${sh.name}이(가) 새 기함이 되었습니다. 호연이 선장으로 옮겨 탔습니다.`,true);save();}
 const bestRole=id=>{let b=1,v=-1;for(let r=0;r<8;r++){const x=curSt(id,r);if(x>v){v=x;b=r;}}return b;};
-const salaryNow=i=>MATES[i].hero?0:Math.round(mateSalary(MATES[i])*(seatOf(i)?1:.5)*(1-traitV('salary')));
+const salaryNow=i=>MATES[i].hero?0:Math.round(mateSalary(MATES[i])*(seatOf(i)?1:.5)*(1-traitV('salary'))*((S&&S.mt[i]&&S.mt[i].pay)||1));
 const mateSalary=m=>{const s=[...m.st].sort((a,b)=>b-a);return Math.round(8+(s[0]+s[1]+s[2])/10+(m.story?8:0)+[0,15,35,70][m.sp||0]);};
 const mateFee=m=>mateSalary(m)*4*[1,3,5,8][m.sp||0];
 const mt=id=>S.mt[id];
 // 능력치: 0.1씩 쌓이고 정수(1단위)가 될 때마다 실제로 반영된다. 상한 99
 const curStF=(id,r)=>Math.min(99,(MATES[id].st[r]||0)+((S&&S.mt[id]&&S.mt[id].g&&S.mt[id].g[r])||0));
 const curSt=(id,r)=>Math.floor(curStF(id,r)+1e-6);
+const curSE=(id,r)=>curSt(id,r)*(typeof mateEff==='function'?mateEff(id):1); // 자리 효과에 쓰는 능력: 충성도·통솔력 반영
 function hiredIds(){return Object.keys(S.mt).map(Number).filter(i=>S.mt[i].h);}
 function seatOf(id){for(let k=0;k<S.fleet.length;k++){const a=S.fleet[k].as.find(x=>x.m===id);if(a)return {k,a};}return null;}
-function roleVal(r){if(FLEET_ROLES.includes(r)){let m=0,ax=0;for(const sh of S.fleet)for(const a of sh.as)if(a.r===r){if(a.aux)ax+=curSt(a.m,r)*.5;else m=Math.max(m,curSt(a.m,r));}return Math.min(120,m+ax);}
-  let best=0;for(const sh of S.fleet){let v=0;for(const a of sh.as)if(a.r===r)v+=a.aux?curSt(a.m,r)*.5:curSt(a.m,r);best=Math.max(best,v);}return Math.min(120,best);}
+function roleVal(r){if(FLEET_ROLES.includes(r)){let m=0,ax=0;for(const sh of S.fleet)for(const a of sh.as)if(a.r===r){if(a.aux)ax+=curSE(a.m,r)*.5;else m=Math.max(m,curSE(a.m,r));}return Math.min(120,m+ax);}
+  let best=0;for(const sh of S.fleet){let v=0;for(const a of sh.as)if(a.r===r)v+=a.aux?curSE(a.m,r)*.5:curSE(a.m,r);best=Math.max(best,v);}return Math.min(120,best);}
 const eR=r=>roleVal(r)/100;
 function traitOn(t){for(const i of hiredIds())if(MATES[i].tr===t)return true;return false;}
 const trMine=(i,k)=>{const m=MATES[i];let v=TRAITS[m.tr]&&TRAITS[m.tr][2]===k?TRAITS[m.tr][3]:0;if(m.tr2)for(const [kk,x] of SPTR[m.tr2.i][1])if(kk===k)v+=x*m.tr2.k;return v;};
@@ -631,7 +632,7 @@ const supplyMul=()=>(1-traitV('supply'))*(1+traitV('glut'))*(hasRelic('fridge')?
 const lossMul=()=>(1-.6*eR(6))*(1-traitV('loss'))*(typeof toolPct==='function'?1-toolPct('med'):1);
 const tradeBuyMul=()=>(1-.08*eR(3))*(1-traitV('buy')), tradeSellMul=()=>(1+.08*eR(3))*(1+traitV('sell'))*(1+.03*perkSum('sell'));
 const revealR=()=>(3+1.5*eR(2)+traitV('reveal')+(hasRelic('scope')?1.5:0))*(typeof wxVisMul==='function'?wxVisMul():1);
-const mateCap=()=>seatsT()+1+6+2*S.fleet.length;
+const mateCap=()=>999; // 보유 제한 없음 (자리는 배마다 정해져 있음)
 function hire(id){const m=MATES[id],f=mateFee(m);if(S.gold<f)return;if(hiredIds().length>=mateCap()){toast('더 데려갈 수 없습니다. 배를 늘리세요.');return;}
   sfx('hire');S.gold-=f;S.mt[id]={h:1,loy:70,g:[0,0,0,0,0,0,0,0],xp:[0,0,0,0,0,0,0,0],since:S.day};toast(`${m.name}이(가) 함대에 합류했습니다. 자리에 앉히면 더 빨리 성장합니다.`,true);
   S.st.hired=(S.st.hired||0)+1;checkMissions();save();}
@@ -647,7 +648,7 @@ const XPN=20;
 const growDim=c=>c>=99?0:Math.max(.2,Math.min(1,(99-c)/40));
 const XP_BASE=.08,XP_HERO=1.5,XP_CAPT=.4; // 하루 성장 기본값 · 주인공 보정 · 선장 자리의 다른 능력 성장 비율
 function gainXp(i,r,v){const x=S.mt[i];if(!x)return;v*=1+trMine(i,'grow');if(MATES[i].hero)v*=XP_HERO;const c0=curStF(i,r);if(c0>=99)return;
-  const before=Math.floor(c0+1e-6);x.g[r]=Math.round(((x.g[r]||0)+v*XP_BASE*growDim(c0))*1000)/1000;const after=curSt(i,r);
+  const before=Math.floor(c0+1e-6);x.g[r]=Math.round(((x.g[r]||0)+v*XP_BASE*(typeof growDim2==='function'?growDim2(i,r,c0):growDim(c0)))*1000)/1000;const after=curSt(i,r);
   if(after>before){S.st.grow=(S.st.grow||0)+1;toast(`${MATES[i].name}의 ${STATK[r]}이(가) ${after}(으)로 올랐습니다.`);}}
 function mateDaily(){for(const i of hiredIds()){const s=seatOf(i);if(s){gainXp(i,s.a.r,s.a.aux?.6:1);if(s.a.r===0&&!s.a.aux)for(let r=1;r<8;r++)gainXp(i,r,XP_CAPT);}else gainXp(i,bestRole(i),.25);}
   if(Math.floor(S.day)%30===0)payday();}
@@ -2514,7 +2515,7 @@ function mateLook(id){const m=MATES[id];if(CORE_PT[m.name]&&(m.story||m.hero))re
   if(band==='열대'&&r()<.3)o.acc.push('flower');
   o.hatC=o.hatC||pick(r,['#8a3a2a','#2f5d73','#5a4a2a','#3a5a3a','#7a5a9a','#c8553d','#e9d9b6']);o.eyeC=pick(r,band==='냉대'?['#3f6f8a','#4a6a4a','#5a4a3a']:['#2a1a10','#3b2414','#1d1008']);return o;}
 function portrait(id){if(PT_C[id])return PT_C[id];const m=MATES[id];if(CORE_IMG[m.name])return PT_C[id]=CORE_IMG[m.name];return PT_C[id]=svgURL(ptSVG(mateLook(id)));}
-const ptImg=(id,sz,cls)=>`<img class="pt ${cls||''}" src="${portrait(id)}" width="${sz}" height="${sz}" alt=""${typeof faceFlip==='function'&&faceFlip(id)?' style="transform:scaleX(-1)"':''}>`;
+const ptImg=(id,sz,cls)=>`<img class="pt ${cls||''}" src="${portrait(id)}" width="${sz}" height="${sz}" alt=""${typeof faceFlip==='function'&&faceFlip(id)?' style="transform:scaleX(-1)"':''}${typeof mGrade==='function'&&MATES[id]?` data-g="${mGrade(MATES[id])}"`:''}>`;
 // 해적 두목·졸개
 const BOSS_PT=[
  {skin:'#d9a37f',hair:'#1a120c',hs:'short',cloth:'#1d1612',coat:'coat',cloth2:'#8a1f1a',hat:'tricorn',hatC:'#140e0a',beard:'goatee',mouth:'smirk',brow:1.6,bw:2.6,acc:['earring'],bg:['#6a5a5a','#1d1612']},
@@ -3306,7 +3307,7 @@ const INV_MAX=30;
 function gearInit(){if(!S)return;if(!S.inv2)S.inv2=[];if(!S.eq)S.eq={w:null,a:null,t:[null,null,null]};if(!S.hs)S.hs={mu:22,hp:28,dam:20,xp:0,lv:1};S.itN=S.itN||1;}
 const eqItems=()=>{gearInit();return [S.eq.w,S.eq.a,...S.eq.t].filter(Boolean).map(id=>S.inv2.find(i=>i.id===id)).filter(Boolean);};
 const eqTools=()=>{gearInit();return S.eq.t.filter(Boolean).map(id=>S.inv2.find(i=>i.id===id)).filter(Boolean);};
-const isEq=id=>{gearInit();return S.eq.w===id||S.eq.a===id||S.eq.t.includes(id);};
+const isEq=id=>{gearInit();return S.eq.w===id||S.eq.a===id||S.eq.t.includes(id)||(typeof mateEqHas==='function'&&mateEqHas(id));};
 function toolSum(){const o={};for(const it of eqTools()){const b=itB(it),m=itFxMul(it);for(const[k,v]of Object.entries(b.fx)){if(k==='reg'||k==='rs')continue;o[k]=(o[k]||0)+v*m;}}return o;}
 function toolPct(k){if(!S)return 0;const caps={spd:.15,buy:.08,sell:.08,water:.35,food:.35,med:.6,rep:1.5,horn:.6,luck:.4};return Math.min(caps[k]||.5,toolSum()[k]||0);}
 function toolReg(){if(!S)return 0;const r=regionOf(S.lat,S.lon);let m=0;for(const it of eqTools()){const b=itB(it);if(b.fx.reg===r)m=Math.max(m,b.fx.rs*itFxMul(it));}return m;}
@@ -5540,6 +5541,125 @@ function bpFound(){S.bp.done=1;const sh={t:BP_T,name:'블랙펄',as:[],hp:SHIPTY
 .cgbox .cgrow{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}.cgbox .cgrow button.on{background:#2f5d73;color:#fff}
 .shq{padding-left:20px}.shq li{margin:4px 0}.shq li.done{color:#5a7a4a}.shq li.lock{color:#a89a7a}.shq li.now{background:#fff3d8;border-radius:6px;padding:4px 6px}
 .bpnote{border-left:4px solid #2a2040}#bpwin{position:fixed;inset:0;z-index:9100;background:rgba(10,6,16,.6);display:none;align-items:center;justify-content:center}.bpbox{text-align:center}.bpbox img{display:block;margin:0 auto 8px}.bpbox ul{text-align:left}`;document.head.appendChild(st);}
+
+// ===== 로드맵 D. 항해자 =====
+// 능력치 재설계 · 특기 배우기 · 별명 · 급여·충성·반란 · 통솔력 · 모든 항해자 장비 · 이야기 동료의 "어디로 가자" · 등급 테두리 색
+// ---------- 등급 ----------
+// 0 일반 · 1 녹색 · 2 파랑 · 3 유니크 · 4 보라(전설·주인공·이야기 동료). 수식어가 등급을 정한다.
+const GR_N=['일반','녹색','파랑','유니크','전설'],GR_AVG=[40,50,60,70,80],GR_COL=['#9a8a6a','#3f8a3a','#2f66a8','#d0761a','#7a3fa8'];
+const GR_CHIP=['','✦ 뛰어난 인재','✦✦ 이름난 인재','★ 영웅급','👑 전설'];
+function mGrade(m){if(!m)return 0;if(m.story||m.hero)return 4;if(m.sp===3)return 4;if(m.sp===2)return 3;if(m.sp===1)return SP_RMOD.some(x=>x[1]===m.mod)?2:1;return 0;}
+// ---------- 능력치 재설계 ----------
+// 등급 평균에 맞춰 다시 짓되, 그 사람의 원래 장단점(어느 능력이 높고 낮은지)은 살린다. 주특기는 +10~20 (수식어 등급은 +15~20).
+// 그동안 자란 만큼(S.mt[id].g)은 따로 저장되어 있어 그대로 더해진다.
+function regenSt(m,seed){const old=(m.st0||m.st).slice();if(!m.st0)m.st0=old.slice();const g=mGrade(m),A=GR_AVG[g],r=srand(seed>>>0);
+  const ord=[0,1,2,3,4,5,6,7].sort((a,b)=>old[b]-old[a]||a-b),mean=old.reduce((a,b)=>a+b,0)/8;
+  const mainB=g===0?10+Math.floor(r()*6):g===4?10+Math.floor(r()*11):15+Math.floor(r()*6);const st=new Array(8);
+  st[ord[0]]=A+mainB;st[ord[1]]=A+3+Math.floor(r()*6);
+  for(let k=2;k<8;k++){const i=ord[k];st[i]=A+Math.max(-12,Math.min(3,Math.round((old[i]-mean)*.35)))+Math.floor(r()*5)-2;}
+  for(let i=0;i<8;i++)st[i]=Math.max(12,Math.min(99,st[i]));m.st=st;m.st2=1;return st;}
+MATES.forEach((m,id)=>{if(!m.sp)regenSt(m,id*7919+31);});
+// 특별 항해자: 저장된 것과 새로 만나는 것 모두
+{const s0=spSync;spSync=function(){const r=s0.apply(this,arguments);try{if(S&&S.sp)S.sp.forEach((o,i)=>{if(!o.st2){regenSt(o,strH((o.spk||'')+'|st'));}const m=MATES[SP0+i];if(m&&m.spk===o.spk&&m.st!==o.st){m.st=o.st;m.st0=o.st0;}});}catch(e){}return r;};}
+{const g0=genSpecial;genSpecial=function(){const m=g0.apply(this,arguments);try{const o=S.sp[m.id-SP0];if(o&&!o.st2){regenSt(o,strH((o.spk||'')+'|st'));m.st=o.st;m.st0=o.st0;}}catch(e){}return m;};}
+// 성장: 처음 10은 빠르게, 그다음은 느리게. 보라(80)는 90까지 빠르게, 90 이상은 어렵게.
+function growDim2(i,r,c0){if(c0>=99)return 0;const m=MATES[i],base=(m&&m.st[r])||0;if(c0>=90)return .12;if(mGrade(m)===4)return c0<90?1:.3;return c0-base<10?1:.3;}
+// ---------- 충성도 · 통솔력 → 자리 효과 ----------
+// 충성 70 이상이면 능력을 다 쓰고, 낮을수록 덜 쓴다(최저 70%). 호연의 통솔력이 높으면 함대 전체 항해자가 능력을 더 끌어낸다(통솔 100이면 +10%).
+const loyF=id=>{const x=S.mt[id];if(!x||MATES[id].hero||MATES[id].story&&x.loy==null)return 1;const l=x.loy==null?70:x.loy;return l>=70?1:l>=40?.85+.15*(l-40)/30:.7+.15*l/40;};
+const leadF=()=>1+Math.max(0,Math.min(.1,(curSt(HY,0)-50)/500));
+function mateEff(id){return loyF(id)*leadF();}
+// 함께 탄 배의 선장 통솔력이 성장을 돕는다 (통솔 100이면 +40%)
+function capOf(k){if(k===0)return HY;const a=S.fleet[k]&&S.fleet[k].as.find(x=>x.r===0&&!x.aux);return a?a.m:null;}
+{const g0=gainXp;gainXp=function(i,r,v){try{const s=seatOf(i);if(s){const c=capOf(s.k);if(c!=null&&c!==i)v*=1+curSt(c,0)/250;}}catch(e){}return g0.call(this,i,r,v);};}
+// ---------- 급여 · 충성 · 반란 ----------
+const PAYS=[.6,.8,1,1.25,1.5,2];
+{const p0=payday;payday=function(){const ids=hiredIds().filter(i=>!MATES[i].hero),g0=S.gold;p0.apply(this,arguments);try{const paid=S.gold<g0||!ids.length;
+  if(paid)for(const i of ids){const x=S.mt[i],p=x.pay||1;x.loy=Math.max(0,Math.min(100,x.loy+Math.round((p-1)*20)));}
+  // 떠나는 항해자
+  for(const i of ids){const x=S.mt[i];if(!x||MATES[i].story)continue;if(x.loy<20&&Math.random()<.35){const nm=MATES[i].name;fire(i);toast(`😠 ${nm}이(가) 대우에 불만을 품고 함대를 떠났습니다. (충성 ${x.loy})`,true);}}
+  const L=hiredIds().filter(i=>!MATES[i].hero);if(!L.length)return;const avg=L.reduce((a,i)=>a+(S.mt[i].loy||0),0)/L.length;
+  if(avg<35&&inPort<0&&Math.random()<.5){const lg=Math.round(S.gold*.1),lc=Math.max(1,Math.round(S.crew*.1));S.gold-=lg;S.crew=Math.max(1,S.crew-lc);L.forEach(i=>S.mt[i].loy=Math.min(100,S.mt[i].loy+10));
+    sfx('warn');toast(`🔥 반란! 불만이 쌓인 항해자들이 선원을 부추겨 들고일어났습니다. 금고에서 ${lg.toLocaleString()}골드가 사라지고 선원 ${lc}명이 배를 떠났습니다. 급여를 올리고 충성을 돌보세요.`,true);S.st.mutiny=(S.st.mutiny||0)+1;}
+  else if(L.some(i=>S.mt[i].loy<40))toast('⚠ 충성이 낮은 항해자가 있습니다. 거느린 항해자 탭에서 급여를 올려 주세요. 충성이 낮으면 능력을 다 쓰지 않고, 떠나거나 반란을 일으킵니다.',true);}catch(e){console.warn(e);}};}
+// ---------- 특기 배우기 (일반 항해자의 승급) ----------
+// 일반 항해자가 한 능력을 15 넘게 키우면, 특별 특기 하나를 골라 배울 수 있다.
+const canPromote=i=>{const m=MATES[i],x=S.mt[i];return m&&x&&mGrade(m)===0&&!x.tr2&&Math.max(...x.g)>=15;};
+let MSYNC_S=null;
+function mSync(){if(!S)return;if(MSYNC_S!==S){MATES.forEach(m=>{if(!m.sp&&!m.story&&!m.hero&&m.tr2&&m.tr2.pr)delete m.tr2;});MSYNC_S=S;TRV_C=null;}
+  for(const k in S.mt){const i=+k,x=S.mt[k],m=MATES[i];if(m&&x.tr2&&!m.sp&&!m.tr2){m.tr2=Object.assign({pr:1},x.tr2);TRV_C=null;}}}
+setInterval(()=>{try{mSync();}catch(e){}},1000);
+function promote(i,t){if(!canPromote(i))return;S.mt[i].tr2={i:t,k:1};mSync();TRV_C=null;sfx('levelup');toast(`🎖 ${MATES[i].name}이(가) 오랜 단련 끝에 특기 '${SPTR[t][0]}'을(를) 배웠습니다: ${spDesc(MATES[i])}`,true);save();redrawM();}
+// ---------- 장비 (모든 항해자) ----------
+function mateEqHas(id){if(!S||!S.mt)return false;for(const k in S.mt){const e=S.mt[k].eq;if(e&&(e.w===id||e.a===id))return true;}return false;}
+const mEqIt=(i,k)=>{const e=S.mt[i]&&S.mt[i].eq,id=e&&e[k];return id?S.inv2.find(x=>x.id===id):null;};
+function mEquip(i,k,id){gearInit();const x=S.mt[i];if(!x)return;x.eq=x.eq||{w:null,a:null};if(!id){x.eq[k]=null;}else{if(isEq(id))return;x.eq[k]=id;}sfx('coin');save();redrawM();}
+function gearPow(i){const w=mEqIt(i,'w'),a=mEqIt(i,'a');return (w?itAtk(w):0)+(a?itDef(a):0);}
+// 백병전: 기함에 탄 항해자들의 무기·방어구가 힘을 보탠다 (최대 +50%)
+{const b0=boardOdds;boardOdds=function(F,o){const r=b0.apply(this,arguments);if(F.side!==0||!S.fleet[F.k])return r;let g=0;for(const a of S.fleet[F.k].as)g+=gearPow(a.m);gearInit();if(F.k===0){const w=S.eq.w&&S.inv2.find(x=>x.id===S.eq.w),a=S.eq.a&&S.inv2.find(x=>x.id===S.eq.a);g+=(w?itAtk(w):0)+(a?itDef(a):0);}
+  const us=r.us*(1+Math.min(.5,g/300));return {p:us/(us+r.them),us,them:r.them};};}
+// 일기토: 기함에 탄 항해자 중 한 명을 대표로 내보낼 수 있다 (그 사람의 능력과 장비로 싸움)
+function mateFighter(id,fair){const w=mEqIt(id,'w'),a=mEqIt(id,'a'),mu=curSt(id,4)*.6+curSt(id,0)*.3,hp=curSt(id,5)*.6+10,dam=curSt(id,0)*.6;
+  const F={nm:MATES[id].name,hpMax:Math.round(60+hp*1.2),atk:(6+mu*.25+(w?itAtk(w):3))*(1+traitV('duel')),wt:w?itB(w).wt:'bash',tb:w?itTB(w):1,q:w?itQ(w):0,
+    def:a?itDef(a):0,res:a?{cut:itRes(a,'cut'),thr:itRes(a,'thr'),bash:itRes(a,'bash')}:{},hv:a?itHv(a):0,dam,blk:0,ki:0,stag:0,leg:0,wn:w?itName(w):'맨주먹',an:a?itName(a):'평상복',pt:portrait(id)};
+  F.hp=F.hpMax;if(fair&&typeof igFair==='function')igFair(F);return F;}
+const duelOk=id=>id!=null&&S.mt[id]&&S.fleet[0].as.some(a=>a.m===id);
+{const h0=heroFighter;heroFighter=function(fair){if(S&&duelOk(S.duelist)&&!MATES[S.duelist].hero)return mateFighter(S.duelist,fair);return h0.apply(this,arguments);};}
+// ---------- 이야기 동료의 "어디로 가자" ----------
+const SQ_TALK=[ // 성격별 말투
+  (n,p)=>`"${p}에 가 보자. 거기 바다는 겁이 나지만, 그래서 가 보고 싶어."`,(n,p)=>`"${p}까지 가는 길을 꼼꼼히 짜 두었어. 한번 가 보지 않을래?"`,(n,p)=>`"${p}에 돈 냄새가 나. 놓치면 아까울걸?"`,(n,p)=>`"${p}에 사는 사람들이 보고 싶어. 같이 가 줄래?"`,
+  (n,p)=>`"있잖아, ${p} 얘기 들었어? 거기 가면 재밌는 일이 생길 것 같아!"`,(n,p)=>`"…${p}."`,(n,p)=>`"${p}! 분명 좋은 일이 기다리고 있을 거야."`,(n,p)=>`"${p}의 기록이 부족해. 직접 가서 확인해야 해."`];
+function sqPick(){const L=hiredIds().filter(i=>MATES[i].story&&!MATES[i].hero);if(!L.length)return null;const m=L[Math.floor(Math.random()*L.length)];
+  const here=inPort>=0?PORTS[inPort]:{lat:S.lat,lon:S.lon};
+  let C=SEAPORTS.filter(q=>q.id!==inPort&&S.found.includes(q.id)).map(q=>({q,d:gcDist(here.lat,here.lon,q.lat,q.lon)})).filter(o=>o.d>500&&o.d<4500);
+  const fresh=C.filter(o=>!S.entered.includes(o.q.id));if(fresh.length)C=fresh;const home=MATES[m].home;if(PORTS[home]&&!PORTS[home].inland&&home!==inPort&&Math.random()<.3)return {m,to:home,home:1};
+  if(!C.length)return null;const o=C[Math.floor(Math.random()*C.length)];return {m,to:o.q.id,d:o.d};}
+function sqOffer(){if(S.sq||(S.tut&&!S.tut.done&&S.tut.i<15))return;if((S.sqNext||0)>S.day)return;const o=sqPick();S.sqNext=S.day+18;if(!o)return;
+  S.sq={m:o.m,to:o.to,until:Math.floor(S.day)+60,home:o.home||0};const M=MATES[o.m],P=PORTS[o.to].name;
+  toast(`💬 ${M.name}: ${o.home?`"고향 ${P}에 한번 들르고 싶어. 데려다줄래?"`:SQ_TALK[M.per%8](M.name,P)} — 60일 안에 ${P}에 입항하면 보상이 있습니다.`,true);save();}
+{const e0=enterPort;enterPort=function(id){const r=e0.apply(this,arguments);try{const q=S.sq;if(q){if(q.to===id){const M=MATES[q.m],x=S.mt[q.m],g=Math.round(400+gcDist(PORTS[HOME].lat,PORTS[HOME].lon,PORTS[id].lat,PORTS[id].lon)*.15);
+      S.gold+=g;if(x){x.loy=Math.min(100,(x.loy==null?70:x.loy)+15);const br=bestRole(q.m);x.g[br]=(x.g[br]||0)+1;}if(typeof fameAdd==='function')fameAdd(20,'adv');S.sq=null;S.st.sqDone=(S.st.sqDone||0)+1;
+      setTimeout(()=>{sfx('mission');toast(`💬 ${M.name}: "고마워! 역시 오길 잘했어." — 보상 ${g.toLocaleString()}골드 · ${M.name}의 충성 +15 · ${STATK[bestRole(q.m)]} +1 · 모험 명성 +20`,true);},900);}
+    else if(q.until<S.day){const M=MATES[q.m];if(S.mt[q.m])S.mt[q.m].loy=Math.max(0,(S.mt[q.m].loy||70)-5);S.sq=null;setTimeout(()=>toast(`💬 ${M.name}: "결국 못 갔네…" (충성 −5)`),900);}}
+    if(!PORTS[id].inland)setTimeout(()=>{try{sqOffer();}catch(e){}},2500);}catch(e){}return r;};}
+{const di=drawInland;drawInland=function(){const r=di.apply(this,arguments);try{if(S&&S.sq){const p=PORTS[S.sq.to],s=toScr(...proj(p.lat,p.lon)),t=performance.now()/500;ctx.save();ctx.strokeStyle=`rgba(122,63,168,${.6+.3*Math.sin(t)})`;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(s[0],s[1]-6,20,0,7);ctx.stroke();
+  ctx.font='bold 12px serif';ctx.textAlign='center';ctx.lineWidth=3;ctx.strokeStyle='rgba(243,232,207,.95)';const tx=`💬 ${MATES[S.sq.m].name}가 가자고 한 곳`;ctx.strokeText(tx,s[0],s[1]-32);ctx.fillStyle='#5a2a80';ctx.fillText(tx,s[0],s[1]-32);ctx.textAlign='left';ctx.restore();}}catch(e){}return r;};}
+// ---------- 항해자 카드: 등급 테두리 · 별명 · 급여 · 장비 · 특기 배우기 ----------
+const nickOf=i=>S&&S.mt[i]&&S.mt[i].nick;
+{const mc0=mateCard;mateCard=function(id,extra){let h=mc0.apply(this,arguments);try{const m=MATES[id],x=S.mt[id],g=mGrade(m);
+  h=h.replace(/class="mc mcp mcard[^"]*"/,`class="mc mcp mcard gr${g}"`);
+  h=h.replace(/<span class="chip spc\d">[^<]*<\/span> /,'');
+  h=h.replace(`<b>${m.name}</b>`,`${g?`<span class="chip grc${g}">${m.story?'':GR_CHIP[g]}${m.story||m.hero?'👑 전설':''}</span> `:''}<b>${m.name}</b>${nickOf(id)?` <i class="nick">‘${nickOf(id)}’</i>`:''}`);
+  if(x&&!m.hero){const lf=loyF(id),pay=x.pay||1;
+    h=h.replace(` · 충성 ${x.loy}`,` · 충성 <b style="color:${x.loy>=70?'#2f6a2f':x.loy>=40?'#b07a2e':'#a8322a'}">${x.loy}</b>${lf<1?` <small>(능력 ${Math.round(lf*100)}%)</small>`:''}`);
+    const inv=(S.inv2||[]).filter(it=>!isEq(it.id)),opt=(k)=>{const cur=mEqIt(id,k);return `<select data-meq="${id}|${k}"><option value="">${k==='w'?'⚔ 무기 없음':'🛡 방어구 없음'}</option>${cur?`<option value="${cur.id}" selected>${itName(cur)}</option>`:''}${inv.filter(it=>itB(it).k===k).map(it=>`<option value="${it.id}">${itName(it)}</option>`).join('')}</select>`;};
+    const ctl=`<div class="mctl">${!m.story?`<label>급여 <select data-pay="${id}">${PAYS.map(p=>`<option value="${p}" ${Math.abs(p-pay)<.01?'selected':''}>${Math.round(p*100)}%</option>`).join('')}</select></label>`:''}
+      <label>별명 <input data-nick="${id}" value="${(x.nick||'').replace(/"/g,'')}" maxlength="8" placeholder="없음"></label>${opt('w')}${opt('a')}
+      ${S.fleet[0].as.some(a=>a.m===id)?`<button data-duel="${id}" class="${S.duelist===id?'on':''}">${S.duelist===id?'🗡 일기토 대표':'🗡 일기토 대표로'}</button>`:''}
+      ${canPromote(id)?`<button class="main" data-promo="${id}">🎖 특기 배우기</button>`:''}</div>`;
+    h=h.replace(/<\/div><\/div><button class="mrad"/,ctl+'</div></div><button class="mrad"');}}catch(e){console.warn(e);}return h;};}
+function redrawM(){if(inPort>=0)drawPort();else if(typeof infoOpen!=='undefined'&&infoOpen&&typeof openFleet==='function')openFleet();}
+function promoUI(i){let d=document.getElementById('promowin');if(!d){d=document.createElement('div');d.id='promowin';document.body.appendChild(d);}
+  d.innerHTML=`<div class="vrbox"><button class="fwx">✕</button><h3>🎖 ${MATES[i].name}의 특기 배우기</h3><p class="hint">오래 함께하며 능력을 키운 항해자가 특별 특기 하나를 배웁니다. 한 번 고르면 바꿀 수 없습니다.</p>
+   <div class="prgrid">${SPTR.map((t,k)=>`<button data-prk="${k}"><b>${t[0]}</b><small>${t[1].map(([kk,v])=>TR_TXT[kk](v)).join(', ')}</small></button>`).join('')}</div></div>`;
+  d.style.display='flex';d.querySelector('.fwx').onclick=()=>d.style.display='none';d.querySelectorAll('[data-prk]').forEach(b=>b.onclick=()=>{d.style.display='none';promote(i,+b.dataset.prk);});}
+document.addEventListener('change',e=>{const t=e.target;if(!t.dataset)return;
+  if(t.dataset.meq){const [i,k]=t.dataset.meq.split('|');mEquip(+i,k,t.value?+t.value:null);}
+  else if(t.dataset.pay){const i=+t.dataset.pay;S.mt[i].pay=+t.value;toast(`${MATES[i].name}의 급여를 ${Math.round(+t.value*100)}%로 정했습니다. 다음 월급날부터 충성에 반영됩니다.`);save();redrawM();}
+  else if(t.dataset.nick){const i=+t.dataset.nick,v=t.value.trim().slice(0,8);S.mt[i].nick=v||undefined;if(v)toast(`${MATES[i].name}의 별명: ‘${v}’`);save();redrawM();}});
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-duel],[data-promo]');if(!b)return;
+  if(b.dataset.duel){const i=+b.dataset.duel;S.duelist=S.duelist===i?null:i;toast(S.duelist===i?`🗡 일기토에 ${MATES[i].name}이(가) 대신 나갑니다.`:'일기토에 호연이 직접 나갑니다.');save();redrawM();}
+  else if(b.dataset.promo)promoUI(+b.dataset.promo);});
+document.addEventListener('keydown',e=>{if(e.target&&e.target.dataset&&(e.target.dataset.nick!=null||e.target.dataset.shn!=null)){e.stopPropagation();if(e.key==='Enter')e.target.blur();}},true);
+document.addEventListener('keyup',e=>{if(e.target&&e.target.dataset&&(e.target.dataset.nick!=null||e.target.dataset.shn!=null))e.stopPropagation();},true);
+// 함대 배치 화면: 자리 칸에 별명
+{const fb0=fleetBody;fleetBody=function(){let h=fb0.apply(this,arguments);try{for(const k in S.mt){const n=S.mt[k].nick;if(n){const nm=MATES[+k].name;h=h.split(`<b>${nm}</b><span class="rl">`).join(`<b>${nm}</b><i class="nick">‘${n}’</i><span class="rl">`);}}}catch(e){}return h;};BODY.fleet=fleetBody;}
+{const st=document.createElement('style');st.textContent=`
+img.pt[data-g]{box-sizing:border-box;border:3px solid #9a8a6a;border-radius:8px}img.pt[data-g="1"]{border-color:#3f8a3a}img.pt[data-g="2"]{border-color:#2f66a8}img.pt[data-g="3"]{border-color:#d0761a;box-shadow:0 0 6px #d0761a88}img.pt[data-g="4"]{border-color:#7a3fa8;box-shadow:0 0 8px #7a3fa899}
+.mc.gr0{border-left:4px solid #9a8a6a}.mc.gr1{border:2px solid #3f8a3a!important}.mc.gr2{border:2px solid #2f66a8!important;box-shadow:0 0 8px #2f66a855}.mc.gr3{border:2px solid #d0761a!important;box-shadow:0 0 10px #d0761a66}.mc.gr4{border:2px solid #7a3fa8!important;box-shadow:0 0 12px #7a3fa877}
+.chip.grc1{background:#3f8a3a}.chip.grc2{background:#2f66a8}.chip.grc3{background:#d0761a}.chip.grc4{background:#7a3fa8}.nick{color:#7a3fa8;font-style:normal;font-size:12px;margin-left:3px}
+.mctl{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;margin-top:4px;font-size:12px}.mctl select,.mctl input{font-size:12px;padding:1px 3px;max-width:150px}.mctl input{width:70px}.mctl button.on{background:#7a3fa8;color:#fff}
+#promowin{position:fixed;inset:0;z-index:9000;background:rgba(20,12,4,.45);display:none;align-items:center;justify-content:center}.prgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px}.prgrid button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:2px}`;document.head.appendChild(st);}
 
 // ===== 바람과 해류를 '흐름'으로 보여 주기 =====
 // 보기: 0 흐름(하얀 바람 줄기 + 해류의 띠와 물결) · 1 화살표(예전 방식) · 2 끔. V 키로 바꾼다.
