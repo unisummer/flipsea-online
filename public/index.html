@@ -6384,6 +6384,39 @@ function otherAt(sx,sy){if(!ON.live)return null;const now=performance.now();let 
     f.style.display=show?'block':'none';if(!show)return;const n=ON.players.filter(o=>o.id!==ON.id&&!duelWhyNot(o)).length;
     const h=n?`⚔ 결투 신청 <small>· 가능 ${n}명</small>`:`⚔ 결투 <small>· 600km 안에 선장 없음</small>`;if(f.innerHTML!==h)f.innerHTML=h;},800);})();
 
+// ===== 해류 표현: NASA 「Perpetual Ocean」 방식 =====
+// 바다 위에 뿌린 수많은 작은 입자가 해류를 따라 흘러가며 가늘고 하얀 자국을 남긴다. 빠른 해류일수록 밝고 길다.
+// 입자는 지도(세계) 위에 있어서 화면을 움직여도 흐름이 끊기지 않는다. 해류 자료는 게임의 해류(currentAt) 그대로.
+const PO={P:[],last:0,cz:0};
+function poSpawn(p){const W=VW/cam.z,H=VH/cam.z,x0=cam.x-W/2,y0=cam.y-H/2;
+  for(let t=0;t<8;t++){const x=x0+Math.random()*W,y=y0+Math.random()*H,ll=inv(x,y);if(!ll||isLand(ll.lat,ll.lon)||!flVisible(ll.lat,ll.lon))continue;
+    const c=currentAt(ll.lat,ll.lon),m=Math.hypot(c[0],c[1]);if(m<2.5||Math.random()>.12+m/18)continue;
+    p.x=x;p.y=y;p.h=[x,y];p.t=0;p.life=8+Math.random()*8;p.k=0;p.m=m;p.vx=0;p.vy=0;return true;}p.t=99;p.h=null;return false;}
+function poDraw(){if(!S||inPort>=0||flowMode()!==0)return;const now=performance.now(),dt=Math.min(.1,(now-(PO.last||now))/1000);PO.last=now;
+  const mob=typeof MOB!=='undefined'&&MOB,N=mob?260:620;while(PO.P.length<N)PO.P.push({t:99});PO.P.length=N;
+  if(Math.abs(PO.cz-cam.z)>cam.z*.35){PO.cz=cam.z;for(const p of PO.P)p.t=99;} // 크게 확대·축소하면 새로 뿌린다
+  let wx='clear';try{wx=wxNow().k;}catch(e){}let dk=0;try{dk=dnInfo().dark;}catch(e){}
+  const W=VW/cam.z,H=VH/cam.z,x0=cam.x-W/2,y0=cam.y-H/2,TL=mob?22:30,fogA=wx==='fog'?.45:1;
+  // 흐르게 하기 (화면에서 같은 빠르기가 되도록 배율로 나눈다)
+  for(const p of PO.P){p.t+=dt;if(!(p.t<=p.life)||!p.h){if(!poSpawn(p))continue;}
+    if(p.k--<=0){p.k=4;const ll=inv(p.x,p.y);if(!ll||isLand(ll.lat,ll.lon)){p.t=99;continue;}const c=currentAt(ll.lat,ll.lon),m=Math.hypot(c[0],c[1]);if(m<1.5){p.t=Math.max(p.t,p.life-.6);}
+      const dv=dirOnScreen(ll.lat,ll.lon,c[0]/(m||1),c[1]/(m||1));p.vx=dv[0];p.vy=dv[1];p.m=m;}
+    const sp=(12+p.m*1.5)/cam.z;p.x+=p.vx*sp*dt;p.y+=p.vy*sp*dt;p.h.push(p.x,p.y);if(p.h.length>TL*2)p.h.splice(0,2);
+    if(p.x<x0-40/cam.z||p.x>x0+W+40/cam.z||p.y<y0-40/cam.z||p.y>y0+H+40/cam.z)p.t=99;}
+  // 그리기: 꼬리는 가늘고 흐리게, 머리는 밝게 (네 토막으로 나눠 그려 가볍게)
+  ctx.save();ctx.lineCap='butt';ctx.lineJoin='bevel';const K=4,ox=VW/2-cam.x*cam.z,oy=VH/2-cam.y*cam.z,z=cam.z;
+  for(let seg=0;seg<K;seg++){const paths=[];
+    for(const p of PO.P){if(!p.h||p.h.length<6||p.t>p.life)continue;const n=p.h.length/2,a0=Math.floor(n*seg/K),a1=Math.min(n-1,Math.floor(n*(seg+1)/K));if(a1<=a0)continue;
+      const f=Math.sin(Math.PI*Math.min(1,p.t/p.life)),s=Math.min(1,p.m/34);paths.push([p,a0,a1,f*(.25+.75*s)]);}
+    const fr=(seg+1)/K;
+    for(const lvl of [0,1]){ctx.beginPath();for(const [p,a0,a1,g] of paths){if((g>.55)!==!!lvl)continue;const H=p.h;ctx.moveTo(H[a0*2]*z+ox,H[a0*2+1]*z+oy);for(let i=a0+1;i<=a1;i++)ctx.lineTo(H[i*2]*z+ox,H[i*2+1]*z+oy);}
+      const a=(lvl?.9:.5)*fr*fr*fogA*(dk>.5?.9:1);
+      ctx.strokeStyle=dk>.5?`rgba(205,232,255,${a})`:`rgba(255,255,255,${a})`;ctx.lineWidth=(lvl?1.6:1.1)*(.5+.6*fr);
+      ctx.stroke();}}
+  ctx.restore();}
+// 기존의 화면 줄기 대신 이 방식으로 그린다 (V 키: 흐름 → 화살표 → 끔 은 그대로)
+const flDrawOld=flDraw;flDraw=function(){try{if(window.PO_OLD)return flDrawOld();poDraw();}catch(e){}};
+
 
 // ===== 그림 묶음 불러오기 (게임 파일 밖 a/*.json) =====
 const ASSET_B=[["FACES", "a/faces.0642fb67e5.json"], ["CIMG", "a/cimg.46ef3f47fd.json"], ["GIMG", "a/gimg.90b64b3902.json"], ["IGART", "a/igart.4ec7b2794b.json"], ["DIMG", "a/dimg.35a5e20d11.json"]];const ASSET_OK={};
