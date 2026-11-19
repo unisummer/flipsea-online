@@ -131,7 +131,7 @@ body:not(.mob) #mmenu{display:none!important}
 @media (max-width:1250px){body:not(.mob) #audio{top:48px;right:12px}}
 body.mob{--dock:58px;-webkit-user-select:none;user-select:none;overscroll-behavior:none}
 body.mob canvas#c{touch-action:none}
-body.mob.on #mtop{display:flex;position:fixed;top:0;left:0;right:0;height:42px;align-items:center;gap:11px;padding:0 10px;background:rgba(59,42,26,.92);color:#f6ecd4;font-size:13.5px;z-index:6;overflow:hidden;white-space:nowrap}
+body.mob.on #mtop{display:flex;position:fixed;top:0;left:0;right:0;height:42px;align-items:center;gap:7px;padding:0 8px;background:rgba(59,42,26,.92);color:#f6ecd4;font-size:13.5px;z-index:6;overflow:hidden;white-space:nowrap}
 #mtop .low{color:#ff9a7a;font-weight:700}#mtop .cl{margin-left:auto;opacity:.8}
 body.mob .panel{display:none!important}
 body.mob #arrive[style*="block"]{display:block!important;left:8px!important;right:8px!important;transform:none!important;top:auto!important;bottom:calc(var(--dock) + 130px)!important;width:auto!important}
@@ -1905,8 +1905,8 @@ function updateHud(){
   ${rem?`<div class="row"><span class="k">남은 거리</span><span>${Math.round(rem)} km${nav.sp>5?' · 약 '+Math.ceil(rem/Math.max(20,spd))+'일':''}</span></div>`:''}`;
   // 위쪽 정보 줄: 항해에 꼭 필요하지 않은 정보
   {let ti=$('topinfo');if(!ti){ti=document.createElement('div');ti.id='topinfo';document.body.appendChild(ti);}
-   const tih=`<span class="goldchip" title="가진 돈">💰 <b>${S.gold.toLocaleString()}</b><small>골드</small></span><span class="famechip" title="명성 — 눌러서 칭호와 혜택 보기">⭐ ${typeof fameTitle==='function'?fameTitle()+' ':''}${(S.fame||0).toLocaleString()}</span><span title="발견물 (J)">🔍 ${Object.keys(S.df).length}/${DISC.length}</span><span title="함대와 항해자 (T)">⛵ ${S.fleet.length}척 · 👥 ${hiredIds().length}명</span><span title="화물칸">📦 ${cargoT()}/${cargoT()+freeT()}톤</span>`+
-    (boostMax()>0?`<span title="${'증기기관'} (G)">⚙ ${S.engine?`<b style="color:#ffb08a">가동 ×${boostMul()}</b> `:''}${(S.engDays==null?boostMax():Math.min(S.engDays,boostMax())).toFixed(1)}/${boostMax()}일</span>`:'')+
+   const tih=`<span class="goldchip" title="가진 돈">💰 <b>${S.gold.toLocaleString()}</b><small>골드</small></span><span class="famechip tc tfame" title="명성 — 눌러서 칭호와 혜택 보기">⭐ <small>${typeof fameTitle==='function'?fameTitle():'명성'}</small> <b>${(S.fame||0).toLocaleString()}</b></span><span class="tc tdisc" title="발견물 (J)">🔍 <b>${Object.keys(S.df).length}</b><small>/${DISC.length} 발견</small></span><span class="tc tfleet" title="함대와 항해자 (T)">⛵ <b>${S.fleet.length}</b><small>척</small> 👥 <b>${hiredIds().length}</b><small>명</small></span><span class="tc tcargo" title="화물칸">📦 <b>${cargoT()}</b><small>/${cargoT()+freeT()}톤</small></span>`+
+    (boostMax()>0?`<span class="tc teng${S.engine?' on':''}" title="${'증기기관'} (G)">⚙ ${S.engine?`<small>가동 ×${boostMul()}</small> `:''}<b>${(S.engDays==null?boostMax():Math.min(S.engDays,boostMax())).toFixed(1)}</b><small>/${boostMax()}일</small></span>`:'')+
     (S.car?`<span title="대상">🐪 ${S.car.ph==='go'?'가는 길':S.car.ph==='back'?'돌아오는 길':'도시'} ${Math.floor(S.car.t)}/${Math.round(S.car.dur)}일</span>`:'')+
     `<span title="자동 항로 (R)">🧭 ${S.opt.safe?'항구 경유':'최단'}${legs.length>1?` · 경유 ${legs.length-1}곳`:''}</span>`;if(ti._h!==tih){ti._h=tih;ti.innerHTML=tih;}}
   // 아이콘: 항구 찾기(P), 판매 장소 조언(N)
@@ -2819,7 +2819,7 @@ function zoomAt(sx,sy,f){if(B){B.zm=Math.max(.45,Math.min(2.6,B.zm*f));return;}c
 function labelTables(){document.querySelectorAll('table.mt:not([data-lb])').forEach(t=>{t.dataset.lb=1;const hr=t.querySelector('tr');if(!hr||!hr.querySelector('th'))return;hr.classList.add('thr');
   const hs=[...hr.children].map(th=>th.textContent.trim());t.querySelectorAll('tr').forEach(tr=>{if(tr===hr)return;[...tr.children].forEach((td,i)=>{if(i>0&&hs[i])td.dataset.l=hs[i];});});});}
 function mobTop(){const el=$('mtop');if(!el||!S)return;const dt=dateOf(S.day),use=S.crew/12,wd=use?Math.floor(S.water/(use*supplyMul()*waterMul())):0,fd=use?Math.floor(S.food/(use*supplyMul()*foodMul())):0,sp=Math.round(Math.hypot(nav.ve,nav.vn));
-  el.innerHTML=`<b>${dt.y}.${dt.m}.${dt.d}</b><span class="mgold">💰<b>${S.gold.toLocaleString()}</b></span><span class="${wd<8?'low':''}">💧${wd}일</span><span class="${fd<8?'low':''}">🍞${fd}일</span><span>⛵${sp}km</span><span class="cl" title="계정 저장">${CLOUD.st==='ok'?'☁':''}</span>`;}
+  el.innerHTML=`<b title="${dt.y}년">${dt.m}.${dt.d}</b><span class="mgold">💰<b>${S.gold.toLocaleString()}</b></span><span class="mfame">⭐<b>${(S.fame||0).toLocaleString()}</b></span><span class="mdisc">🔍<b>${Object.keys(S.df).length}</b></span><span class="${wd<8?'low':''}">💧${wd}일</span><span class="${fd<8?'low':''}">🍞${fd}일</span><span>⛵${sp}km</span><span class="cl" title="계정 저장">${CLOUD.st==='ok'?'☁':''}</span>`;}
 function drawMenu(){const b=$('mmBody');if(!b)return;
   b.innerHTML=`<h3>메뉴</h3><div class="mmg">
    <button data-mm="m">🗺 세계 지도 (M)</button><button data-mm="f">🎯 배 따라가기 (F)</button><button data-mm="v">🌬 표시: ${LAYER_NAMES[layers]}</button>
@@ -3107,12 +3107,22 @@ setInterval(()=>{try{if(S&&!MOB&&uiShown('opts'))optsDraw();}catch(e){}},1500);
 #topinfo span{background:rgba(59,42,26,.78);color:#f6ecd4;padding:2px 9px;border-radius:10px}#topinfo b{color:#ffe7a8}
 #topinfo .goldchip{background:linear-gradient(#ffe9a6,#e7b84a);color:#3b2a1a;border:1.5px solid #8a5a12;font-size:15px;padding:1px 12px;box-shadow:0 1px 4px rgba(0,0,0,.35);align-self:center}#topinfo .goldchip b{color:#4a2a00;font-size:17px;letter-spacing:.3px}.mgold{background:linear-gradient(#ffe9a6,#e7b84a)!important;color:#3b2a1a!important;border:1px solid #8a5a12;border-radius:9px;padding:0 7px!important}.mgold b{color:#4a2a00;font-size:1.08em}
 #topinfo .goldchip small{font-size:11px;margin-left:3px;color:#6a4a1a}
+#topinfo{align-items:center;gap:5px}#topinfo .tc{font-size:14px;padding:1px 11px;box-shadow:0 1px 4px rgba(0,0,0,.3);border:1.5px solid;color:#2d1c0e}
+#topinfo .tc b{font-size:17px;letter-spacing:.2px;margin:0 1px}#topinfo .tc small{font-size:11.5px;opacity:.85}
+#topinfo .tfame{background:linear-gradient(#f4e2ff,#c49be6);border-color:#5a2a80}#topinfo .tfame b{color:#3d1460}
+#topinfo .tdisc{background:linear-gradient(#ddf5e4,#86c9a0);border-color:#2f6a3f}#topinfo .tdisc b{color:#173f22}
+#topinfo .tfleet{background:linear-gradient(#ddeeff,#86b0dc);border-color:#24507a}#topinfo .tfleet b{color:#123456}
+#topinfo .tcargo{background:linear-gradient(#f6e8d4,#cfa974);border-color:#6b4a2a}#topinfo .tcargo b{color:#3b2410}
+#topinfo .teng{background:linear-gradient(#ececec,#b9b9b9);border-color:#555}#topinfo .teng b{color:#222}#topinfo .teng.on{background:linear-gradient(#ffd9c9,#e88a5e);border-color:#8a3a1a}#topinfo .teng.on b{color:#5a1a00}
+.mfame,.mdisc{border-radius:9px;padding:0 6px!important;color:#2d1c0e!important;border:1px solid}.mfame{background:linear-gradient(#f4e2ff,#c49be6)!important;border-color:#5a2a80}.mdisc{background:linear-gradient(#ddf5e4,#86c9a0)!important;border-color:#2f6a3f}.mfame b,.mdisc b{font-size:1.05em}
 #navdock{position:fixed;z-index:4;display:flex;gap:6px}
 #navdock button{display:flex;align-items:center;gap:5px;background:rgba(246,236,212,.95);border:1.5px solid #6a4a28;border-radius:16px;padding:3px 10px 3px 7px;font:inherit;font-size:13px;color:#3b2a1a;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.2)}
 #navdock button:hover{background:#fff6dc}#navdock button.on{background:#5a3e22;color:#f6ecd4}#navdock button.dim{opacity:.55}
 #navdock kbd{font-size:10.5px;background:rgba(0,0,0,.12);border-radius:4px;padding:0 4px}
 body:not(.on) #topinfo,body:not(.on) #navdock,body.battle #topinfo,body.battle #navdock,body.mob #topinfo,body.mob #navdock{display:none!important}
 body:not(.mob) #toast{top:104px}`;document.head.appendChild(st);}
+// 메뉴 줄이 두 줄로 접히면(좁은 화면) 상단 정보 줄을 그 아래로 내린다
+setInterval(()=>{try{const u=document.getElementById('uibar'),t=document.getElementById('topinfo');if(!u||!t)return;const r=u.getBoundingClientRect(),top=r.height?Math.max(74,Math.round(r.bottom)+4):74;if(t._top!==top){t._top=top;t.style.top=top+'px';}const ts=document.getElementById('toast');if(ts&&!document.body.classList.contains('mob')){const tb=top+(t.offsetHeight||26)+6;if(ts._top!==tb){ts._top=tb;ts.style.top=tb+'px';}}}catch(e){}},500);
 
 // ===== 투자의 쓸모: 공업 투자 → 특별 주문 배, 시장 투자 → 명품 상품 =====
 // 등급은 그 항구에 넣은 '투자 골드'로만 오른다 (거래로는 오르지 않음).
@@ -5312,12 +5322,16 @@ function bskBar(){bskClean();const n=BSK.size;return `<div class="bskbar${n?' on
 BODY.sell=sellBody;
 {const bb0=buyBody;buyBody=function(id){const h=bb0.apply(this,arguments);try{return hagBar()+h;}catch(e){return h;}};BODY.buy=buyBody;}
 {const bm0=bindMarket;bindMarket=function(box){bm0(box);try{
-  box.querySelectorAll('[data-bk]').forEach(b=>b.onclick=()=>{const k=b.dataset.bk;BSK.has(k)?BSK.delete(k):BSK.add(k);drawPort();});
-  const go=box.querySelector('#bskGo');if(go)go.onclick=()=>bskSell([...BSK]);
-  const cl=box.querySelector('#bskClr');if(cl)cl.onclick=()=>{BSK.clear();drawPort();};
-  const al=box.querySelector('#bskAll');if(al)al.onclick=()=>{Object.keys(S.cargo).forEach(g=>BSK.add(String(g)));(S.lux||[]).forEach(l=>BSK.add(bskKeyL(l)));drawPort();};
+  box.querySelectorAll('[data-bk]').forEach(b=>b.onclick=()=>{const k=b.dataset.bk;BSK.has(k)?BSK.delete(k):BSK.add(k);bskRefresh(box);});
+  bskBindBar(box);
   const sr=box.querySelector('#sellrec');if(sr)sr.onclick=()=>{const id=inPort,L=Object.keys(S.cargo).filter(g=>{const r=sellAdvice(id,+g).rec;return r==='sell'||r==='ok';});
     (S.lux||[]).forEach(l=>{if(luxRec(l,id).rec[3])L.push(bskKeyL(l));});bskSell(L);};}catch(e){console.warn(e);}};}
+// 담기·비우기·모두 담기는 화면을 다시 그리지 않고 그 자리에서 버튼과 장바구니 줄만 바꾼다 (스크롤 위치 유지)
+function bskBindBar(box){const go=box.querySelector('#bskGo');if(go)go.onclick=()=>bskSell([...BSK]);
+  const cl=box.querySelector('#bskClr');if(cl)cl.onclick=()=>{BSK.clear();bskRefresh(box);};
+  const al=box.querySelector('#bskAll');if(al)al.onclick=()=>{Object.keys(S.cargo).forEach(g=>BSK.add(String(g)));(S.lux||[]).forEach(l=>BSK.add(bskKeyL(l)));bskRefresh(box);};}
+function bskRefresh(box){box.querySelectorAll('[data-bk]').forEach(b=>{const on=BSK.has(b.dataset.bk);b.classList.toggle('on',on);b.textContent=on?'✔ 담김':'🧺 담기';});
+  const bar=box.querySelector('.bskbar');if(bar){const t=document.createElement('div');t.innerHTML=bskBar();bar.replaceWith(t.firstElementChild);}bskBindBar(box);}
 function bskSell(keys){if(!keys.length)return;const id=inPort,rows=[];let hagN=0;const fm0=S.fm?S.fm.trd||0:0;TRQ=[];
   try{for(const k of keys){if(k[0]==='L'){const i=(S.lux||[]).findIndex(l=>bskKeyL(l)===k);if(i<0)continue;const l=S.lux[i],q=l.q,cost=l.c*q,nm=`✨ ${l.gr} ${GOODS[l.g][0]}`,g0=S.gold;
         luxSell(i,q);const earn=S.gold-g0;if(HAG_LAST)hagN++;rows.push({nm,g:l.g,q,cost,earn,hag:HAG_LAST,trd:0});}
@@ -5346,6 +5360,13 @@ document.addEventListener('keydown',e=>{const d=document.getElementById('trrep')
 .hagbar,.bskbar{background:#fffaf0;border:1px solid #d9c9a8;border-radius:8px;padding:5px 10px;margin:0 0 6px;font-size:13px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .bskbar.on{background:#fff1c9;border-color:#c9a24a}.bskbar #bskAll{margin-left:auto}
 .cb .bsk{background:#f3e8cf}.cb .bsk.on{background:#c9a24a;color:#fff;border-color:#8a6a2a}`;document.head.appendChild(st);}
+// 항구 화면이 같은 탭에서 다시 그려질 때(팔기·사기 버튼 등) 스크롤 위치를 그대로 둔다
+function scrKey(el,root){const p=[];while(el&&el!==root){const par=el.parentElement;if(!par)break;p.unshift((el.id?'#'+el.id:el.tagName)+':'+[...par.children].indexOf(el));el=par;}return p.join('/');}
+{const dp0=drawPort;drawPort=function(){const root=document.getElementById('port'),tab=typeof portTab!=='undefined'?portTab:null,saved=[];
+  try{if(root&&root.style.display!=='none'){if(root.scrollTop>0)saved.push(['',root.scrollTop]);root.querySelectorAll('*').forEach(el=>{if(el.scrollTop>0)saved.push([scrKey(el,root),el.scrollTop]);});}}catch(e){}
+  const r=dp0.apply(this,arguments);
+  try{if(saved.length&&root&&(typeof portTab==='undefined'||portTab===tab)){const m=new Map(saved);if(m.has(''))root.scrollTop=m.get('');root.querySelectorAll('*').forEach(el=>{if(el.scrollHeight>el.clientHeight){const v=m.get(scrKey(el,root));if(v)el.scrollTop=v;}});}}catch(e){}
+  return r;};}
 
 // ===== 로드맵 C. 배: 대포 · 개조 칸 · 선원 등급 · 내파 · 도크 · 배 이야기 · 전설의 배 · 배 이름 =====
 // ---------- 대포 ----------
