@@ -516,9 +516,9 @@ const SHIPTYPES=[
 function ST(sh){const T=SHIPTYPES[sh.t],x=sh.x;if(!x)return T;return Object.assign({},T,{n:x.nm+' '+T.n,spd:T.spd*(x.spd||1),hp:Math.round(T.hp*(x.hp||1)),hold:Math.round(T.hold*(x.hold||1)),guns:Math.round(T.guns*(x.guns||1)),crew:Math.max(4,Math.round(T.crew*(x.crew||1)))});}
 // ===== 속도 성장 =====
 function speedHTML(){const n=S.fleet.length,avg=f=>S.fleet.reduce((a,sh,k)=>a+f(sh,k),0)/n;
-  const ship=avg(sh=>ST(sh).spd),up=avg((sh,k)=>upMulK(k)),navi=avg((sh,k)=>1+.25*shipRole(k,1)/100),sea=seaMul(),etc=navMul()/sea,eng=boostMax()>0?boostMul():1;
+  const ship=avg(sh=>ST(sh).spd/(typeof modSpd==='function'?modSpd(sh):1)),up=avg((sh,k)=>upMulK(k)*(typeof modSpd==='function'?modSpd(sh):1)),navi=avg((sh,k)=>1+.25*shipRole(k,1)/100),sea=seaMul(),etc=navMul()/sea,eng=boostMax()>0?boostMul():1;
   const tot=fleetSail(0)*navMul(),l=seaLv(),pct=x=>'×'+x.toFixed(2);
-  const rows=[['🚢 배 종류',pct(ship),'더 빠른 배: 슬루프 → 스쿠너 → 클리퍼 → 증기 클리퍼 (항구 투자 단계가 높아야 팜)'],['🔧 배 개조',pct(up),'조선소에서 돛 개량 (최대 +32%), 구리판 선체 (최대 +14%)'],
+  const rows=[['🚢 배 종류',pct(ship),'더 빠른 배: 슬루프 → 스쿠너 → 클리퍼 → 증기 클리퍼 (항구 투자 단계가 높아야 팜)'],['🔧 배 개조',pct(up),'조선소 개조 칸에 추가 돛(+6%)·구리판 선체(+4%)를 달면 빨라집니다'],
     ['🧭 항해사',pct(navi),'배마다 항해사를 앉히면 빨라집니다 (능력 100이면 +25%)'],['🌊 항해 숙련 '+l+'단계',pct(sea),l<SEA_LV.length-1?`누적 ${Math.round(S.km||0).toLocaleString()}km · 다음 단계까지 ${Math.round(SEA_LV[l+1]-(S.km||0)).toLocaleString()}km`:'최고 단계'],
     ['📜 특성·유물·비법',pct(etc),'내륙 도시의 돛 비법, 돛 유물 등'],['⚙ 증기 부스터 (G)',eng>1?pct(eng)+' (켤 때)':'없음','증기기관 유물이나 내륙 도시의 선물로 얻습니다']];
   return `<div class="note"><b>⛵ 함대 최고 속도 ${pct(Math.min(SPCAP,tot))}</b> <small>(첫 배 캐러벨=×1.00 · 순풍에 돛 가득 기준 · 한계 ×${SPCAP})</small>
@@ -543,7 +543,7 @@ function fleetSail(rel){let t=0;for(let k=0;k<S.fleet.length;k++)t+=shipF(k,rel)
 const holdT=()=>(typeof inCity!=='undefined'&&inCity&&S.car)?S.car.cap:S.fleet.reduce((a,sh)=>a+ST(sh).hold,0);
 const crewMaxT=()=>S.fleet.reduce((a,sh)=>a+ST(sh).crew,0);
 const crewNeedT=()=>Math.max(1,Math.round(S.fleet.reduce((a,sh,k)=>a+ST(sh).crew*.66*(1-.25*Math.min(1,shipRole(k,5)/100)),0)));
-const supMaxT=()=>S.fleet.reduce((a,sh)=>a+Math.round(ST(sh).hold/2),0);
+const supMaxT=()=>S.fleet.reduce((a,sh)=>a+(typeof shSup==='function'?shSup(sh):Math.round(ST(sh).hold/2)),0);
 const seatsT=()=>S.fleet.reduce((a,sh)=>a+SHIPTYPES[sh.t].seats,0);
 function yardTypes(p){const b=bandOf(PORTS[p].lat),h=hash3(p,9,4),L=[0];
   if(b==='열대'||b==='아열대·건조')L.push(1);
@@ -627,7 +627,7 @@ const eR=r=>roleVal(r)/100;
 function traitOn(t){for(const i of hiredIds())if(MATES[i].tr===t)return true;return false;}
 const trMine=(i,k)=>{const m=MATES[i];let v=TRAITS[m.tr]&&TRAITS[m.tr][2]===k?TRAITS[m.tr][3]:0;if(m.tr2)for(const [kk,x] of SPTR[m.tr2.i][1])if(kk===k)v+=x*m.tr2.k;return v;};
 function navMul(){let m=(1+traitV('speed'))*(hasRelic('sail')?1.08:1)*(1+.03*perkSum('speed'))*seaMul();return m;for(let k=1;k<S.fleet.length;k++)if(!S.fleet[k].as.some(a=>a.r===0&&!a.aux))m*=.95;return m;}
-const supplyMul=()=>(1-traitV('supply'))*(1+traitV('glut'))*(hasRelic('fridge')?.7:1);
+const supplyMul=()=>(1-traitV('supply'))*(1+traitV('glut'))*(hasRelic('fridge')?.7:1)*(typeof crewUpk==='function'?crewUpk():1);
 const lossMul=()=>(1-.6*eR(6))*(1-traitV('loss'))*(typeof toolPct==='function'?1-toolPct('med'):1);
 const tradeBuyMul=()=>(1-.08*eR(3))*(1-traitV('buy')), tradeSellMul=()=>(1+.08*eR(3))*(1+traitV('sell'))*(1+.03*perkSum('sell'));
 const revealR=()=>(3+1.5*eR(2)+traitV('reveal')+(hasRelic('scope')?1.5:0))*(typeof wxVisMul==='function'?wxVisMul():1);
@@ -1013,14 +1013,14 @@ function drawPort(){const p=PORTS[inPort],dt=dateOf(S.day),m=dt.m,id=inPort;
      <div class="note">멀리서 온 물건일수록, 기후가 다른 곳에서 온 물건일수록 비싸게 팝니다. 한 항구에서 많이 사면 값이 오르고 많이 팔면 값이 떨어지며, 며칠 지나면 회복합니다. 큰 항구일수록 시장이 커서 값이 덜 출렁입니다.</div>`;
   }else if(portTab==='supply'){
     const wNeed=Math.max(0,Math.ceil(SHIP.water-S.water)),fNeed=Math.max(0,Math.ceil(SHIP.food-S.food)),cNeed=SHIP.crewMax-S.crew;
-    const wc=wNeed*1,fc=fNeed*1,cc=cNeed*8;
+    const wc=wNeed*1,fc=fNeed*1,cc=cNeed*(typeof crewFee==='function'?crewFee():8);
     body=(typeof wxForecast==='function'?wxForecast(id):'')+`<div class="grid"><b>물</b><span>${Math.floor(S.water)} / ${SHIP.water}통</span><b>식량</b><span>${Math.floor(S.food)} / ${SHIP.food}자루</span><b>선원</b><span>${S.crew} / ${SHIP.crewMax}명</span></div>
      <div class="btns"><button id="pw" ${wNeed<=0||S.gold<wc?'disabled':''}>물 채우기 (${wNeed}통 · ${wc}골드)</button>
      <button id="pf" ${fNeed<=0||S.gold<fc?'disabled':''}>식량 채우기 (${fNeed}자루 · ${fc}골드)</button>
-     <button id="pc" ${cNeed<=0||S.gold<cc?'disabled':''}>선원 채우기 (${cNeed}명 · ${cc}골드)</button></div>
+     <button id="pc" ${cNeed<=0||S.gold<cc?'disabled':''}>${typeof crewGName==='function'?crewGName():''} 선원 채우기 (${cNeed}명 · ${cc}골드)</button></div>${typeof crewSupHTML==='function'?crewSupHTML(id):''}
      <div class="note">보급(물·식량)은 화물칸과 따로 싣습니다. 배마다 짐칸의 절반만큼 실을 수 있습니다. 물은 하루에 선원 12명당 1통, 식량도 1자루씩 줄어듭니다.</div>`;
     setTimeout(()=>{const b=(k,n,c)=>{if(S.gold>=c&&n>0){S.gold-=c;S[k]+=n;save();drawPort();}};
-      $('pw').onclick=()=>b('water',wNeed,wc);$('pf').onclick=()=>b('food',fNeed,fc);$('pc').onclick=()=>b('crew',cNeed,cc);},0);
+      $('pw').onclick=()=>b('water',wNeed,wc);$('pf').onclick=()=>b('food',fNeed,fc);$('pc').onclick=()=>{if(typeof crewHire==='function')crewHire(cNeed,cc);else b('crew',cNeed,cc);};},0);
   }else if(portTab==='tavern'){
     // 소문은 이 항구에서 가장 가까운 항구 5곳 안에서만 (징검다리처럼 항구를 옮겨 가며 넓혀 간다)
     const N5=near5(id),unk=N5.filter(o=>!known(o.q.id)&&!rumored(o.q.id)),gC=goodsRum(id,N5);
@@ -2274,10 +2274,10 @@ function finishBattle(kind){const p=B.p,lv=p.lv;let gold=0,fame=0;const L=[];
   const draw=()=>{$('batbox').innerHTML=`<h2>${kind==='win'?'⚓ ':''}${title}</h2><div class="sub">${p.name} · 위험도 ${'★'.repeat(lv)}</div>
    <div class="grid"><b>격침</b><span>${sunk.length}척</span><b>나포</b><span>${cap.length}척</span><b>얻은 골드</b><span>${gold.toLocaleString()}</span><b>명성</b><span>${fame>=0?'+':''}${fame}</span><b>잃은 선원</b><span>${Math.max(0,lostCrew)}명 (남은 선원 ${S.crew}명)</span></div>
    ${L.map(x=>`<p style="margin:4px 0">${x}</p>`).join('')}
-   ${B.cap.length?`<h4 style="margin:8px 0 4px">나포한 배</h4><table class="mt">${B.cap.map((c,i)=>{const T=SHIPTYPES[c.t];return `<tr><td><b>${T.n}</b> <small>${T.sz} · 대포 ${T.guns} · 짐칸 ${T.hold} · 선체 ${c.hp}/${T.hp}</small></td><td class="b">${c.done?(c.done===1?'함대에 넣음':'팔았음'):`<button data-cin="${i}" ${S.fleet.length>=5?'disabled title="함대가 가득 찼습니다"':''}>함대에 넣기</button><button data-csl="${i}">팔기 (${Math.round(T.price*.35).toLocaleString()})</button>`}</td></tr>`;}).join('')}</table>`:''}
+   ${B.cap.length?`<h4 style="margin:8px 0 4px">나포한 배</h4><table class="mt">${B.cap.map((c,i)=>{const T=SHIPTYPES[c.t];return `<tr><td><b>${T.n}</b> <small>${T.sz} · 대포 ${T.guns} · 짐칸 ${T.hold} · 선체 ${c.hp}/${T.hp}</small></td><td class="b">${c.done?(c.done===1?'함대에 넣음':'팔았음'):`<button data-cin="${i}">함대에 넣기</button><button data-csl="${i}">팔기 (${Math.round(T.price*.35).toLocaleString()})</button>`}</td></tr>`;}).join('')}</table>`:''}
    ${al.some(s=>s.hp<s.hpMax*.5)?'<p class="hint">배가 상했습니다. 갑판장이 바다에서 조금씩 고치지만(최대 70%), 항구 조선소에서 고치는 것이 빠릅니다.</p>':''}
    <div class="btns" style="margin-top:10px"><button class="main" id="bEnd">바다로 돌아가기</button></div>`;
-   $('batbox').querySelectorAll('[data-cin]').forEach(b=>b.onclick=()=>{const c=B.cap[+b.dataset.cin];if(S.fleet.length>=5)return;const nm=SHIPNAMES.find(n=>!S.fleet.some(f=>f.name===n))||('나포선 '+(S.fleet.length+1));S.fleet.push({t:c.t,name:nm,as:[],hp:c.hp});c.done=1;sfx('ship');toast(`${SHIPTYPES[c.t].n} '${nm}'이(가) 함대에 들어왔습니다. 선장과 선원을 채우세요.`,true);draw();});
+   $('batbox').querySelectorAll('[data-cin]').forEach(b=>b.onclick=()=>{const c=B.cap[+b.dataset.cin];if(S.fleet.length>=5){(S.dock=S.dock||[]).push({t:c.t,name:SHIPTYPES[c.t].n+' 나포선',as:[],hp:c.hp});c.done=1;sfx('ship');toast('함대가 가득 차서 나포한 배를 도크로 보냈습니다. 조선소의 도크에서 꺼낼 수 있습니다.',true);draw();return;}const nm=SHIPNAMES.find(n=>!S.fleet.some(f=>f.name===n))||('나포선 '+(S.fleet.length+1));S.fleet.push({t:c.t,name:nm,as:[],hp:c.hp});c.done=1;sfx('ship');toast(`${SHIPTYPES[c.t].n} '${nm}'이(가) 함대에 들어왔습니다. 선장과 선원을 채우세요.`,true);draw();});
    $('batbox').querySelectorAll('[data-csl]').forEach(b=>b.onclick=()=>{const c=B.cap[+b.dataset.csl];S.gold+=Math.round(SHIPTYPES[c.t].price*.35);c.done=2;sfx('coin');draw();});
    $('bEnd').onclick=endBattle;};
   draw();$('bat').style.display='flex';checkMissions();}
@@ -5183,7 +5183,7 @@ function eatFruit(){const L=fruitIdx();if(!L.length)return false;const g=L[0],c=
   {const t=cargoT()+(S.lux||[]).reduce((a,l)=>a+l.q,0);V.trc0=(V.trc0||0)+t*VZ[z].trc;V.trc=(V.trc||0)+t*VZ[z].trc*trcMul();
    if(VZ[z].dep)for(const g in S.cargo){const c=S.cargo[g];const d=VZ[z].dep*(PERISH.has(GOODS[g][1])?1:.35);const q0=c.ql||1;if(q0>1){c.ql=Math.max(1,q0-d);V.dep=(V.dep||0)+(q0-c.ql)*.15*c.q*(c.c||GOODS[g][2]);}}}
   // 선체 마모: 심해일수록 더 닳는다. 갑판장이 덜 닳게 한다.
-  S.fleet.forEach((sh,k)=>{const M=hpMaxK(k),h=hpK(k),bs=Math.min(1,shipRole(k,5)/100),w0=M*VZ[z].wear*(RAIL?.5:1),w=w0*(1-.45*bs);if(h>M*.25){const nh=Math.max(M*.25,h-w);V.wear+=h-nh;V.wsave+=w0-w;sh.hp=nh;}});
+  S.fleet.forEach((sh,k)=>{const M=hpMaxK(k),h=hpK(k),bs=Math.min(1,shipRole(k,5)/100),w0=M*VZ[z].wear*(RAIL?.5:1)*(typeof naepaWear==='function'?naepaWear(sh,z):1),w=w0*(1-.45*bs);if(h>M*.25){const nh=Math.max(M*.25,h-w);V.wear+=h-nh;V.wsave+=w0-w;sh.hp=nh;}});
   // 피로: 바다에 오래 있을수록 쌓인다. 의사가 덜어 준다.
   const f0=S.fat||0;S.fat=Math.min(100,f0+VZ[z].fat*(1-.35*doc)*(nav.w&&nav.w.s>1.1?1.4:1));
   if(f0<60&&S.fat>=60)toast('😓 선원들이 지쳤습니다 (피로 60). 배가 조금씩 느려집니다. 항구에 들러 쉬게 하세요.',true);
@@ -5286,7 +5286,7 @@ function hagWho(){let best=null,v=0;for(const sh of S.fleet)for(const a of sh.as
 function hagOdds(){const w=hagWho(),H=w.v;return {w,p:Math.min(.6,H/200),lo:.05,hi:.05+.10*Math.min(1,H/100)};}
 function hagRoll(){const o=hagOdds();if(Math.random()>=o.p)return 0;return o.lo+(o.hi-o.lo)*Math.random();}
 let HAG_LAST=0,TRQ=null;
-{const t0=toast;toast=function(m,s){if(TRQ){TRQ.push([m,s]);return;}return t0.apply(this,arguments);};}
+{const t0=toast;toast=function(m,s){if(typeof m==='string'&&m.indexOf('<')>=0)m=m.replace(/<\/?b>/g,'');if(TRQ){TRQ.push([m,s]);return;}return t0.apply(this,arguments);};}
 const hagName=()=>{const w=hagWho();return w.id!=null&&MATES[w.id]?MATES[w.id].name:'호연';};
 {const s0=sell;sell=function(g,n){const g0=S.gold;HAG_LAST=0;const r=s0.apply(this,arguments);try{const earn=S.gold-g0;if(earn>0){const m=hagRoll();if(m){const b=Math.max(1,Math.round(earn*m));S.gold+=b;HAG_LAST=b;S.st.hag=(S.st.hag||0)+b;
   sfx('coin');toast(`🤝 흥정 성공! ${hagName()}의 말솜씨에 상인이 ${Math.round(m*100)}% 더 쳐 줬습니다 (+${b.toLocaleString()}골드)`,true);save();if(!TRQ)drawPort();}}}catch(e){}return r;};}
@@ -5344,6 +5344,202 @@ document.addEventListener('keydown',e=>{const d=document.getElementById('trrep')
 .hagbar,.bskbar{background:#fffaf0;border:1px solid #d9c9a8;border-radius:8px;padding:5px 10px;margin:0 0 6px;font-size:13px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .bskbar.on{background:#fff1c9;border-color:#c9a24a}.bskbar #bskAll{margin-left:auto}
 .cb .bsk{background:#f3e8cf}.cb .bsk.on{background:#c9a24a;color:#fff;border-color:#8a6a2a}`;document.head.appendChild(st);}
+
+// ===== 로드맵 C. 배: 대포 · 개조 칸 · 선원 등급 · 내파 · 도크 · 배 이야기 · 전설의 배 · 배 이름 =====
+// ---------- 대포 ----------
+// pow: 한 발의 힘 · rng: 사거리 · rl: 장전 시간(작을수록 빠름) · cost: 대포 1문당 값 · need: 항구 투자 단계
+const CANNON={
+  std:{n:'보통 대포',ic:'💣',pow:1,rng:1,rl:1,cost:0,need:0,d:'처음 배에 달려 나오는 대포. 무난하다.'},
+  swv:{n:'회전포',ic:'🔫',pow:.65,rng:.8,rl:.6,cost:50,need:1,d:'가볍고 빨리 쏜다. 힘은 약하고 사거리가 짧다.'},
+  car:{n:'카로네이드',ic:'🧨',pow:1.55,rng:.68,rl:.95,cost:120,need:2,d:'짧고 굵은 대포. 가까이서 쏘면 아주 세다.'},
+  cul:{n:'캘버린 장포',ic:'🎯',pow:.85,rng:1.35,rl:1.1,cost:140,need:2,d:'포신이 길어 멀리 쏜다. 힘은 조금 약하다.'},
+  dem:{n:'반캘버린',ic:'⚙️',pow:1.2,rng:1.12,rl:1.05,cost:220,need:3,d:'힘과 사거리가 모두 좋은 중포.'},
+  stl:{n:'옛 세계 강철포',ic:'✴️',pow:1.5,rng:1.3,rl:.85,cost:600,need:5,d:'옛 세계의 강철로 만든 대포. 세고 멀리 가고 빨리 쏜다.'}};
+const cnOf=sh=>CANNON[(sh&&sh.cn)||'std']||CANNON.std;
+// ---------- 개조 칸 ----------
+const MODS={
+  sail:{n:'추가 돛',ic:'⛵',d:'빠르기 +6%',c:.12},
+  copper:{n:'구리판 선체',ic:'🟫',d:'빠르기 +4% · 내파 +8',c:.18,need:3},
+  cargo:{n:'화물칸',ic:'📦',d:'짐칸 +15%',c:.1},
+  food:{n:'식량칸',ic:'🍞',d:'물·식량 싣는 양 +30%',c:.08},
+  gun:{n:'대포칸',ic:'💣',d:'대포 +20% (최소 2문)',c:.15},
+  board:{n:'백병칸',ic:'⚔️',d:'선원 정원 +12% · 백병전 +20%',c:.12},
+  hull:{n:'선체 보강',ic:'🛡',d:'선체 +15% · 내파 +12',c:.16}};
+const SLOTS=[3,3,5,6,5,8,7,6,9,4,6,8,10,10]; // 배 종류마다 개조 칸 수 (소형 3~4 · 중형 5~6 · 대형 7~10)
+const slotsOf=sh=>SLOTS[sh.t]||4;
+const mdN=(sh,k)=>(sh&&sh.md||[]).filter(m=>m===k).length;
+const modSpd=sh=>(1+.06*mdN(sh,'sail'))*(1+.04*mdN(sh,'copper'));
+const modCost=(sh,k)=>Math.max(300,Math.round(SHIPTYPES[sh.t].price*MODS[k].c*(inPort>=0&&yardLv(inPort)>=1?.85:1)));
+// 예전 저장의 돛 개량·구리판 선체를 개조 칸으로 옮긴다
+function shipMig(sh){if(!sh||!sh.up)return;sh.md=sh.md||[];for(let i=0;i<(sh.up.s||0);i++)sh.md.push('sail');for(let i=0;i<(sh.up.h||0);i++)sh.md.push('copper');sh.md=sh.md.slice(0,slotsOf(sh));delete sh.up;}
+// ---------- 선원 등급 ----------
+// 선원 전체의 평균 등급(S.cq, 0~4). 소형은 일반, 중형은 숙련, 대형은 고참이면 100%, 그보다 높으면 최대 120%, 낮으면 최저 70%.
+const CREWG=['일반','숙련','고참','정예','전설'],CREWFEE=[8,14,24,40,70],CREWUPK=[1,1.12,1.25,1.4,1.6],CREWCOL=['#8a7a5a','#3b7a3b','#2d5f9a','#7a4aa0','#c9a24a'];
+const cq=()=>Math.max(0,Math.min(4,(S&&S.cq)||0));
+const crewGName=()=>CREWG[Math.floor(cq()+1e-6)];
+const crewReq=sh=>({'소형':0,'중형':1,'대형':2})[SHIPTYPES[sh.t].sz]||0;
+function crewEffSh(sh){const q=cq(),r=crewReq(sh);return q>=r?1+.1*Math.min(2,q-r):Math.max(.7,1-.15*(r-q));}
+const crewUpk=()=>{const q=cq(),i=Math.floor(q),f=q-i;return i>=4?CREWUPK[4]:CREWUPK[i]+(CREWUPK[i+1]-CREWUPK[i])*f;};
+function crewMaxG(id){const st=stageOf(id),ft=typeof fameTier==='function'?fameTier():0;return Math.min(st>=5&&ft>=4?4:3,Math.max(0,st-1));}
+function crewSel(id){const m=crewMaxG(id);if(S.cgSel==null||S.cgSel>m)S.cgSel=Math.min(m,Math.floor(cq()));return S.cgSel;}
+const crewFee=()=>CREWFEE[inPort>=0?crewSel(inPort):0];
+function crewHire(n,cost){if(n<=0||S.gold<cost)return;const g=inPort>=0?crewSel(inPort):0;S.gold-=cost;S.cq=(cq()*S.crew+g*n)/(S.crew+n);S.crew+=n;sfx('coin');toast(`${CREWG[g]} 선원 ${n}명을 태웠습니다. 선원 평균 등급: ${crewGName()}`);save();drawPort();}
+function crewSupHTML(id){const m=crewMaxG(id),g=crewSel(id),q=cq(),swap=Math.round(S.crew*CREWFEE[g]*.8);
+  const ships=S.fleet.map(sh=>{const e=crewEffSh(sh);return `${sh.name} <small>(${SHIPTYPES[sh.t].sz} · ${CREWG[crewReq(sh)]} 필요 → <b style="color:${e>=1?'#2f6a2f':'#a8322a'}">${Math.round(e*100)}%</b>)</small>`;}).join(' · ');
+  return `<div class="note cgbox"><b>👥 선원 등급</b> 지금 평균 <b style="color:${CREWCOL[Math.floor(q)]}">${crewGName()}</b> <small>(${q.toFixed(2)} · 물·식량 ×${crewUpk().toFixed(2)})</small>
+   <div class="cgrow">${CREWG.map((n,i)=>`<button data-cgsel="${i}" class="${i===g?'on':''}" ${i>m?'disabled':''} title="1명 ${CREWFEE[i]}골드 · 물·식량 ×${CREWUPK[i]}">${n} <small>${CREWFEE[i]}골드</small></button>`).join('')}</div>
+   <div class="hint">이 항구에서는 <b>${CREWG[m]}</b>까지 구할 수 있습니다 (항구가 클수록 좋은 선원이 있고, 전설 선원은 5단계 항구에서 이름난 함장에게만 옵니다). 「선원 채우기」는 고른 등급으로 채웁니다.</div>
+   ${g>Math.floor(q)&&S.crew?`<button data-cgall="${g}" ${S.gold<swap?'disabled':''}>선원 ${S.crew}명 모두 ${CREWG[g]}(으)로 바꾸기 · ${swap.toLocaleString()}골드</button>`:''}
+   <div class="hint">배마다 필요한 등급: 소형 일반 · 중형 숙련 · 대형 고참. 높으면 배 능력·장전·백병전이 최대 120%, 낮으면 최저 70%. 선원은 바다에서 지낼수록(특히 심해) 조금씩 등급이 오릅니다.<br>${ships}</div></div>`;}
+document.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest('[data-cgsel]');if(a&&!a.disabled){S.cgSel=+a.dataset.cgsel;drawPort();return;}
+  const b=e.target.closest&&e.target.closest('[data-cgall]');if(b&&!b.disabled){const g=+b.dataset.cgall,c=Math.round(S.crew*CREWFEE[g]*.8);if(S.gold<c)return;S.gold-=c;S.cq=g;sfx('hire');toast(`선원을 모두 ${CREWG[g]} 선원으로 바꿨습니다.`,true);save();drawPort();}});
+// ---------- 내파 (원양을 견디는 힘) ----------
+// 작은 배는 심해에서 많이 상하고, 중형·대형은 덜 상한다. 같은 소형이라도 비싸고 잘 만든 배는 덜 상한다.
+function naepa(sh){const T=SHIPTYPES[sh.t];if(T.legend)return 100;const base={'소형':25,'중형':55,'대형':75}[T.sz]||40,pr=Math.max(0,Math.min(20,12*Math.log10(T.price/3000)));
+  return Math.round(Math.min(100,base+pr+8*mdN(sh,'copper')+12*mdN(sh,'hull')+(sh.x&&sh.x.hp>1?10:0)));}
+function naepaWear(sh,z){const n=naepa(sh)/100;return z===2?1.9-1.5*n:z===1?1.3-.5*n:1;}
+const naepaTxt=n=>n>=85?'원양 최강':n>=65?'원양에 강함':n>=45?'보통':n>=30?'원양에 약함':'연안용';
+// ---------- 배 능력 (ST)에 개조·대포·선원 등급 반영 ----------
+{const st0=ST;ST=function(sh){if(sh&&sh.up)shipMig(sh);const T=st0(sh);if(!sh)return T;const B=SHIPTYPES[sh.t],md=sh.md||[];if(!md.length&&!sh.cn&&!sh.as)return T;
+  const c=k=>md.filter(m=>m===k).length;const eff=sh.as?crewEffSh(sh):1;
+  return Object.assign({},T,{spd:T.spd*modSpd(sh)*(1+(eff-1)*.5),hold:Math.round(T.hold+B.hold*.15*c('cargo')),guns:T.guns+Math.max(2,Math.round(B.guns*.2))*c('gun'),crew:Math.round(T.crew*(1+.12*c('board'))),hp:Math.round(T.hp*(1+.15*c('hull'))),cn:sh.cn||'std',eff,bd:1+.2*c('board')});};}
+function shSup(sh){const T=ST(sh),B=SHIPTYPES[sh.t],base=T.hold-B.hold*.15*mdN(sh,'cargo');return Math.round(base/2*(1+.3*mdN(sh,'food')));}
+// ---------- 해전 반영 ----------
+{const v0=volley;volley=function(s,side,kind){const C=CANNON[(s.T&&s.T.cn)||'std']||CANNON.std,eff=s.side===0&&s.T&&s.T.eff||1;if(C===CANNON.std&&eff===1)return v0.apply(this,arguments);
+  const R0=Object.assign({},RANGE),n0=B.balls.length;for(const k in RANGE)RANGE[k]=Math.round(R0[k]*C.rng);let r;try{r=v0.apply(this,arguments);}finally{Object.assign(RANGE,R0);}
+  if(r){s.rl[side]*=C.rl/eff;for(let i=n0;i<B.balls.length;i++)if(B.balls[i].from===s)B.balls[i].pw=C.pow;}return r;};}
+{const a0=applyHit;applyHit=function(o,b){const hp0=o.hp,pw=b.pw||1;a0.apply(this,arguments);if(pw===1||o.out==='sunk'||o.hp<=0)return;const d=hp0-o.hp;if(d<=0)return;
+  if(pw>1){o.hp-=d*(pw-1);if(o.hp<=0)shipDown(o);}else o.hp+=d*(1-pw);};}
+{const b0=boardOdds;boardOdds=function(F,o){const r=b0.apply(this,arguments);if(F.side!==0||!F.T)return r;const us=r.us*(F.T.eff||1)*(F.T.bd||1);return {p:us/(us+r.them),us,them:r.them};};}
+{const s0=shipDown;shipDown=function(o){if(o.side===0&&o.T&&o.T.unsink){o.hp=Math.max(1,o.hpMax*.05);o.fire=0;if(!o.unsk){o.unsk=1;try{flt(o,'검은 돛은 가라앉지 않는다!','#c9b8ff');}catch(e){}}return;}return s0.apply(this,arguments);};}
+{const m0=myPower;myPower=function(){const p=m0.apply(this,arguments);let f=0;S.fleet.forEach(sh=>{const C=cnOf(sh);f+=C.pow*(.7+.3*C.rng)/C.rl*crewEffSh(sh);});return p*(S.fleet.length?f/S.fleet.length:1);};}
+// 해전 화면의 초록 부채꼴도 기함 대포 사거리에 맞춘다
+{const d0=drawBattle;drawBattle=function(){const F=B&&B.flag,C=F&&F.T?CANNON[F.T.cn||'std']:null;if(!C||C.rng===1)return d0.apply(this,arguments);const R0=Object.assign({},RANGE);for(const k in RANGE)RANGE[k]=Math.round(R0[k]*C.rng);try{return d0.apply(this,arguments);}finally{Object.assign(RANGE,R0);}};}
+// ---------- 전설의 배: 블랙펄 ----------
+SHIPTYPES.push({n:'블랙펄',hp:260,guns:30,sz:'중형',rig:'가로돛',hold:380,spd:2.0,crew:28,seats:8,price:180000,need:99,legend:1,unsink:1,d:'가라앉지 않는 검은 돛의 전설의 배. 빠르고, 적은 선원으로도 움직인다. 바다에서 스스로 상처를 메운다.'});
+const BP_T=SHIPTYPES.length-1;
+SHIPDEF[BP_T]={L:92,m:[[.76,'sq',48],[.5,'sq',54],[.24,'sq',44],[.06,'lat',28]],castle:.6,guns:1};
+SA_STY['블랙펄']={band:['#0e0c10','#7a6a9a'],sail:'#2a2530',emb:null,hull:'#17131a'};
+SF_W['블랙펄']=.27;
+{const k0=sfKind;sfKind=function(t){return SHIPTYPES[t]&&SHIPTYPES[t].n==='블랙펄'?'sharp':k0.apply(this,arguments);};}
+{const s0=ST;ST=function(sh){const T=s0(sh);if(sh&&SHIPTYPES[sh.t].legend)return Object.assign({},T,{legend:1,unsink:1});return T;};}
+// ---------- 도크 ----------
+const DOCK_MAX=10;
+const dock=()=>S.dock||(S.dock=[]);
+function toDock(k){const sh=S.fleet[k];if(!sh||k===0)return;const T=ST(sh);if(cargoT()>holdT()-T.hold){toast('짐이 너무 많아 이 배를 도크에 넣을 수 없습니다. 짐을 먼저 줄이세요.');return;}
+  if(dock().length>=DOCK_MAX){toast(`도크가 가득 찼습니다 (최대 ${DOCK_MAX}척).`);return;}
+  sh.as.filter(a=>!MATES[a.m].hero).slice().forEach(a=>unassign(a.m));S.fleet.splice(k,1);dock().push(sh);S.crew=Math.min(S.crew,crewMaxT());S.water=Math.min(S.water,supMaxT());S.food=Math.min(S.food,supMaxT());
+  sfx('ship');toast(`${sh.name}을(를) 도크에 넣었습니다. 탔던 항해자는 대기합니다.`);save();drawPort();}
+function fromDock(i){if(S.fleet.length>=5){toast('함대가 가득 찼습니다 (5척). 먼저 다른 배를 도크에 넣으세요.');return;}const sh=dock().splice(i,1)[0];if(!sh)return;sh.as=[];S.fleet.push(sh);sfx('ship');toast(`${sh.name}이(가) 도크에서 나와 함대에 들어왔습니다. 선장과 선원을 채우세요.`,true);checkMissions();save();drawPort();}
+function sellDock(i){const sh=dock()[i];if(!sh)return;const T=ST(sh);if(T.legend){toast('전설의 배는 팔 수 없습니다.');return;}const v=Math.round(T.price*.5*(sh.x&&sh.x.val||1));dock().splice(i,1);S.gold+=v;sfx('coin');toast(`${sh.name}을(를) ${v.toLocaleString()}골드에 팔았습니다.`);save();drawPort();}
+function dockBody(id){const D=dock();
+  return `<p class="hint">함대에는 5척까지 데리고 다닙니다. 남는 배는 도크에 맡겨 두었다가 어느 항구의 조선소에서든 꺼낼 수 있습니다. 도크 ${D.length}/${DOCK_MAX}척 · 함대 ${S.fleet.length}/5척</p>
+   <h4>내 함대</h4><div class="cgrid">${S.fleet.map((sh,k)=>`<div class="card${k?'':' flag'}">${shipImg(sh.t,100)}<div class="cn"><b>${sh.name}</b> <small>${ST(sh).n}</small></div><div class="cs">${shipLine(sh)}</div>
+     <div class="cb">${k?`<button data-dkin="${k}">⚓ 도크에 넣기</button>`:'<small class="hint">기함은 도크에 넣을 수 없습니다</small>'}</div></div>`).join('')}</div>
+   <h4>도크</h4>${D.length?`<div class="cgrid">${D.map((sh,i)=>{const T=ST(sh);return `<div class="card">${shipImg(sh.t,100)}<div class="cn"><b>${sh.name}</b> <small>${T.n}</small></div><div class="cs">${shipLine(sh)}</div>
+     <div class="cb"><button class="main" data-dkout="${i}" ${S.fleet.length>=5?'disabled':''}>⛵ 함대로</button>${T.legend?'':`<button data-dksell="${i}">팔기 ${Math.round(T.price*.5*(sh.x&&sh.x.val||1)).toLocaleString()}</button>`}</div></div>`;}).join('')}</div>`:'<p class="hint">도크가 비어 있습니다. 함대가 5척이어도 배를 더 사면 도크로 들어갑니다.</p>'}`;}
+function shipLine(sh){const T=ST(sh),C=cnOf(sh),np=naepa(sh);return `${T.sz} · 짐칸 ${T.hold} · 대포 ${T.guns}문(${C.ic}${C.n}) · 내파 <b>${np}</b> · 개조 ${(sh.md||[]).length}/${slotsOf(sh)}`;}
+// 배 사기: 함대가 가득 차도 산다 → 도크로
+{const yb0=ybuyBody;ybuyBody=function(id){let h=yb0.apply(this,arguments);const full=S.fleet.length>=5;
+  h=h.replace(' — <b>더 살 수 없습니다. 먼저 배를 파세요.</b>',full?` — <b>새로 사는 배는 도크로 들어갑니다</b> (도크 ${dock().length}/${DOCK_MAX})`:'');
+  h=h.replace(/data-bs="(\d+)" (disabled)?/g,(m,t)=>`data-bs="${t}" ${S.gold<shipCost(+t)||dock().length>=DOCK_MAX&&full?'disabled':''}`);
+  h=h.replace(/data-sp="(\d+)" (disabled)?/g,(m,t)=>`data-sp="${t}" ${S.gold<spPrice(+t)||dock().length>=DOCK_MAX&&full?'disabled':''}`);
+  return h;};BODY.ybuy=ybuyBody;}
+function shipNew(t){const nm=SHIPNAMES.find(n=>!S.fleet.concat(dock()).some(f=>f.name===n))||('배 '+(S.fleet.length+dock().length+1));return {t,name:nm,as:[],hp:SHIPTYPES[t].hp,md:[],cn:'std'};}
+function addShip(sh){if(S.fleet.length<5){S.fleet.push(sh);return 'fleet';}dock().push(sh);return 'dock';}
+// 특별 주문 배(data-sp)도 함대가 가득 차면 도크로: 원래 처리 전에 잠깐 자리를 비워 두는 대신, 사고 난 뒤 6척째를 도크로 옮긴다
+{const by0=bindYard;bindYard=function(root,redraw){by0(root,redraw);
+  root.querySelectorAll('[data-bs]').forEach(b=>b.onclick=()=>{const t=+b.dataset.bs,T=SHIPTYPES[t],pc=shipCost(t);if(S.gold<pc)return;if(S.fleet.length>=5&&dock().length>=DOCK_MAX){toast('함대와 도크가 모두 가득 찼습니다.');return;}
+    S.gold-=pc;const sh=shipNew(t),w=addShip(sh);sfx('ship');toast(w==='fleet'?`${T.n} '${sh.name}'을(를) 샀습니다. 선원을 채우고 선장을 앉히세요.`:`${T.n} '${sh.name}'을(를) 샀습니다. 함대가 가득 차서 도크에 넣었습니다.`,true);checkMissions();save();redraw();});
+  root.querySelectorAll('[data-sp]').forEach(b=>{const f0=b.onclick;b.onclick=function(){const n0=S.fleet.length;let tmp=null;if(n0>=5){tmp=S.fleet.pop();}
+    try{f0&&f0.apply(this,arguments);}finally{if(tmp){if(S.fleet.length>=5){const nw=S.fleet.pop();dock().push(nw);S.fleet.push(tmp);toast(`${nw.name}은(는) 도크에 넣었습니다.`);}else S.fleet.push(tmp);save();redraw();}}};});};}
+// ---------- 개조 탭 (개조 칸 · 대포 · 이름) ----------
+function yupBody2(id){const st=stageOf(id);
+  return `<p class="hint">배마다 개조 칸이 있습니다 (소형 3~4 · 중형 5~6 · 대형 7~10). 무엇을 다느냐에 따라 같은 배도 짐배, 싸움배, 원양 탐험선이 됩니다. 떼어 낸 장비 값은 돌려받지 못합니다. 대포는 배 전체를 한 종류로 바꿉니다.</p>
+  <div class="cgrid ygrid">${S.fleet.map((sh,k)=>{const T=ST(sh),md=sh.md||[],n=slotsOf(sh),C=cnOf(sh);
+    const slots=[...Array(n).keys()].map(i=>md[i]?`<span class="slot on" title="${MODS[md[i]].n}: ${MODS[md[i]].d}">${MODS[md[i]].ic}<small>${MODS[md[i]].n}</small><button data-mdx="${k}|${i}" title="떼어 내기">✕</button></span>`:'<span class="slot">빈 칸</span>').join('');
+    const add=md.length<n?Object.keys(MODS).map(m=>{const M=MODS[m],c=modCost(sh,m),lock=M.need&&st<M.need;return `<button data-mda="${k}|${m}" ${lock||S.gold<c?'disabled':''} title="${M.d}${lock?` (투자 ${M.need}단계 항구에서)`:''}">${M.ic} ${M.n} <small>${c.toLocaleString()}</small></button>`;}).join(''):'<small class="hint">칸이 다 찼습니다. 바꾸려면 먼저 떼어 내세요.</small>';
+    const guns=SHIPTYPES[sh.t].guns+Math.max(2,Math.round(SHIPTYPES[sh.t].guns*.2))*mdN(sh,'gun');
+    const cn=Object.keys(CANNON).map(c=>{const X=CANNON[c],cost=Math.round(X.cost*guns*(yardLv(id)>=1?.85:1)),lock=X.need&&st<X.need,cur=(sh.cn||'std')===c;
+      return `<button data-cn="${k}|${c}" class="${cur?'on':''}" ${cur||lock||S.gold<cost?'disabled':''} title="${X.d} · 힘 ×${X.pow} · 사거리 ×${X.rng} · 장전 ×${X.rl}${lock?` (투자 ${X.need}단계 항구에서)`:''}">${X.ic} ${X.n} <small>${cur?'달림':cost?cost.toLocaleString():'무료'}</small></button>`;}).join('');
+    return `<div class="card ycard">${shipImg(sh.t,110)}<div class="cn"><b>${sh.name}</b> <small>${T.n}</small></div>
+      <div class="cs">빠르기 <b>${Math.round(shipF(k,60)*100)}</b> · 짐칸 ${T.hold} · 보급 ${shSup(sh)} · 선원 ${T.crew} · 선체 ${T.hp} · 내파 <b>${naepa(sh)}</b> <small>(${naepaTxt(naepa(sh))})</small></div>
+      <div class="slots">${slots}</div><div class="addm">${add}</div>
+      <div class="cs" style="margin-top:6px">대포 ${T.guns}문 · 지금 <b>${C.ic} ${C.n}</b> <small>(힘 ×${C.pow} · 사거리 ×${C.rng} · 장전 ×${C.rl})</small></div><div class="addm cnrow">${cn}</div></div>`;}).join('')}</div>`;}
+BODY.yup=yupBody2;
+TOWN_B.find(b=>b.k==='yard').tabs.splice(3,0,['ydock','⚓ 도크']);TOWN_B.find(b=>b.k==='yard').tabs.push(['yquest','📜 배 이야기']);
+BODY.ydock=dockBody;BODY.yquest=id=>shqHTML(id);CUSTOM_T.add('ydock');CUSTOM_T.add('yquest');
+// 배 이름 바꾸기: 함대 배치 화면의 배 이름 옆
+{const fb0=fleetBody;fleetBody=function(){let h=fb0.apply(this,arguments);try{const k=Math.min(fleetSel,S.fleet.length-1),sh=S.fleet[k];
+  h=h.replace('</h3>',`</h3><div class="shren"><input data-shn="${k}" value="${sh.name.replace(/"/g,'')}" maxlength="12" placeholder="배 이름"><button data-shnok="${k}">✏️ 이름 바꾸기</button></div><div class="cs">${shipLine(sh)} · 선원 등급 효과 ${Math.round(crewEffSh(sh)*100)}%</div>`);}catch(e){}return h;};BODY.fleet=fleetBody;}
+function renameShip(k,v){v=(v||'').trim().slice(0,12);if(!v)return;const sh=S.fleet[k];if(!sh)return;if(S.fleet.concat(dock()).some(f=>f!==sh&&f.name===v)){toast('같은 이름의 배가 이미 있습니다.');return;}sh.name=v;S.st.rename=1;sfx('ship');toast(`배 이름을 '${v}'(으)로 바꿨습니다.`);save();drawPort();}
+{const bb=bBind;bBind=function(box){bb(box);
+  box.querySelectorAll('[data-shnok]').forEach(b=>b.onclick=()=>{const k=+b.dataset.shnok,inp=box.querySelector(`[data-shn="${k}"]`);renameShip(k,inp&&inp.value);});
+  box.querySelectorAll('[data-shn]').forEach(i=>{i.onkeydown=e=>{e.stopPropagation();if(e.key==='Enter')renameShip(+i.dataset.shn,i.value);};i.onkeyup=e=>e.stopPropagation();});
+  box.querySelectorAll('[data-dkin]').forEach(b=>b.onclick=()=>toDock(+b.dataset.dkin));
+  box.querySelectorAll('[data-dkout]').forEach(b=>b.onclick=()=>fromDock(+b.dataset.dkout));
+  box.querySelectorAll('[data-dksell]').forEach(b=>b.onclick=()=>sellDock(+b.dataset.dksell));
+  box.querySelectorAll('[data-mda]').forEach(b=>b.onclick=()=>{const [k,m]=b.dataset.mda.split('|'),sh=S.fleet[+k],c=modCost(sh,m);sh.md=sh.md||[];if(sh.md.length>=slotsOf(sh)||S.gold<c)return;S.gold-=c;sh.md.push(m);S.st.mod=1;sfx('hammer');toast(`${sh.name}에 ${MODS[m].n}을(를) 달았습니다: ${MODS[m].d}`,true);save();drawPort();});
+  box.querySelectorAll('[data-mdx]').forEach(b=>b.onclick=()=>{const [k,i]=b.dataset.mdx.split('|').map(Number),sh=S.fleet[k];const m=sh.md.splice(i,1)[0];if(m==='hull')sh.hp=Math.min(hpK(k),hpMaxK(k));toast(`${sh.name}에서 ${MODS[m].n}을(를) 떼어 냈습니다.`);S.crew=Math.min(S.crew,crewMaxT());save();drawPort();});
+  box.querySelectorAll('[data-cn]').forEach(b=>b.onclick=()=>{const [k,c]=b.dataset.cn.split('|'),sh=S.fleet[+k],X=CANNON[c],guns=SHIPTYPES[sh.t].guns+Math.max(2,Math.round(SHIPTYPES[sh.t].guns*.2))*mdN(sh,'gun'),cost=Math.round(X.cost*guns*(yardLv(inPort)>=1?.85:1));
+    if(S.gold<cost)return;S.gold-=cost;sh.cn=c;S.st.cannon=1;sfx('hammer');toast(`${sh.name}의 대포를 ${X.ic} ${X.n}(으)로 바꿨습니다. 해전에서 힘 ×${X.pow} · 사거리 ×${X.rng} · 장전 ×${X.rl}`,true);save();drawPort();});};}
+// ---------- 하루마다: 선원 등급 오름 · 심해 일수 · 블랙펄 자가 수리 · 내파 ----------
+{const d0=dailyTick;dailyTick=function(){const r=d0.apply(this,arguments);try{if(!S||inPort>=0||S.car)return r;const z=typeof vzNow==='function'?vzNow():1;
+  if(z===2)S.st.deepD=(S.st.deepD||0)+1;
+  const q0=cq();S.cq=Math.min(4,q0+[.0015,.003,.005][z]*Math.max(.15,1-q0/4.4));if(Math.floor(S.cq+1e-6)>Math.floor(q0+1e-6)){sfx('mission');toast(`👥 오랜 항해로 선원들이 단련되어 ${crewGName()} 선원이 되었습니다!`,true);}
+  S.fleet.forEach((sh,k)=>{if(SHIPTYPES[sh.t].legend){const M=hpMaxK(k);sh.hp=Math.min(M,hpK(k)+M*.05);}});}catch(e){}return r;};}
+// 해전 승리마다 선원이 단련된다
+{let w0=-1;setInterval(()=>{try{if(!S)return;const w=S.st.win||0;if(w0<0){w0=w;return;}if(w>w0){S.cq=Math.min(4,cq()+.04*(w-w0));w0=w;}}catch(e){}},2000);}
+// ---------- 배 이야기 (퀘스트) ----------
+const SHQ=[
+  {t:'내 배에 이름 붙이기',h:'항구 관리소 → 함대 배치에서 배 이름을 바꿉니다.',g:300,ok:()=>!!S.st.rename},
+  {t:'개조 칸에 장비 달기',h:'조선소 → 개조에서 화물칸·추가 돛 등을 답니다.',g:500,ok:()=>!!S.st.mod||S.fleet.some(sh=>(sh.md||[]).length)},
+  {t:'대포 바꾸기',h:'조선소 → 개조에서 대포 종류를 바꿉니다.',g:800,ok:()=>!!S.st.cannon},
+  {t:'숙련 선원 갖추기',h:'항구 관리소 → 보급에서 숙련 이상 선원을 태웁니다 (투자 2단계 이상 항구).',g:1000,ok:()=>cq()>=1},
+  {t:'중형 이상의 배 갖기',h:'바크·정크·캐럭 같은 중형선을 삽니다. 원양을 견디는 힘(내파)이 큽니다.',g:1500,ok:()=>S.fleet.concat(dock()).some(sh=>SHIPTYPES[sh.t].sz!=='소형')},
+  {t:'심해를 30일 항해하기',h:'뭍에서 먼 깊은 바다를 오래 건넙니다. 작은 배는 많이 상하니 내파가 높은 배로!',g:2500,ok:()=>(S.st.deepD||0)>=30,p:()=>`${S.st.deepD||0}/30일`},
+  {t:'배 4척 갖추기 (도크 포함)',h:'함대가 5척이 차도 배를 더 사면 도크에 들어갑니다.',g:3000,ok:()=>S.fleet.length+dock().length>=4,p:()=>`${S.fleet.length+dock().length}/4척`},
+  {t:'전설의 배 블랙펄 찾기',h:'검은 돛의 배를 본 이들의 이야기를 따라 해도 조각 세 개를 찾고, 배가 잠든 곳으로 갑니다.',g:10000,ok:()=>!!(S.bp&&S.bp.done),p:()=>S.bp?`해도 조각 ${S.bp.got.filter(x=>x).length}/3${S.bp.got.every(x=>x)?' · 배가 잠든 곳으로!':''}`:''}];
+function shqI(){S.shq=S.shq||0;return S.shq;}
+function shqHTML(id){const i=shqI();return `<div class="note"><b>📜 배 이야기</b> — 배를 다루는 법을 하나씩 익히면, 마지막에 <b>전설의 배</b>를 찾아 나서게 됩니다.</div>
+  <ol class="shq">${SHQ.map((q,k)=>`<li class="${k<i?'done':k===i?'now':'lock'}"><b>${k<i?'✔ ':k===i?'▶ ':''}${k<=i?q.t:'???'}</b> <small>${k<=i?`보상 ${q.g.toLocaleString()}골드`:''}</small>${k===i?`<div class="hint">${q.h}${q.p?` · <b>${q.p()}</b>`:''}</div>`:''}</li>`).join('')}</ol>
+  ${S.bp&&!S.bp.done?bpHTML():''}${S.bp&&S.bp.done?'<div class="note">🖤 블랙펄을 손에 넣었습니다. 바다에서 스스로 상처를 메우고, 해전에서 결코 가라앉지 않습니다.</div>':''}`;}
+setInterval(()=>{try{if(!S||B)return;const i=shqI();if(i>=SHQ.length)return;const q=SHQ[i];if(i===SHQ.length-1&&!S.bp)bpStart();if(q.ok()){S.shq=i+1;S.gold+=q.g;sfx('mission');toast(`📜 배 이야기 완료: ${q.t} (+${q.g.toLocaleString()}골드)${S.shq<SHQ.length?` — 다음: ${SHQ[S.shq].t}`:''}`,true);
+  if(S.shq===SHQ.length-1)bpStart();save();}}catch(e){}},1500);
+// ---------- 블랙펄 탐사 ----------
+const BP_CLUE=[['늙은 고래잡이의 일지','"검은 돛이 안개 속에서 소리 없이 지나갔다. 대포를 맞고도 멈추지 않았다." 일지 뒷장에 다음 바다의 별자리가 그려져 있습니다.'],
+  ['부서진 나침반','바늘이 북쪽이 아니라 한곳만 가리킵니다. 나침반 뚜껑 안쪽에 검은 진주가 박혀 있습니다.'],
+  ['검은 진주가 박힌 해도','세 조각을 맞추니 하나의 해도가 됩니다. 아무도 가지 않는 깊은 바다 한가운데에 표시가 있습니다.']];
+function bpPick(n,used){const r=srand(((S.sid||7)*7919+n*104729)>>>0),C=[];for(let la=-48;la<=48;la+=4)for(let lo=-25;lo<325;lo+=4)if(!isLand(la,lo)&&seaZone(la,lo)===2)C.push([la,lo]);
+  for(let t=0;t<200;t++){const c=C[Math.floor(r()*C.length)];if(!c)break;if(used.every(u=>gcDist(u[0],u[1],c[0],c[1])>3500))return c;}return C[Math.floor(r()*C.length)]||[0,150];}
+function bpStart(){if(S.bp)return;const H=PORTS[HOME],used=[[H.lat,H.lon]],cl=[];for(let i=0;i<3;i++){const c=bpPick(i+1,used);cl.push(c);used.push(c);}const fin=bpPick(9,used);
+  const off=cl.concat([fin]).map((c,i)=>{const r=srand(((S.sid||7)+i*31)>>>0),a=r()*Math.PI*2,d=.6+r()*1.2;return [c[0]+d*Math.cos(a),c[1]+d*Math.sin(a)];});
+  S.bp={cl,fin,off,got:[0,0,0],done:0};sfx('mission');toast('🖤 소문: 가라앉지 않는 검은 돛의 배 「블랙펄」이 깊은 바다 어딘가에 잠들어 있다고 합니다. 지도에 표시된 첫 번째 해도 조각의 바다를 찾아가세요. (조선소 → 배 이야기)',true);save();}
+function bpNext(){const B2=S.bp;if(!B2||B2.done)return -1;const i=B2.got.findIndex(x=>!x);return i<0?3:i;}
+function bpHTML(){const i=bpNext();return `<div class="note bpnote"><b>🖤 블랙펄 탐사</b><ul>${BP_CLUE.map((c,k)=>`<li>${S.bp.got[k]?`✔ <b>${c[0]}</b> — ${c[1]}`:k===i?`▶ 해도 조각 ${k+1}: 지도에 점선 원으로 표시된 바다 안 어딘가`:`해도 조각 ${k+1}: ?`}</li>`).join('')}
+  <li>${i===3?'▶ <b>블랙펄이 잠든 곳</b>: 지도의 검은 원으로 가세요':'블랙펄이 잠든 곳: ?'}</li></ul><small class="hint">점선 원 안 깊은 바다를 가까이 지나가면 찾습니다. 심해이니 내파가 높은 배와 넉넉한 물·식량을 챙기세요.</small></div>`;}
+setInterval(()=>{try{if(!S||!S.bp||S.bp.done||inPort>=0||B||S.car)return;const i=bpNext();const tgt=i<3?S.bp.cl[i]:S.bp.fin;if(gcDist(S.lat,S.lon,tgt[0],tgt[1])>140)return;
+  if(i<3){S.bp.got[i]=1;sfx('relic');slowDown&&slowDown();toast(`🖤 해도 조각 ${i+1}: ${BP_CLUE[i][0]} — ${BP_CLUE[i][1]}`,true);if(typeof fameAdd==='function')fameAdd(60,'adv');save();return;}
+  bpFound();}catch(e){}},1000);
+function bpFound(){S.bp.done=1;const sh={t:BP_T,name:'블랙펄',as:[],hp:SHIPTYPES[BP_T].hp,md:[],cn:'stl'};const w=addShip(sh);if(typeof fameAdd==='function')fameAdd(300,'adv');sfx('relic');paused=true;
+  let d=document.getElementById('bpwin');if(!d){d=document.createElement('div');d.id='bpwin';document.body.appendChild(d);}
+  d.innerHTML=`<div class="vrbox bpbox">${shipImg(BP_T,240)}<h3>🖤 전설의 배 「블랙펄」을 찾았습니다!</h3><p>안개가 걷히자, 검은 돛을 단 배가 파도 위에 조용히 떠 있습니다. 선체에는 상처 하나 없고, 갑판에는 옛 세계의 강철포가 줄지어 있습니다.</p>
+   <ul><li>가라앉지 않는다: 해전에서 선체가 다 깨져도 가라앉지 않고, 바다에서 날마다 스스로 상처를 메웁니다.</li><li>빠르다: 빠르기 ${Math.round(SHIPTYPES[BP_T].spd*100)} · 내파 100</li><li>적은 선원으로 움직인다: 선원 ${SHIPTYPES[BP_T].crew}명 · 개조 칸 ${SLOTS[BP_T]}개 · 옛 세계 강철포</li></ul>
+   <p class="hint">${w==='fleet'?'함대에 들어왔습니다. 선장을 앉히세요.':'함대가 가득 차서 도크에 넣었습니다. 조선소의 도크에서 꺼낼 수 있습니다.'} 모험 명성 +300</p><div class="btns"><button class="main" id="bpok">출항!</button></div></div>`;
+  d.style.display='flex';d.querySelector('#bpok').onclick=()=>{d.style.display='none';paused=false;};save();}
+// 지도에 해도 조각·잠든 곳 표시
+{const di=drawInland;drawInland=function(){const r=di.apply(this,arguments);try{if(S&&S.bp&&!S.bp.done){const i=bpNext(),o=S.bp.off[i],s=toScr(...proj(o[0],o[1])),R=Math.max(26,2.6*111*cam.z*IMW/40000*.9),t=performance.now()/600;
+  ctx.save();ctx.setLineDash(i===3?[]:[6,5]);ctx.lineWidth=2.5;ctx.strokeStyle=i===3?`rgba(20,16,26,${.7+.25*Math.sin(t)})`:'rgba(60,40,90,.8)';ctx.beginPath();ctx.arc(s[0],s[1],R,0,7);ctx.stroke();ctx.setLineDash([]);
+  ctx.font='bold 12px serif';ctx.textAlign='center';ctx.lineWidth=3;ctx.strokeStyle='rgba(243,232,207,.95)';const tx=i===3?'🖤 블랙펄이 잠든 바다':`🖤 해도 조각 ${i+1}`;ctx.strokeText(tx,s[0],s[1]-R-6);ctx.fillStyle='#2a2040';ctx.fillText(tx,s[0],s[1]-R-6);ctx.textAlign='left';ctx.restore();}}catch(e){}return r;};}
+{const st=document.createElement('style');st.textContent=`
+.ygrid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}.ycard{text-align:left}.slots{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+.slot{display:inline-flex;align-items:center;gap:3px;border:1px dashed #b9a47c;border-radius:6px;padding:2px 6px;font-size:12px;color:#9a8a6a;background:#fbf6ea}
+.slot.on{border-style:solid;border-color:#8a6a44;color:#2d1c0e;background:#fff3d8}.slot.on small{font-size:11px}.slot button{padding:0 4px;font-size:11px;margin-left:2px}
+.addm{display:flex;flex-wrap:wrap;gap:4px}.addm button{font-size:12px;padding:3px 7px}.addm button small{color:#7a5a2a}.cnrow button.on{background:#2f5d73;color:#fff}
+.shren{display:flex;gap:4px;margin:4px 0}.shren input{width:140px;padding:3px 6px;border:1px solid #b9a47c;border-radius:5px;font:inherit}
+.cgbox .cgrow{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}.cgbox .cgrow button.on{background:#2f5d73;color:#fff}
+.shq{padding-left:20px}.shq li{margin:4px 0}.shq li.done{color:#5a7a4a}.shq li.lock{color:#a89a7a}.shq li.now{background:#fff3d8;border-radius:6px;padding:4px 6px}
+.bpnote{border-left:4px solid #2a2040}#bpwin{position:fixed;inset:0;z-index:9100;background:rgba(10,6,16,.6);display:none;align-items:center;justify-content:center}.bpbox{text-align:center}.bpbox img{display:block;margin:0 auto 8px}.bpbox ul{text-align:left}`;document.head.appendChild(st);}
 
 // ===== 바람과 해류를 '흐름'으로 보여 주기 =====
 // 보기: 0 흐름(하얀 바람 줄기 + 해류의 띠와 물결) · 1 화살표(예전 방식) · 2 끔. V 키로 바꾼다.
