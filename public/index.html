@@ -5081,7 +5081,10 @@ function spFixName(o){if(!o||o.nm2)return;const r=srand(strH((o.spk||'')+'|nm'))
 // 증기기관(바람·해류 무관 2배) · 정기 항로(기차식 항구 간 이동) · 해역(연안·근해·심해)별 경험치와 선체 마모
 // · 내구도/선원 부족 감속 · 피로·쥐·괴혈병 · 입항 항해 보고서 · 내륙 길 그림
 // ---------- 해역 ----------
-const VZ=[{n:'연안',ic:'🏝',xp:.6,wear:.0008,fat:1},{n:'근해',ic:'🌊',xp:1,wear:.003,fat:1.7},{n:'심해',ic:'🌌',xp:1.6,wear:.007,fat:2.6}];
+// trc: 짐 1톤·하루 운송비(통행료·도선료·항만세) · dep: 하루 짐 품질 감가(★). 연안은 운송비가 비싸고 배·짐이 덜 상하고, 심해는 운송비가 싸지만 배가 닳고 짐이 상한다.
+const VZ=[{n:'연안',ic:'🏝',xp:.6,wear:.0008,fat:1,trc:.2,dep:0},{n:'근해',ic:'🌊',xp:1,wear:.003,fat:1.7,trc:.1,dep:.006},{n:'심해',ic:'🌌',xp:1.6,wear:.007,fat:2.6,trc:.03,dep:.02}];
+const PERISH=new Set(['식료품','향신료','약초·염료']);
+const trcMul=()=>1-.3*Math.min(1,eR(3)); // 회계사가 운송비를 최대 30% 줄인다
 const VZC={};
 function seaZone(la,lo){const k=Math.round(la*2)+'_'+Math.round(lo*2);if(VZC[k]!=null)return VZC[k];let z=2;
   const c=Math.max(.2,Math.cos(la*DEG));
@@ -5161,7 +5164,7 @@ function railDraw(){if(!RAIL)return;const R=RAIL;const P=[];for(let i=R.i-1;i<R.
   ctx.restore();}
 // ---------- 항해 기록 ----------
 function voyStart(from){const st={};for(const i of hiredIds())st[i]=[0,1,2,3,4,5,6,7].map(r=>curSt(i,r));
-  S.voy={d0:S.day,from,km0:S.km||0,hp:S.fleet.map((sh,k)=>hpK(k)),st,zd:[0,0,0],sup:0,hopG:0,hops:[],ls:S.day,ev:{rat:0,scv:0,lost:0,des:0},wear:0,wsave:0,rail:0};S.fat=0;S.scurvy=0;}
+  S.voy={d0:S.day,from,km0:S.km||0,hp:S.fleet.map((sh,k)=>hpK(k)),st,zd:[0,0,0],sup:0,hopG:0,hops:[],ls:S.day,ev:{rat:0,scv:0,lost:0,des:0},trc:0,trc0:0,dep:0,wear:0,wsave:0,rail:0};S.fat=0;S.scurvy=0;}
 {const l0=leavePort;leavePort=function(){const from=inPort;const r=l0.apply(this,arguments);try{voyStart(from);if(!S.tipRail&&S.found.filter(i=>!PORTS[i].inland).length>=3){S.tipRail=1;setTimeout(()=>toast('🚂 출항한 자리에서 지도의 발견한 항구를 누르면, 항구끼리 이어진 정기 항로로 바로 갈 수 있습니다.',true),900);}
   if(!S.tipEng){S.tipEng=1;setTimeout(()=>toast(`⚙ 증기기관 연료 ${boostMax()}일분이 있습니다. G 키로 켜면 바람과 상관없이 2배로 갑니다. 증기기관 유적을 찾으면 10일분이 됩니다.`,true),2200);}}catch(e){}return r;};}
 function voyHop(id){if(!S.voy)return;S.voy.hops.push(id);S.voy.ls=S.day;S.fat=Math.max(0,(S.fat||0)-25);if(S.scurvy){S.scurvy=0;toast('들른 항구에서 신선한 음식을 먹어 괴혈병이 나았습니다.');}}
@@ -5177,6 +5180,8 @@ function eatFruit(){const L=fruitIdx();if(!L.length)return false;const g=L[0],c=
 // 하루마다: 마모 · 피로 · 쥐 · 괴혈병
 {const d0=dailyTick;dailyTick=function(){const r=d0.apply(this,arguments);try{if(!S||inPort>=0||S.car)return r;if(!S.voy)voyStart(-1);const V=S.voy,z=vzNow(),doc=eR(6);
   V.zd[z]++;V.sup+=S.crew/12*supplyMul()*(waterMul()+foodMul());
+  {const t=cargoT()+(S.lux||[]).reduce((a,l)=>a+l.q,0);V.trc0=(V.trc0||0)+t*VZ[z].trc;V.trc=(V.trc||0)+t*VZ[z].trc*trcMul();
+   if(VZ[z].dep)for(const g in S.cargo){const c=S.cargo[g];const d=VZ[z].dep*(PERISH.has(GOODS[g][1])?1:.35);const q0=c.ql||1;if(q0>1){c.ql=Math.max(1,q0-d);V.dep=(V.dep||0)+(q0-c.ql)*.15*c.q*(c.c||GOODS[g][2]);}}}
   // 선체 마모: 심해일수록 더 닳는다. 갑판장이 덜 닳게 한다.
   S.fleet.forEach((sh,k)=>{const M=hpMaxK(k),h=hpK(k),bs=Math.min(1,shipRole(k,5)/100),w0=M*VZ[z].wear*(RAIL?.5:1),w=w0*(1-.45*bs);if(h>M*.25){const nh=Math.max(M*.25,h-w);V.wear+=h-nh;V.wsave+=w0-w;sh.hp=nh;}});
   // 피로: 바다에 오래 있을수록 쌓인다. 의사가 덜어 준다.
@@ -5201,7 +5206,7 @@ let vzLast=-1,vzT=0;setInterval(()=>{try{if(!S||inPort>=0||S.car||B)return;const
   if(z!==vzLast&&(z===2||vzLast===2)&&S.day-vzT>1.5){vzT=S.day;toast(z===2?`🌌 심해에 들어섰습니다 — 항해 경험 ×${VZ[2].xp} · 배가 빨리 닳고 선원이 쉽게 지칩니다.`:`🌊 ${VZ[z].n}으로 들어왔습니다 — 항해 경험 ×${VZ[z].xp}.`);}vzLast=z;}catch(e){}},1000);
 // 상태판에 해역·선체·피로
 {const u0=updateHud;updateHud=function(){const r=u0.apply(this,arguments);try{if(S&&inPort<0&&!S.car){const h=document.getElementById('hud');if(h){const z=vzNow(),hp=Math.round(fleetHpR()*100),f=Math.round(S.fat||0),cr=S.crew/Math.max(1,crewNeedT());
-  h.insertAdjacentHTML('beforeend',`<div class="row"><span class="k">해역</span><span>${VZ[z].ic} ${VZ[z].n} · 경험 ×${VZ[z].xp}${RAIL?` · <b>🚂 정기 항로 → ${PORTS[RAIL.dest].name}</b>`:''}</span></div>
+  h.insertAdjacentHTML('beforeend',`<div class="row"><span class="k">해역</span><span>${VZ[z].ic} ${VZ[z].n} · 경험 ×${VZ[z].xp}${cargoT()?` · 운송비 ${Math.round(cargoT()*VZ[z].trc*trcMul())}/일`:''}${RAIL?` · <b>🚂 정기 항로 → ${PORTS[RAIL.dest].name}</b>`:''}</span></div>
    <div class="row"><span class="k">선체 · 피로</span><span><b style="color:${hp<50?'#a8322a':'inherit'}">${hp}%</b> · <b style="color:${f>=60?'#a8322a':'inherit'}">${f}</b>${S.scurvy?' · <b style="color:#a8322a">괴혈병</b>':''}${cr<.5?' · <b style="color:#a8322a">선원 부족</b>':''}</span></div>`);}}}catch(e){}return r;};}
 // ---------- 입항 항해 보고서 ----------
 function voyReport(id){const V=S.voy;if(!V)return null;const days=S.day-V.d0;if(days<.8)return null;
@@ -5209,10 +5214,10 @@ function voyReport(id){const V=S.voy;if(!V)return null;const days=S.day-V.d0;if(
   const grow=[];for(const i of hiredIds()){const a=V.st[i];if(!a)continue;const up=[];for(let r=0;r<8;r++){const d=curSt(i,r)-a[r];if(d>0)up.push(`${STATK[r]} +${d}`);}if(up.length)grow.push(`<b>${MATES[i].name}</b> ${up.join(', ')}`);}
   let dmg=0,fix=0;S.fleet.forEach((sh,k)=>{const h0=V.hp[k];if(h0==null)return;const T=ST(sh),lost=Math.max(0,h0-hpK(k));dmg+=lost;fix+=lost*T.price/T.hp*.15*(1-traitV('repc'));});
   const repNow=S.fleet.reduce((a,sh,k)=>a+repCostK(k),0),perHp=dmg>0?fix/dmg:0;
-  const sup=Math.round(V.sup),wage=Math.round(days*hiredIds().reduce((a,i)=>a+salaryNow(i),0)/30),trans=sup+wage+Math.round(V.hopG),t=cargoT();
+  const sup=Math.round(V.sup),wage=Math.round(days*hiredIds().reduce((a,i)=>a+salaryNow(i),0)/30),trc=V.trcPay||0,trans=sup+wage+Math.round(V.hopG)+trc,t=cargoT();
   const bs=Math.max(0,...S.fleet.map((sh,k)=>shipRole(k,5))),doc=roleVal(6);
   const ev=[];if(V.ev.rat)ev.push(`🐀 쥐 ${V.ev.rat}번`);if(V.ev.scv)ev.push(`🤒 괴혈병 (선원 ${V.ev.lost}명 잃음)`);if(V.ev.des)ev.push(`😫 지쳐 떠난 선원 ${V.ev.des}명`);if(V.fruit)ev.push(`🍋 과일 ${V.fruit}톤을 먹음`);
-  return {id,from:V.from,days,km,zd:V.zd.map(x=>x/zt),grow,dmg:Math.round(dmg),fix:Math.round(fix),repNow,sup,wage,hopG:Math.round(V.hopG),trans,perT:t?Math.round(trans/t):0,t,
+  return {id,from:V.from,days,km,zd:V.zd.map(x=>x/zt),grow,dmg:Math.round(dmg),fix:Math.round(fix),repNow,sup,wage,hopG:Math.round(V.hopG),trc,trcSave:Math.max(0,Math.round((V.trc0||0)-(V.trc||0))),dep:Math.round(V.dep||0),acc:roleVal(3),trans,perT:t?Math.round(trans/t):0,t,
     bs,wsave:Math.round(V.wsave*perHp),doc,ev,hops:V.hops,rail:V.rail,fat:Math.round(S.fat||0)};}
 function voyHTML(R){const zb=R.zd.map((f,z)=>f>0?`<i style="flex:${f};background:${['#7fb07a','#5a8fb8','#2d4a78'][z]}" title="${VZ[z].n} ${Math.round(f*100)}%">${f>.12?VZ[z].n+' '+Math.round(f*100)+'%':''}</i>`:'').join('');
   const row=(k,v,h)=>`<tr><td>${k}</td><td><b>${v}</b></td><td class="hint">${h||''}</td></tr>`;
@@ -5221,13 +5226,14 @@ function voyHTML(R){const zb=R.zd.map((f,z)=>f>0?`<i style="flex:${f};background
   <h4>지나온 바다</h4><div class="vrz">${zb}</div><div class="hint">연안 경험 ×${VZ[0].xp} · 근해 ×${VZ[1].xp} · 심해 ×${VZ[2].xp}. 깊은 바다일수록 많이 배우지만 배가 빨리 닳습니다.</div>
   <h4>항해자 성장</h4>${R.grow.length?`<ul>${R.grow.map(g=>`<li>${g}</li>`).join('')}</ul>`:'<p class="hint">이번 항해에서 오른 능력은 없습니다.</p>'}
   <h4>비용</h4><table class="vrt">${row('선체 손상',`${R.dmg.toLocaleString()}`,`이번 항해의 수리비 약 ${R.fix.toLocaleString()}골드 · 지금 함대 전체 수리비 ${R.repNow.toLocaleString()}골드`)}
-   ${row('운송비',`${R.trans.toLocaleString()}골드`,`물·식량 ${R.sup.toLocaleString()} + 항해자 급여 ${R.wage.toLocaleString()}${R.hopG?` + 들른 항구 보급 ${R.hopG.toLocaleString()}`:''}${R.t?` · 짐 1톤당 <b>${R.perT}</b>골드`:''}`)}
+   ${row('운송비',`${R.trans.toLocaleString()}골드`,`물·식량 ${R.sup.toLocaleString()} + 항해자 급여 ${R.wage.toLocaleString()}${R.hopG?` + 들른 항구 보급 ${R.hopG.toLocaleString()}`:''}${R.trc?` + <b>짐 운송비 ${R.trc.toLocaleString()}</b>`:''}${R.t?` · 짐 1톤당 <b>${R.perT}</b>골드`:''}<br>짐 운송비는 연안 1톤·하루 ${VZ[0].trc} · 근해 ${VZ[1].trc} · 심해 ${VZ[2].trc}골드입니다.${R.trcSave?` 회계사(교역 ${Math.round(R.acc)})가 ${R.trcSave.toLocaleString()}골드를 아꼈습니다.`:''}`)}
+   ${R.dep?row('짐 감가',`약 ${R.dep.toLocaleString()}골드`,'근해·심해의 습기와 소금물에 짐 품질(★)이 떨어졌습니다. 식료품·향신료·약초는 더 빨리 상합니다.'):''}
    ${row('부관 효과',`갑판장 ${Math.round(R.bs)} · 의사 ${Math.round(R.doc)}`,R.bs+R.doc<=0?'갑판장과 의사를 자리에 앉히면 선체가 덜 닳고, 선원이 덜 지치고, 괴혈병에 덜 걸립니다.':`갑판장이 선체 마모를 ${Math.round(45*Math.min(1,R.bs/100))}% 줄여 수리비 약 ${R.wsave.toLocaleString()}골드를 아꼈습니다. 의사가 피로를 ${Math.round(35*Math.min(1,R.doc/100))}% 덜고 괴혈병 위험을 ${Math.round(50*Math.min(1,R.doc/100))}% 낮췄습니다.`)}</table>
   ${R.ev.length?`<h4>항해 중 일</h4><p>${R.ev.join(' · ')}</p>`:''}<p class="hint">입항해서 선원들이 쉬었습니다 (피로 ${R.fat} → 0). 수리는 조선소에서 합니다.</p>
   <div class="btns"><button class="main vrok">확인</button></div></div>`;}
 function showVoy(R){let d=document.getElementById('voyrep');if(!d){d=document.createElement('div');d.id='voyrep';document.body.appendChild(d);}
   d.innerHTML=voyHTML(R);d.style.display='flex';const c=()=>d.style.display='none';d.querySelector('.fwx').onclick=c;d.querySelector('.vrok').onclick=c;d.onclick=e=>{if(e.target===d)c();};}
-{const e1=enterPort;enterPort=function(id){let R=null;try{if(S&&!PORTS[id].inland&&S.voy){R=voyReport(id);S.lastVoy=R;S.voy=null;S.fat=0;S.scurvy=0;}}catch(e){console.warn(e);}
+{const e1=enterPort;enterPort=function(id){let R=null;try{if(S&&!PORTS[id].inland&&S.voy){S.voy.trcPay=Math.min(S.gold,Math.round(S.voy.trc||0));S.gold-=S.voy.trcPay;R=voyReport(id);S.lastVoy=R;S.voy=null;S.fat=0;S.scurvy=0;}}catch(e){console.warn(e);}
   const r=e1.apply(this,arguments);if(R){const tut=S.tut&&!S.tut.done,big=R.days>=5||R.ev.length||R.grow.length;
     if(S.opt.voyRep!==0&&big&&!tut)setTimeout(()=>{try{showVoy(R);}catch(e){}},350);
     else setTimeout(()=>toast(`📜 항해 ${Math.round(R.days)}일 · ${Math.round(R.km).toLocaleString()}km · 선체 손상 ${R.dmg} (수리비 약 ${R.fix.toLocaleString()}골드) · 운송비 ${R.trans.toLocaleString()}골드`),500);}return r;};}
@@ -5270,6 +5276,74 @@ body.mob #railask{top:auto;bottom:calc(var(--dock,60px) + 90px)}
 .vrsum{display:flex;flex-wrap:wrap;gap:6px 14px}.vrz{display:flex;height:20px;border-radius:5px;overflow:hidden;border:1px solid #8a6a44}.vrz i{font:11px/20px sans-serif;color:#fff;text-align:center;font-style:normal;white-space:nowrap;overflow:hidden}
 .vrt{width:100%;border-collapse:collapse}.vrt td{border-top:1px solid #d9c9a8;padding:5px 4px;vertical-align:top}.vrt td:first-child{white-space:nowrap;color:#5c3a1a}.vrt td:nth-child(2){white-space:nowrap}
 .vrbox .btns{display:flex;justify-content:flex-end;margin-top:10px}`;document.head.appendChild(st);}
+
+// ===== 로드맵 B. 상행 체험: 흥정 · 장바구니 일괄 판매 · 상거래 보고서 =====
+// ---------- 흥정 ----------
+// 흥정꾼 = 회계사(교역)와 호연(교역의 70%) 중 나은 쪽. 흥정력 100이면 10번 중 5번, 5~15% 더 받거나 깎는다.
+const HERO_ID=MATES.findIndex(m=>m.hero);
+function hagWho(){let best=null,v=0;for(const sh of S.fleet)for(const a of sh.as)if(a.r===3&&!a.aux){const x=curSt(a.m,3);if(x>v){v=x;best=a.m;}}
+  const h=HERO_ID>=0?curSt(HERO_ID,3)*.7:0;const acc=roleVal(3);return acc>=h?{id:best,v:acc,role:'회계사'}:{id:HERO_ID,v:h,role:'선장'};}
+function hagOdds(){const w=hagWho(),H=w.v;return {w,p:Math.min(.6,H/200),lo:.05,hi:.05+.10*Math.min(1,H/100)};}
+function hagRoll(){const o=hagOdds();if(Math.random()>=o.p)return 0;return o.lo+(o.hi-o.lo)*Math.random();}
+let HAG_LAST=0,TRQ=null;
+{const t0=toast;toast=function(m,s){if(TRQ){TRQ.push([m,s]);return;}return t0.apply(this,arguments);};}
+const hagName=()=>{const w=hagWho();return w.id!=null&&MATES[w.id]?MATES[w.id].name:'호연';};
+{const s0=sell;sell=function(g,n){const g0=S.gold;HAG_LAST=0;const r=s0.apply(this,arguments);try{const earn=S.gold-g0;if(earn>0){const m=hagRoll();if(m){const b=Math.max(1,Math.round(earn*m));S.gold+=b;HAG_LAST=b;S.st.hag=(S.st.hag||0)+b;
+  sfx('coin');toast(`🤝 흥정 성공! ${hagName()}의 말솜씨에 상인이 ${Math.round(m*100)}% 더 쳐 줬습니다 (+${b.toLocaleString()}골드)`,true);save();if(!TRQ)drawPort();}}}catch(e){}return r;};}
+{const s0=luxSell;luxSell=function(i,n){const g0=S.gold;HAG_LAST=0;const r=s0.apply(this,arguments);try{const earn=S.gold-g0;if(earn>0){const m=hagRoll();if(m){const b=Math.max(1,Math.round(earn*m));S.gold+=b;HAG_LAST=b;S.st.hag=(S.st.hag||0)+b;
+  sfx('coin');toast(`🤝 흥정 성공! 명품 값을 ${Math.round(m*100)}% 더 받았습니다 (+${b.toLocaleString()}골드)`,true);save();if(!TRQ)drawPort();}}}catch(e){}return r;};}
+{const b0=buy;buy=function(g,n){const g0=S.gold;const r=b0.apply(this,arguments);try{const spent=g0-S.gold;if(spent>0){const m=hagRoll();if(m){const b=Math.max(1,Math.round(spent*m)),c=S.cargo[g];S.gold+=b;if(c&&c.q)c.c=Math.max(0,c.c-b/c.q);S.st.hag=(S.st.hag||0)+b;
+  sfx('coin');toast(`🤝 흥정 성공! ${hagName()}이(가) 값을 ${Math.round(m*100)}% 깎았습니다 (−${b.toLocaleString()}골드)`,true);save();drawPort();}}}catch(e){}return r;};}
+{const b0=luxBuy;luxBuy=function(o,n){const g0=S.gold;const r=b0.apply(this,arguments);try{const spent=g0-S.gold;if(spent>0){const m=hagRoll();if(m){const b=Math.max(1,Math.round(spent*m));S.gold+=b;const l=(S.lux||[]).find(x=>x.g===o.g&&x.gr===o.G[0]&&x.from===inPort);if(l&&l.q)l.c=Math.max(0,l.c-b/l.q);
+  sfx('coin');toast(`🤝 흥정 성공! 명품 값을 ${Math.round(m*100)}% 깎았습니다 (−${b.toLocaleString()}골드)`,true);save();drawPort();}}}catch(e){}return r;};}
+function hagBar(){const o=hagOdds(),n=Math.round(o.p*10);return `<div class="hagbar" title="흥정꾼: 회계사의 교역 능력, 또는 호연의 교역 능력의 70% 중 높은 쪽">🤝 흥정 <b>10번 중 ${n}번</b> · ${Math.round(o.lo*100)}~${Math.round(o.hi*100)}% ${n?'더 받거나 깎음':'(회계사를 앉히면 흥정을 합니다)'} <small>· 흥정꾼 ${hagName()} (${o.w.role} · 교역 ${Math.round(o.w.v)})</small></div>`;}
+// ---------- 장바구니 ----------
+let BSK=new Set(),BSK_P=-1;
+const bskKeyL=l=>'L'+l.g+'|'+l.gr+'|'+l.from;
+function bskClean(){if(BSK_P!==inPort){BSK=new Set();BSK_P=inPort;}for(const k of [...BSK]){if(k[0]==='L'){if(!(S.lux||[]).some(l=>bskKeyL(l)===k))BSK.delete(k);}else if(!S.cargo[+k])BSK.delete(k);}}
+function bskEst(){let v=0;for(const k of BSK){if(k[0]==='L'){const l=(S.lux||[]).find(x=>bskKeyL(x)===k);if(l)v+=luxRec(l,inPort).v*l.q;}else{const c=S.cargo[+k];if(c)v+=sellAdvice(inPort,+k).here*c.q;}}return Math.round(v);}
+function bskBar(){bskClean();const n=BSK.size;return `<div class="bskbar${n?' on':''}">🧺 장바구니 <b>${n}</b>종${n?` · 예상 약 <b>${bskEst().toLocaleString()}</b>골드 <button class="main" id="bskGo">한꺼번에 팔기</button> <button id="bskClr">비우기</button>`:' <small class="hint">— 상품 카드의 「🧺 담기」로 담고 한 번에 팔면 상거래 보고서를 받습니다</small>'} <button id="bskAll">모두 담기</button></div>`;}
+{const sb0=sellBody;sellBody=function(id){let h=sb0.apply(this,arguments);try{bskClean();
+  h=h.replace(/<div class="cb"><button data-sell="(\d+)"/g,(m,g)=>`<div class="cb"><button class="bsk${BSK.has(g)?' on':''}" data-bk="${g}">${BSK.has(g)?'✔ 담김':'🧺 담기'}</button><button data-sell="${g}"`);
+  h=h.replace(/<div class="cb"><button data-ls="(\d+)"/g,(m,i)=>{const l=S.lux[+i];const k=l?bskKeyL(l):'';return `<div class="cb"><button class="bsk${BSK.has(k)?' on':''}" data-bk="${k}">${BSK.has(k)?'✔ 담김':'🧺 담기'}</button><button data-ls="${i}"`;});
+  if(Object.keys(S.cargo).length||(S.lux||[]).length)h=hagBar()+bskBar()+h;}catch(e){console.warn(e);}return h;};}
+BODY.sell=sellBody;
+{const bb0=buyBody;buyBody=function(id){const h=bb0.apply(this,arguments);try{return hagBar()+h;}catch(e){return h;}};BODY.buy=buyBody;}
+{const bm0=bindMarket;bindMarket=function(box){bm0(box);try{
+  box.querySelectorAll('[data-bk]').forEach(b=>b.onclick=()=>{const k=b.dataset.bk;BSK.has(k)?BSK.delete(k):BSK.add(k);drawPort();});
+  const go=box.querySelector('#bskGo');if(go)go.onclick=()=>bskSell([...BSK]);
+  const cl=box.querySelector('#bskClr');if(cl)cl.onclick=()=>{BSK.clear();drawPort();};
+  const al=box.querySelector('#bskAll');if(al)al.onclick=()=>{Object.keys(S.cargo).forEach(g=>BSK.add(String(g)));(S.lux||[]).forEach(l=>BSK.add(bskKeyL(l)));drawPort();};
+  const sr=box.querySelector('#sellrec');if(sr)sr.onclick=()=>{const id=inPort,L=Object.keys(S.cargo).filter(g=>{const r=sellAdvice(id,+g).rec;return r==='sell'||r==='ok';});
+    (S.lux||[]).forEach(l=>{if(luxRec(l,id).rec[3])L.push(bskKeyL(l));});bskSell(L);};}catch(e){console.warn(e);}};}
+function bskSell(keys){if(!keys.length)return;const id=inPort,rows=[];let hagN=0;const fm0=S.fm?S.fm.trd||0:0;TRQ=[];
+  try{for(const k of keys){if(k[0]==='L'){const i=(S.lux||[]).findIndex(l=>bskKeyL(l)===k);if(i<0)continue;const l=S.lux[i],q=l.q,cost=l.c*q,nm=`✨ ${l.gr} ${GOODS[l.g][0]}`,g0=S.gold;
+        luxSell(i,q);const earn=S.gold-g0;if(HAG_LAST)hagN++;rows.push({nm,g:l.g,q,cost,earn,hag:HAG_LAST,trd:0});}
+      else{const g=+k,c=S.cargo[g];if(!c)continue;const q=c.q,cost=(c.c||0)*q,g0=S.gold,tm=tradeSellMul();sell(g,q);const earn=S.gold-g0;if(HAG_LAST)hagN++;
+        rows.push({nm:GOODS[g][0],g,q,cost,earn,hag:HAG_LAST,trd:Math.round((earn-HAG_LAST)*(1-1/tm))});}}}
+  finally{const Q=TRQ;TRQ=null;BSK.clear();for(const [m,s] of Q)if(!/팔았습니다|흥정 성공/.test(m))toast(m,s);}
+  if(!rows.length)return;const R={id,rows,hagN,fame:(S.fm?S.fm.trd||0:0)-fm0};S.lastTrade=R;drawPort();setTimeout(()=>showTrade(R),120);}
+function showTrade(R){let d=document.getElementById('trrep');if(!d){d=document.createElement('div');d.id='trrep';document.body.appendChild(d);}
+  const T=R.rows.reduce((a,r)=>({q:a.q+r.q,cost:a.cost+r.cost,earn:a.earn+r.earn,hag:a.hag+r.hag,trd:a.trd+r.trd}),{q:0,cost:0,earn:0,hag:0,trd:0}),pf=T.earn-T.cost,f=x=>Math.round(x).toLocaleString();
+  const w=hagWho(),acc=roleVal(3);
+  d.innerHTML=`<div class="vrbox"><button class="fwx" title="닫기">✕</button><h3>🧾 상거래 보고서 — ${PORTS[R.id].name} 교역소</h3>
+   <table class="trt"><tr><th>상품</th><th>수량</th><th>산 값</th><th>판 값</th><th>이익</th></tr>
+   ${R.rows.map(r=>`<tr><td>${gi(r.g,24)} ${r.nm}${r.hag?' <span class="hg">🤝</span>':''}</td><td class="n">${r.q}톤</td><td class="n">${r.cost>=1?f(r.cost):'-'}</td><td class="n">${f(r.earn)}</td><td class="n" style="color:${r.earn-r.cost>=0?'#2f6a2f':'#a8322a'}">${r.earn-r.cost>=0?'+':''}${f(r.earn-r.cost)}</td></tr>`).join('')}
+   <tr class="tot"><td>합계</td><td class="n">${T.q}톤</td><td class="n">${f(T.cost)}</td><td class="n">${f(T.earn)}</td><td class="n" style="color:${pf>=0?'#2f6a2f':'#a8322a'}">${pf>=0?'+':''}${f(pf)}</td></tr></table>
+   <div class="trx"><div><span>⚖️ <b>교역 능력으로 더 번 돈</b></span><span><b>+${f(T.trd)}</b>골드</span><small class="hint">회계사 교역 ${Math.round(acc)} · 특성 · 내륙 비법이 파는 값을 올렸습니다${acc?'':' (회계사를 앉히면 더 받습니다)'}</small></div>
+   <div><span>🤝 <b>흥정으로 더 번 돈</b></span><span><b>+${f(T.hag)}</b>골드</span><small class="hint">${R.rows.length}번 중 ${R.hagN}번 성공 · 흥정꾼 ${hagName()} (교역 ${Math.round(w.v)})</small></div>
+   ${R.fame>0?`<div><span>⭐ <b>교역 명성</b></span><span><b>+${R.fame}</b></span><small class="hint">거래로 남긴 이익이 교역 명성이 됩니다</small></div>`:''}</div>
+   <p class="hint">이익 = 판 값 − 산 값. 원가가 없는 물건(전리품 등)은 판 값이 모두 이익입니다. 운송비와 수리비는 입항할 때 항해 보고서에 따로 나옵니다.</p>
+   <div class="btns"><button class="main vrok">확인</button></div></div>`;
+  d.style.display='flex';const c=()=>d.style.display='none';d.querySelector('.fwx').onclick=c;d.querySelector('.vrok').onclick=c;d.onclick=e=>{if(e.target===d)c();};}
+document.addEventListener('keydown',e=>{const d=document.getElementById('trrep');if(e.key==='Escape'&&d&&d.style.display==='flex'){d.style.display='none';e.stopPropagation();}},true);
+{const st=document.createElement('style');st.textContent=`
+#trrep{position:fixed;inset:0;z-index:9000;background:rgba(20,12,4,.45);display:none;align-items:center;justify-content:center}
+.trt{width:100%;border-collapse:collapse;font-size:13.5px}.trt th{background:#e6d8bc;padding:4px;text-align:left}.trt td{border-top:1px solid #d9c9a8;padding:4px}.trt td.n,.trt th:not(:first-child){text-align:right;white-space:nowrap}.trt tr.tot td{font-weight:700;border-top:2px solid #8a6a44}
+.trt img{vertical-align:middle}.hg{font-size:12px}.trx{display:grid;gap:6px;margin:10px 0}.trx>div{display:grid;grid-template-columns:1fr auto;gap:0 8px;background:#fffaf0;border:1px solid #d9c9a8;border-radius:8px;padding:6px 10px}.trx small{grid-column:1/3}
+.hagbar,.bskbar{background:#fffaf0;border:1px solid #d9c9a8;border-radius:8px;padding:5px 10px;margin:0 0 6px;font-size:13px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.bskbar.on{background:#fff1c9;border-color:#c9a24a}.bskbar #bskAll{margin-left:auto}
+.cb .bsk{background:#f3e8cf}.cb .bsk.on{background:#c9a24a;color:#fff;border-color:#8a6a2a}`;document.head.appendChild(st);}
 
 // ===== 바람과 해류를 '흐름'으로 보여 주기 =====
 // 보기: 0 흐름(하얀 바람 줄기 + 해류의 띠와 물결) · 1 화살표(예전 방식) · 2 끔. V 키로 바꾼다.
