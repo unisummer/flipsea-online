@@ -1144,7 +1144,7 @@ function oldPlace(lat,lon){return `${fmtLat(-lat)} ${fmtLon(300-lon)}`;}
 const DISC=DISC_DATA.map((d,i)=>Object.assign({id:i},d));
 const DTYPE_COL={'동물':'#6f8f3a','식물':'#3f7f55','경관':'#2f7d86','고대 유물':'#8a6a44','옛 세계 유물':'#7a5aa0','작동 유물':'#c0408a'};
 const DTYPE_ICO={'동물':'🐾','식물':'❦','경관':'⛰','고대 유물':'⌂','옛 세계 유물':'⚙','작동 유물':'✦'};
-const RELIC_TXT={engine:'증기기관: G 키로 켜고 끄기. 켜면 속도가 2배가 된다. 한 번 채우면 10일 동안 쓸 수 있고, 항구에 들를 때마다 다시 10일로 채워진다.',scope:'지도가 드러나는 범위 넓음',chrono:'자동 항해가 직접 몰 때만큼 빨라짐',fridge:'물·식량 30% 절약',radio:'판매 조언에 가 본 항구의 지금 시세가 들어옴',lamp:'발견물을 더 멀리서 알아챔',sail:'함대 속도 +8%',gps:'스스로 위치를 아는 판: 들르는 항구마다 그 주변 가까운 항구 5곳이 지도에 저절로 나타난다.'};
+const RELIC_TXT={engine:'증기기관의 비밀: G 키로 켜는 증기기관을 10일 동안 쓸 수 있게 된다 (처음엔 1일분). 켜면 바람·해류와 상관없이 내 배 속도의 2배로 간다. 항구에 들를 때마다 다시 채워진다.',scope:'지도가 드러나는 범위 넓음',chrono:'자동 항해가 직접 몰 때만큼 빨라짐',fridge:'물·식량 30% 절약',radio:'판매 조언에 가 본 항구의 지금 시세가 들어옴',lamp:'발견물을 더 멀리서 알아챔',sail:'함대 속도 +8%',gps:'스스로 위치를 아는 판: 들르는 항구마다 그 주변 가까운 항구 5곳이 지도에 저절로 나타난다.'};
 const REGIONS=[['은빛바다','안개바다','고래바다','별빛바다'],['붉은바다','향신료바다','산호바다','무풍바다'],['폭풍바다','얼음바다','고향바다','바람바다']];
 function regionOf(lat,lon){const r=lat>23.5?0:lat>-23.5?1:2,c=Math.min(3,Math.floor((wrapLon(lon)+30)/90));return r*4+c;}
 const regionName=k=>REGIONS[Math.floor(k/4)][k%4];
@@ -1202,11 +1202,11 @@ function openLog(){if(!S)return;const R=regionStats();
   $('info').style.display='flex';infoOpen=true;$('ix').onclick=closeInfo;$('infobox').querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>showDisc(+b.dataset.d,false));}
 // 증기기관
 const ENG_MAX=10;
-const boostMax=()=>(hasRelic('engine')?10:0)+5*perkSum('boost');
-const boostMul=()=>hasRelic('engine')?2:1.5;
+const boostMax=()=>(hasRelic('engine')?10:1)+5*perkSum('boost'); // 처음부터 증기기관 1일분, 유적을 찾으면 10일분
+const boostMul=()=>2; // 바람·해류와 상관없이 내 배 속도의 2배 (voyage.js)
 function engineTick(days){if(!S.engine)return 0;S.engDays=Math.max(0,(S.engDays==null?boostMax():S.engDays)-days);
-  if(S.engDays<=0){S.engine=0;toast(`부스터가 다했습니다. 항구에 들르면 다시 ${boostMax()}일분이 채워집니다.`,true);return 0;}return 1;}
-function engineRefill(){const m=boostMax();if(m>0&&(S.engDays==null||S.engDays<m)){S.engDays=m;toast(`부스터를 다시 채웠습니다 (${m}일분).`);}}
+  if(S.engDays<=0){S.engine=0;toast(`증기기관 연료가 다했습니다. 항구에 들르면 다시 ${boostMax()}일분이 채워집니다.`,true);return 0;}return 1;}
+function engineRefill(){const m=boostMax();if(m>0&&(S.engDays==null||S.engDays<m)){S.engDays=m;toast(`증기기관 연료를 다시 채웠습니다 (${m}일분).`);}}
 
 // ===== 소리: 배경음악(기후·장소별) + 바람·파도 + 효과음 =====
 const Snd=(()=>{
@@ -1699,7 +1699,7 @@ function roadsDaily(){let inc=0;for(const k in (S.links||{})){const L=S.links[k]
   if(Math.random()<(L.guard?.003:.02)){L.block=S.day+12;sfx('warn');toast(`산적이 ${PORTS[p].name}–${PORTS[c].name} 교역로를 막았습니다! 12일 동안 내륙 물산과 통행세가 끊깁니다.`,true);}}
   if(inc){S.gold+=inc;S.st.toll=(S.st.toll||0)+inc;}}
 // ---- 지도에 그리기 ----
-function drawInland(){for(const k in (S.links||{})){const L=S.links[k],[p,c]=k.split('_').map(Number);const LP=landPath(p,c);if(!LP)continue;ctx.strokeStyle=L.block>S.day?'rgba(168,50,42,.7)':'rgba(110,70,30,.85)';ctx.lineWidth=1+L.lv*1.5;ctx.setLineDash(L.lv===1?[4,4]:[]);drawPath(LP);ctx.setLineDash([]);}
+function drawInland(){for(const k in (S.links||{})){const L=S.links[k],[p,c]=k.split('_').map(Number);const LP=landPath(p,c);if(!LP)continue;if(typeof drawRoad==='function'){try{drawRoad(LP,L);continue;}catch(e){}}ctx.strokeStyle=L.block>S.day?'rgba(168,50,42,.7)':'rgba(110,70,30,.85)';ctx.lineWidth=1+L.lv*1.5;ctx.setLineDash(L.lv===1?[4,4]:[]);drawPath(LP);ctx.setLineDash([]);}
   ctx.font='bold 13px serif';ctx.textBaseline='middle';
   for(const id of S.cf.concat(S.cr||[])){const c=PORTS[id],s=toScr(...proj(c.lat,c.lon));if(s[0]<-80||s[0]>VW+80||s[1]<-30||s[1]>VH+30)continue;const k=S.cf.includes(id);
     ctx.fillStyle=k?'#7a4a2a':'rgba(122,74,42,.5)';ctx.fillRect(s[0]-7,s[1]-5,14,10);ctx.fillRect(s[0]-7,s[1]-9,3,4);ctx.fillRect(s[0]-1.5,s[1]-9,3,4);ctx.fillRect(s[0]+4,s[1]-9,3,4);
@@ -1899,13 +1899,13 @@ function updateHud(){
   <div class="row"><span class="k">선원</span><span>${S.crew} / ${SHIP.crewMax}명</span></div>${bar(S.crew,SHIP.crewMax,'')}
   <div class="row"><span class="k">물</span><span>${Math.floor(S.water)}통 · ${use?Math.floor(S.water/(use*supplyMul()*waterMul())):'-'}일분</span></div>${bar(S.water,SHIP.water,'w')}
   <div class="row"><span class="k">식량</span><span>${Math.floor(S.food)}자루 · ${use?Math.floor(S.food/(use*supplyMul()*foodMul())):'-'}일분</span></div>${bar(S.food,SHIP.food,'f')}
-  <div class="row"><span class="k">빠르기</span><span><b>${spd} km/일</b> (${(spd/1.852/24).toFixed(1)}노트) · 돛 ${['내림','반','가득'][S.sail]}${autop?' · 자동':''}${S.engine?' · <b style="color:#a8322a">증기</b>':''}</span></div>
+  <div class="row"><span class="k">빠르기</span><span><b>${spd} km/일</b> (${(spd/1.852/24).toFixed(1)}노트) · 돛 ${['내림','반','가득'][S.sail]}${autop?' · 자동':''}${S.engine?' · <b style="color:#a8322a">증기 ×2</b>':''}</span></div>
   <div class="row"><span class="k">바람 · 해류</span><span>${dirName(-w.u,-w.v)}풍 ${w.s<.35?'약':w.s<.8?'보통':'강'} (${relName(nav.rel)}) · ${cm<6?'해류 없음':dirName(nav.cur[0],nav.cur[1])+'쪽 '+Math.round(cm)+'km'}</span></div>
   ${rem?`<div class="row"><span class="k">남은 거리</span><span>${Math.round(rem)} km${nav.sp>5?' · 약 '+Math.ceil(rem/Math.max(20,spd))+'일':''}</span></div>`:''}`;
   // 위쪽 정보 줄: 항해에 꼭 필요하지 않은 정보
   {let ti=$('topinfo');if(!ti){ti=document.createElement('div');ti.id='topinfo';document.body.appendChild(ti);}
    const tih=`<span title="가진 돈">💰 <b>${S.gold.toLocaleString()}</b></span><span class="famechip" title="명성 — 눌러서 칭호와 혜택 보기">⭐ ${typeof fameTitle==='function'?fameTitle()+' ':''}${(S.fame||0).toLocaleString()}</span><span title="발견물 (J)">🔍 ${Object.keys(S.df).length}/${DISC.length}</span><span title="함대와 항해자 (T)">⛵ ${S.fleet.length}척 · 👥 ${hiredIds().length}명</span><span title="화물칸">📦 ${cargoT()}/${cargoT()+freeT()}톤</span>`+
-    (boostMax()>0?`<span title="${hasRelic('engine')?'증기기관':'순풍 부스터'} (G)">⚙ ${S.engine?`<b style="color:#ffb08a">가동 ×${boostMul()}</b> `:''}${(S.engDays==null?boostMax():Math.min(S.engDays,boostMax())).toFixed(1)}/${boostMax()}일</span>`:'')+
+    (boostMax()>0?`<span title="${'증기기관'} (G)">⚙ ${S.engine?`<b style="color:#ffb08a">가동 ×${boostMul()}</b> `:''}${(S.engDays==null?boostMax():Math.min(S.engDays,boostMax())).toFixed(1)}/${boostMax()}일</span>`:'')+
     (S.car?`<span title="대상">🐪 ${S.car.ph==='go'?'가는 길':S.car.ph==='back'?'돌아오는 길':'도시'} ${Math.floor(S.car.t)}/${Math.round(S.car.dur)}일</span>`:'')+
     `<span title="자동 항로 (R)">🧭 ${S.opt.safe?'항구 경유':'최단'}${legs.length>1?` · 경유 ${legs.length-1}곳`:''}</span>`;if(ti._h!==tih){ti._h=tih;ti.innerHTML=tih;}}
   // 아이콘: 항구 찾기(P), 판매 장소 조언(N)
@@ -1950,7 +1950,7 @@ addEventListener('keydown',e=>{if($('title').style.display==='flex')return;const
   if(k==='t'&&inPort<0){openFleet();return;}
   if(k==='j'&&inPort<0){openLog();return;}
   if(k==='q'&&inPort<0){investigate();return;}
-  if(k==='g'&&inPort<0){if(boostMax()<=0){toast('부스터가 없습니다. 증기기관 유물을 찾거나 내륙 도시의 선물(부스터)을 받으세요.');}else if(!S.engine&&(S.engDays!=null&&S.engDays<=0)){toast('부스터가 남아 있지 않습니다. 항구에 들러 채우세요.');}else{if(S.engDays==null)S.engDays=boostMax();S.engine=S.engine?0:1;toast(S.engine?`부스터를 켰습니다. 속도 ${boostMul()}배! (남은 ${S.engDays.toFixed(1)}일)`:'부스터를 껐습니다. 남은 시간은 아껴 둡니다.');}}
+  if(k==='g'&&inPort<0){if(boostMax()<=0){toast('부스터가 없습니다. 증기기관 유물을 찾거나 내륙 도시의 선물(부스터)을 받으세요.');}else if(!S.engine&&(S.engDays!=null&&S.engDays<=0)){toast('증기기관 연료가 남아 있지 않습니다. 항구에 들러 채우세요.');}else{if(S.engDays==null)S.engDays=boostMax();S.engine=S.engine?0:1;toast(S.engine?`증기기관을 켰습니다! 바람·해류와 상관없이 내 배 속도의 ${boostMul()}배로 갑니다. (남은 ${S.engDays.toFixed(1)}일)`:'증기기관을 껐습니다. 남은 연료는 아껴 둡니다.');}}
   if(k==='r'&&inPort<0){S.opt.safe=S.opt.safe?0:1;toast(S.opt.safe?'자동 항해: 항구를 이어 가며 보급하는 안전 항로':'자동 항해: 최단 항로');}
   if(inPort>=0){if(k==='e'||k==='enter'||k==='escape')leavePort();return;}
   if(k==='w'||k==='arrowup'){if(S.sail<2)sfx('sailUp');S.sail=Math.min(2,S.sail+1);e.preventDefault();}
@@ -5048,6 +5048,200 @@ function cityKey(id){const P=PORTS[id];if(id===HOME)return 'busan';const c=culOf
   if(P.inland)return ['me','af','sa','ea'].includes(c)?'in_dry':'in_green';
   if(c==='eu')return la<46?'eu_med':'eu_north';if(c==='am')return la<23.5?'am_trop':'am_temp';return c;}
 {const b0=portBanner;portBanner=function(id){try{const k=cityKey(id);if(CIMG[k])return CIMG[k];}catch(e){}return b0(id);};}
+
+// ===== 로드맵 A. 항해 =====
+// 증기기관(바람·해류 무관 2배) · 정기 항로(기차식 항구 간 이동) · 해역(연안·근해·심해)별 경험치와 선체 마모
+// · 내구도/선원 부족 감속 · 피로·쥐·괴혈병 · 입항 항해 보고서 · 내륙 길 그림
+// ---------- 해역 ----------
+const VZ=[{n:'연안',ic:'🏝',xp:.6,wear:.0008,fat:1},{n:'근해',ic:'🌊',xp:1,wear:.003,fat:1.7},{n:'심해',ic:'🌌',xp:1.6,wear:.007,fat:2.6}];
+const VZC={};
+function seaZone(la,lo){const k=Math.round(la*2)+'_'+Math.round(lo*2);if(VZC[k]!=null)return VZC[k];let z=2;
+  const c=Math.max(.2,Math.cos(la*DEG));
+  outer:for(const [R,zz] of [[.9,0],[3.2,1]])for(let a=0;a<16;a++){const t=a*Math.PI/8;for(const f of [.33,.66,1]){const la2=la+R*f*Math.cos(t),lo2=lo+R*f*Math.sin(t)/c;if(Math.abs(la2)<89&&isLand(la2,wrapLon(lo2))){z=zz;break outer;}}}
+  return VZC[k]=z;}
+const vzNow=()=>S?seaZone(S.lat,S.lon):1;
+// ---------- 선원·선체·피로·괴혈병에 따른 감속 ----------
+function fleetHpR(){let h=0,m=0;S.fleet.forEach((sh,k)=>{h+=hpK(k);m+=hpMaxK(k);});return m?h/m:1;}
+function voyMul(){if(!S)return 1;let m=1;const cr=S.crew/Math.max(1,crewNeedT());if(cr<.5)m*=.6+.8*cr; // 최소 인원의 절반도 안 되면 더 느려진다
+  const r=fleetHpR();if(r<.5)m*=.7+.6*r;
+  const f=S.fat||0;if(f>60)m*=1-(Math.min(100,f)-60)/200;
+  if(S.scurvy)m*=.85;return m;}
+// 증기기관: 바람과 해류를 무시하고 내 배 속도(옆바람 60° 기준)의 2배
+function vCrewF(){return Math.min(1,S.crew/crewNeedT())*(S.thirst?0.6:1)*(S.hunger?0.8:1);}
+{const c0=computeNav;computeNav=function(){c0.apply(this,arguments);try{if(!S)return;const hx=Math.sin(S.hd*DEG),hy=Math.cos(S.hd*DEG);let sp=nav.sp,cur=nav.cur;
+  if(S.engine&&S.sail){sp=Math.min(SHIP.base*fleetSail(60)*navMul()*vCrewF()*boostMul(),SHIP.base*SPCAP*1.2);cur=[0,0];}
+  sp*=voyMul();if(RAIL){sp=railSpd();cur=[0,0];}nav.sp=sp;nav.cur=cur;nav.ve=hx*sp+cur[0];nav.vn=hy*sp+cur[1];}catch(e){}};}
+// ---------- 정기 항로 (기차식) ----------
+// 발견한 연안 항구끼리, 서로 가까운 곳만 이어진다. 그 사이 항구를 발견하지 않으면 길이 끊긴다. 평균 속도로 선회·바람·해류 없이 항로를 따라간다.
+const RAIL_LINK=1500,RAIL_P={},RAIL_BAD={};let RAIL=null;
+const railNodes=()=>S.found.filter(id=>!PORTS[id].inland);
+function railLeg(a,b){const lo=Math.min(a,b),hi=Math.max(a,b),k=lo+'_'+hi;
+  if(!(k in RAIL_P)){const A=PORTS[lo],B=PORTS[hi],r=findPath(A.lat,A.lon,B.lat,B.lon);let L=null;
+    if(r){const pts=[[A.lat,A.lon]].concat(r.slice(1));pts[pts.length-1]=[B.lat,B.lon];let km=0;for(let i=1;i<pts.length;i++)km+=gcDist(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1]);
+      if(km<=Math.max(RAIL_LINK*1.6,gcDist(A.lat,A.lon,B.lat,B.lon)*2.4))L={pts,km};}
+    RAIL_P[k]=L;}
+  const L=RAIL_P[k];if(!L)return null;return a===lo?L:{pts:L.pts.slice().reverse(),km:L.km};}
+function railChain(from,to){const N=railNodes();if(!N.includes(from)||!N.includes(to)||from===to)return null;
+  const dist={},prev={},done={};for(const n of N)dist[n]=1e12;dist[from]=0;
+  for(;;){let u=-1;for(const n of N)if(!done[n]&&(u<0||dist[n]<dist[u]))u=n;if(u<0||dist[u]>=1e12)break;done[u]=1;if(u===to)break;
+    for(const v of N){if(done[v]||v===u)continue;const k=u<v?u+'_'+v:v+'_'+u;if(RAIL_BAD[k])continue;const L=RAIL_P[k],d=L?L.km:gcDist(PORTS[u].lat,PORTS[u].lon,PORTS[v].lat,PORTS[v].lon)*1.2;if(!L&&d>RAIL_LINK*1.2)continue;if(L&&L.km>RAIL_LINK*1.6)continue;
+      const c=d+40;if(dist[u]+c<dist[v]){dist[v]=dist[u]+c;prev[v]=u;}}}
+  if(dist[to]>=1e12)return null;const ch=[to];while(ch[0]!==from)ch.unshift(prev[ch[0]]);return ch;}
+function railPlan(from,to){for(let t=0;t<10;t++){const ch=railChain(from,to);if(!ch)return null;let ok=1;const legs=[];
+    for(let i=1;i<ch.length;i++){const L=railLeg(ch[i-1],ch[i]);if(!L){const a=ch[i-1],b=ch[i];RAIL_BAD[a<b?a+'_'+b:b+'_'+a]=1;ok=0;break;}legs.push(L);}
+    if(ok){const km=legs.reduce((a,L)=>a+L.km,0);return {ch,legs,km};}}return null;}
+function railSpd(){return Math.max(40,SHIP.base*fleetSail(90)*navMul()*.72*vCrewF()*voyMul()*(S.engine?boostMul():1));}
+function railStart(P){const pts=[],stops=[];let km=0;
+  P.legs.forEach((L,i)=>{L.pts.forEach((q,j)=>{if(i>0&&j===0)return;pts.push(q);});km+=L.km;stops.push({at:km,id:P.ch[i+1]});});
+  const cum=[0];for(let i=1;i<pts.length;i++)cum.push(cum[i-1]+gcDist(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1]));
+  const sc=cum[cum.length-1]/km;stops.forEach(s=>s.at*=sc);
+  RAIL={pts,cum,stops,pos:0,i:1,nx:0,dest:P.ch[P.ch.length-1],from:P.ch[0]};route=null;routePort=-1;legs=[];autop=true;if(!S.sail)S.sail=2;paused=false;anchorAt=-1;try{showArrive();}catch(e){}
+  if(S.voy)S.voy.rail=1;sfx('leave');toast(`🚂 정기 항로 출발: ${P.ch.map(i=>PORTS[i].name).join(' → ')} · ${Math.round(P.km).toLocaleString()} km, 약 ${Math.max(1,Math.round(P.km/railSpd()))}일`,true);}
+function railStop(){RAIL=null;}
+function railMove(dt){const R=RAIL;if(!autop){RAIL=null;toast('정기 항로를 멈추고 직접 몹니다.');return;}
+  const d=railSpd()*dt;R.pos=Math.min(R.cum[R.cum.length-1],R.pos+d);addKm(d);
+  while(R.i<R.cum.length-1&&R.cum[R.i]<R.pos)R.i++;const a=R.pts[R.i-1],b=R.pts[R.i],seg=R.cum[R.i]-R.cum[R.i-1],u=seg>0?Math.max(0,Math.min(1,(R.pos-R.cum[R.i-1])/seg)):1;
+  let dl=b[1]-a[1];if(dl>180)dl-=360;if(dl<-180)dl+=360;S.lat=a[0]+(b[0]-a[0])*u;S.lon=wrapLon(a[1]+dl*u);
+  const hd=(Math.atan2(dl*Math.cos(S.lat*DEG),b[0]-a[0])/DEG+360)%360;if(seg>1)S.hd=hd;
+  while(R.nx<R.stops.length&&R.pos>=R.stops[R.nx].at-.01){const s=R.stops[R.nx++];
+    if(R.nx>=R.stops.length){RAIL=null;autop=false;S.sail=0;const p=PORTS[s.id];S.lat=p.lat;S.lon=p.lon;sfx('port');enterPort(s.id);return;}
+    const p=PORTS[s.id];S.lat=p.lat;S.lon=p.lon;try{hopArrive(s.id);}catch(e){}voyHop(s.id);}}
+{const m0=moveShip;moveShip=function(dt){if(RAIL){if(inPort>=0||paused||B)return;return railMove(dt);}return m0.apply(this,arguments);};}
+{const e0=enterPort;enterPort=function(id){RAIL=null;return e0.apply(this,arguments);};}
+function voyReset(){RAIL=null;if(S){S.voy=null;S.fat=0;S.scurvy=0;}}
+{const r0=respawn;respawn=function(){voyReset();return r0.apply(this,arguments);};}
+try{document.getElementById('bWreck').addEventListener('click',voyReset,true);}catch(e){}
+// 출항 직후(항구 근처) 지도에서 발견한 항구를 누르면 정기 항로를 고를 수 있다
+function railHit(sx,sy){for(const id of S.found){const p=PORTS[id];if(p.inland)continue;const s=toScr(...proj(p.lat,p.lon));if(Math.hypot(s[0]-sx,s[1]-12-sy)<22||(sx>s[0]&&sx<s[0]+120&&Math.abs(sy-(s[1]-10))<10))return id;}return -1;}
+function railAsk(from,to,P){let d=document.getElementById('railask');if(!d){d=document.createElement('div');d.id='railask';document.body.appendChild(d);}
+  const days=Math.max(1,Math.round(P.km/railSpd()));
+  d.innerHTML=`<div class="rah">🚂 <b>${PORTS[to].name}</b>까지 정기 항로</div><div class="rar">${P.ch.map((i,k)=>`<span class="${k===0||k===P.ch.length-1?'end':''}">${PORTS[i].name}</span>`).join('<i>→</i>')}</div>
+   <div class="hint">${Math.round(P.km).toLocaleString()} km · 약 <b>${days}일</b>${P.ch.length>2?` · 들르는 항구 ${P.ch.length-2}곳에서 물·식량을 채움`:''}<br>바람·해류·선회와 상관없이 평균 속도로 갑니다${S.engine?' (증기기관 켜짐: 2배)':''}. 방향키를 누르면 멈추고 직접 몹니다.</div>
+   <div class="btns"><button class="main" id="raGo">정기 항로로 가기</button><button id="raSail">직접 항해 (자동)</button><button id="raNo">취소</button></div>`;
+  d.style.display='block';const close=()=>d.style.display='none';
+  d.querySelector('#raGo').onclick=()=>{close();railStart(P);};d.querySelector('#raSail').onclick=()=>{close();const p=PORTS[to];setRoute(p.lat,p.lon,to);};d.querySelector('#raNo').onclick=close;}
+{const c0=clickAt;clickAt=function(sx,sy){try{if(!B&&!encOpen&&!S.car&&inPort<0){const to=railHit(sx,sy);
+    if(RAIL){if(to===RAIL.dest)return;RAIL=null;autop=false;toast('정기 항로를 멈췄습니다.');}
+    const from=nearPort(),tutOn=S.tut&&!S.tut.done&&S.tut.i<=10;if(!tutOn&&to>=0&&from>=0&&from!==to&&!PORTS[from].inland){const P=railPlan(from,to);if(P){railAsk(from,to,P);return;}
+      toast(`${PORTS[from].name}에서 ${PORTS[to].name}까지 이어진 정기 항로가 없습니다. 사이의 항구를 먼저 발견하세요. (자동 항해로 갑니다)`);}}}catch(e){}
+  return c0.apply(this,arguments);};}
+// 지도에 철길 같은 정기 항로 그리기
+function railDraw(){if(!RAIL)return;const R=RAIL;const P=[];for(let i=R.i-1;i<R.pts.length;i++){const q=i===R.i-1?[S.lat,S.lon]:R.pts[i];P.push(toScr(...proj(q[0],q[1])));}
+  ctx.save();ctx.lineCap='round';ctx.strokeStyle='rgba(60,40,24,.55)';ctx.lineWidth=5;ctx.beginPath();P.forEach((s,i)=>i?ctx.lineTo(s[0],s[1]):ctx.moveTo(s[0],s[1]));ctx.stroke();
+  ctx.strokeStyle='rgba(243,232,207,.9)';ctx.lineWidth=2.2;ctx.setLineDash([7,5]);ctx.stroke();ctx.setLineDash([]);
+  for(let k=R.nx;k<R.stops.length;k++){const p=PORTS[R.stops[k].id],s=toScr(...proj(p.lat,p.lon));ctx.fillStyle=k===R.stops.length-1?'#a8322a':'#3b2a1a';ctx.strokeStyle='#f3e8cf';ctx.lineWidth=2;ctx.beginPath();ctx.arc(s[0],s[1],5.5,0,7);ctx.fill();ctx.stroke();}
+  ctx.restore();}
+// ---------- 항해 기록 ----------
+function voyStart(from){const st={};for(const i of hiredIds())st[i]=[0,1,2,3,4,5,6,7].map(r=>curSt(i,r));
+  S.voy={d0:S.day,from,km0:S.km||0,hp:S.fleet.map((sh,k)=>hpK(k)),st,zd:[0,0,0],sup:0,hopG:0,hops:[],ls:S.day,ev:{rat:0,scv:0,lost:0,des:0},wear:0,wsave:0,rail:0};S.fat=0;S.scurvy=0;}
+{const l0=leavePort;leavePort=function(){const from=inPort;const r=l0.apply(this,arguments);try{voyStart(from);if(!S.tipRail&&S.found.filter(i=>!PORTS[i].inland).length>=3){S.tipRail=1;setTimeout(()=>toast('🚂 출항한 자리에서 지도의 발견한 항구를 누르면, 항구끼리 이어진 정기 항로로 바로 갈 수 있습니다.',true),900);}
+  if(!S.tipEng){S.tipEng=1;setTimeout(()=>toast(`⚙ 증기기관 연료 ${boostMax()}일분이 있습니다. G 키로 켜면 바람과 상관없이 2배로 갑니다. 증기기관 유적을 찾으면 10일분이 됩니다.`,true),2200);}}catch(e){}return r;};}
+function voyHop(id){if(!S.voy)return;S.voy.hops.push(id);S.voy.ls=S.day;S.fat=Math.max(0,(S.fat||0)-25);if(S.scurvy){S.scurvy=0;toast('들른 항구에서 신선한 음식을 먹어 괴혈병이 나았습니다.');}}
+{const h0=hopArrive;hopArrive=function(id){const g0=S.gold;const r=h0.apply(this,arguments);try{if(S.voy){S.voy.hopG+=Math.max(0,g0-S.gold);if(!RAIL)voyHop(id);}}catch(e){}return r;};}
+// 해역별 경험치: 하루 성장에 해역 배율을 곱한다
+let VXZ=1;
+{const g0=gainXp;gainXp=function(i,r,v){return g0.call(this,i,r,v*VXZ);};}
+{const m0=mateDaily;mateDaily=function(){VXZ=(inPort<0&&!S.car)?(RAIL?Math.min(1,VZ[vzNow()].xp):VZ[vzNow()].xp):1;try{return m0.apply(this,arguments);}finally{VXZ=1;}};}
+// 과일: 괴혈병을 막는다
+const FRUITS=['레몬','석류','야자 열매','말린 바나나','대추야자','무화과','사과주','말린 감','말린 살구','건포도','말린 멜론','말린 무화과 꾸러미'];
+const fruitIdx=()=>FRUITS.map(n=>G_IDX[n]).filter(g=>g!=null&&S.cargo[g]&&S.cargo[g].q>0);
+function eatFruit(){const L=fruitIdx();if(!L.length)return false;const g=L[0],c=S.cargo[g];c.q--;if(c.q<=0)delete S.cargo[g];return GOODS[g][0];}
+// 하루마다: 마모 · 피로 · 쥐 · 괴혈병
+{const d0=dailyTick;dailyTick=function(){const r=d0.apply(this,arguments);try{if(!S||inPort>=0||S.car)return r;if(!S.voy)voyStart(-1);const V=S.voy,z=vzNow(),doc=eR(6);
+  V.zd[z]++;V.sup+=S.crew/12*supplyMul()*(waterMul()+foodMul());
+  // 선체 마모: 심해일수록 더 닳는다. 갑판장이 덜 닳게 한다.
+  S.fleet.forEach((sh,k)=>{const M=hpMaxK(k),h=hpK(k),bs=Math.min(1,shipRole(k,5)/100),w0=M*VZ[z].wear*(RAIL?.5:1),w=w0*(1-.45*bs);if(h>M*.25){const nh=Math.max(M*.25,h-w);V.wear+=h-nh;V.wsave+=w0-w;sh.hp=nh;}});
+  // 피로: 바다에 오래 있을수록 쌓인다. 의사가 덜어 준다.
+  const f0=S.fat||0;S.fat=Math.min(100,f0+VZ[z].fat*(1-.35*doc)*(nav.w&&nav.w.s>1.1?1.4:1));
+  if(f0<60&&S.fat>=60)toast('😓 선원들이 지쳤습니다 (피로 60). 배가 조금씩 느려집니다. 항구에 들러 쉬게 하세요.',true);
+  if(f0<80&&S.fat>=80)toast('😫 선원들이 몹시 지쳤습니다 (피로 80). 다툼이 일고 몰래 떠나는 선원이 생깁니다.',true);
+  if(S.fat>=80&&Math.random()<.05){const n=Math.min(S.crew-1,1+Math.floor(Math.random()*2));if(n>0){S.crew-=n;V.ev.des+=n;toast(`지친 선원 ${n}명이 다투다 작은 배를 타고 떠났습니다.`,true);}}
+  const ds=S.day-V.ls;
+  // 쥐: 오래 항해할수록 식량 창고에 쥐가 들끓는다
+  if(ds>10&&Math.random()<Math.min(.08,.015+.002*(ds-10))*(hasRelic('fridge')?.5:1)){const lf=Math.round(S.food*(.08+.1*Math.random()));S.food=Math.max(0,S.food-lf);let extra='';
+    const F=Object.keys(S.cargo).filter(g=>GOODS[g][1]==='식료품'&&S.cargo[g].q>0);if(F.length){const g=F[Math.floor(Math.random()*F.length)],c=S.cargo[g],n=Math.max(1,Math.round(c.q*.1));c.q-=n;if(c.q<=0)delete S.cargo[g];extra=`, 짐칸의 ${GOODS[g][0]} ${n}톤`;}
+    V.ev.rat++;sfx('warn');toast(`🐀 쥐 떼가 식량 창고를 털었습니다! 식량 ${lf}자루${extra}을(를) 잃었습니다.`,true);}
+  // 괴혈병: 항구에 들르지 않은 지 25일이 넘으면 생긴다. 과일을 실으면 막는다.
+  if(ds>20&&!S.scurvy&&((S.vfr=(S.vfr||0)+1)%6===0)){const n=eatFruit();if(n)V.fruit=(V.fruit||0)+1;}
+  if(!S.scurvy&&ds>25){const has=fruitIdx().length>0,p=Math.min(.2,.02+.01*(ds-25))*(1-.5*doc)*(has?.1:1);
+    if(Math.random()<p){S.scurvy=1;V.ev.scv++;sfx('warn');toast(`🤒 괴혈병이 돌기 시작했습니다! 선원이 날마다 쓰러집니다. 항구에 들르거나 레몬·석류 같은 과일을 실으면 낫습니다.`,true);}}
+  if(S.scurvy){const n=eatFruit();if(n&&Math.random()<.5){S.scurvy=0;toast(`${n}을(를) 나눠 먹고 괴혈병이 나았습니다.`,true);}
+    else{const l=Math.max(1,Math.ceil(S.crew*.025*lossMul()));S.crew=Math.max(0,S.crew-l);V.ev.lost+=l;if(S.crew<=0)wreck();}}
+  }catch(e){console.warn(e);}return r;};}
+// 해역이 바뀌면 알림 (심해에 들어가고 나올 때만)
+let vzLast=-1,vzT=0;setInterval(()=>{try{if(!S||inPort>=0||S.car||B)return;const z=vzNow();if(vzLast<0){vzLast=z;return;}
+  if(z!==vzLast&&(z===2||vzLast===2)&&S.day-vzT>1.5){vzT=S.day;toast(z===2?`🌌 심해에 들어섰습니다 — 항해 경험 ×${VZ[2].xp} · 배가 빨리 닳고 선원이 쉽게 지칩니다.`:`🌊 ${VZ[z].n}으로 들어왔습니다 — 항해 경험 ×${VZ[z].xp}.`);}vzLast=z;}catch(e){}},1000);
+// 상태판에 해역·선체·피로
+{const u0=updateHud;updateHud=function(){const r=u0.apply(this,arguments);try{if(S&&inPort<0&&!S.car){const h=document.getElementById('hud');if(h){const z=vzNow(),hp=Math.round(fleetHpR()*100),f=Math.round(S.fat||0),cr=S.crew/Math.max(1,crewNeedT());
+  h.insertAdjacentHTML('beforeend',`<div class="row"><span class="k">해역</span><span>${VZ[z].ic} ${VZ[z].n} · 경험 ×${VZ[z].xp}${RAIL?` · <b>🚂 정기 항로 → ${PORTS[RAIL.dest].name}</b>`:''}</span></div>
+   <div class="row"><span class="k">선체 · 피로</span><span><b style="color:${hp<50?'#a8322a':'inherit'}">${hp}%</b> · <b style="color:${f>=60?'#a8322a':'inherit'}">${f}</b>${S.scurvy?' · <b style="color:#a8322a">괴혈병</b>':''}${cr<.5?' · <b style="color:#a8322a">선원 부족</b>':''}</span></div>`);}}}catch(e){}return r;};}
+// ---------- 입항 항해 보고서 ----------
+function voyReport(id){const V=S.voy;if(!V)return null;const days=S.day-V.d0;if(days<.8)return null;
+  const km=Math.max(0,(S.km||0)-V.km0),zt=V.zd[0]+V.zd[1]+V.zd[2]||1;
+  const grow=[];for(const i of hiredIds()){const a=V.st[i];if(!a)continue;const up=[];for(let r=0;r<8;r++){const d=curSt(i,r)-a[r];if(d>0)up.push(`${STATK[r]} +${d}`);}if(up.length)grow.push(`<b>${MATES[i].name}</b> ${up.join(', ')}`);}
+  let dmg=0,fix=0;S.fleet.forEach((sh,k)=>{const h0=V.hp[k];if(h0==null)return;const T=ST(sh),lost=Math.max(0,h0-hpK(k));dmg+=lost;fix+=lost*T.price/T.hp*.15*(1-traitV('repc'));});
+  const repNow=S.fleet.reduce((a,sh,k)=>a+repCostK(k),0),perHp=dmg>0?fix/dmg:0;
+  const sup=Math.round(V.sup),wage=Math.round(days*hiredIds().reduce((a,i)=>a+salaryNow(i),0)/30),trans=sup+wage+Math.round(V.hopG),t=cargoT();
+  const bs=Math.max(0,...S.fleet.map((sh,k)=>shipRole(k,5))),doc=roleVal(6);
+  const ev=[];if(V.ev.rat)ev.push(`🐀 쥐 ${V.ev.rat}번`);if(V.ev.scv)ev.push(`🤒 괴혈병 (선원 ${V.ev.lost}명 잃음)`);if(V.ev.des)ev.push(`😫 지쳐 떠난 선원 ${V.ev.des}명`);if(V.fruit)ev.push(`🍋 과일 ${V.fruit}톤을 먹음`);
+  return {id,from:V.from,days,km,zd:V.zd.map(x=>x/zt),grow,dmg:Math.round(dmg),fix:Math.round(fix),repNow,sup,wage,hopG:Math.round(V.hopG),trans,perT:t?Math.round(trans/t):0,t,
+    bs,wsave:Math.round(V.wsave*perHp),doc,ev,hops:V.hops,rail:V.rail,fat:Math.round(S.fat||0)};}
+function voyHTML(R){const zb=R.zd.map((f,z)=>f>0?`<i style="flex:${f};background:${['#7fb07a','#5a8fb8','#2d4a78'][z]}" title="${VZ[z].n} ${Math.round(f*100)}%">${f>.12?VZ[z].n+' '+Math.round(f*100)+'%':''}</i>`:'').join('');
+  const row=(k,v,h)=>`<tr><td>${k}</td><td><b>${v}</b></td><td class="hint">${h||''}</td></tr>`;
+  return `<div class="vrbox"><button class="fwx" title="닫기">✕</button><h3>📜 항해 보고서 — ${R.from>=0?PORTS[R.from].name+' → ':''}${PORTS[R.id].name}</h3>
+  <div class="vrsum"><span>⏳ <b>${Math.round(R.days)}</b>일</span><span>🧭 <b>${Math.round(R.km).toLocaleString()}</b> km</span>${R.hops.length?`<span>⚓ 들른 항구 ${R.hops.map(i=>PORTS[i].name).join(', ')}</span>`:''}${R.rail?'<span>🚂 정기 항로</span>':''}</div>
+  <h4>지나온 바다</h4><div class="vrz">${zb}</div><div class="hint">연안 경험 ×${VZ[0].xp} · 근해 ×${VZ[1].xp} · 심해 ×${VZ[2].xp}. 깊은 바다일수록 많이 배우지만 배가 빨리 닳습니다.</div>
+  <h4>항해자 성장</h4>${R.grow.length?`<ul>${R.grow.map(g=>`<li>${g}</li>`).join('')}</ul>`:'<p class="hint">이번 항해에서 오른 능력은 없습니다.</p>'}
+  <h4>비용</h4><table class="vrt">${row('선체 손상',`${R.dmg.toLocaleString()}`,`이번 항해의 수리비 약 ${R.fix.toLocaleString()}골드 · 지금 함대 전체 수리비 ${R.repNow.toLocaleString()}골드`)}
+   ${row('운송비',`${R.trans.toLocaleString()}골드`,`물·식량 ${R.sup.toLocaleString()} + 항해자 급여 ${R.wage.toLocaleString()}${R.hopG?` + 들른 항구 보급 ${R.hopG.toLocaleString()}`:''}${R.t?` · 짐 1톤당 <b>${R.perT}</b>골드`:''}`)}
+   ${row('부관 효과',`갑판장 ${Math.round(R.bs)} · 의사 ${Math.round(R.doc)}`,R.bs+R.doc<=0?'갑판장과 의사를 자리에 앉히면 선체가 덜 닳고, 선원이 덜 지치고, 괴혈병에 덜 걸립니다.':`갑판장이 선체 마모를 ${Math.round(45*Math.min(1,R.bs/100))}% 줄여 수리비 약 ${R.wsave.toLocaleString()}골드를 아꼈습니다. 의사가 피로를 ${Math.round(35*Math.min(1,R.doc/100))}% 덜고 괴혈병 위험을 ${Math.round(50*Math.min(1,R.doc/100))}% 낮췄습니다.`)}</table>
+  ${R.ev.length?`<h4>항해 중 일</h4><p>${R.ev.join(' · ')}</p>`:''}<p class="hint">입항해서 선원들이 쉬었습니다 (피로 ${R.fat} → 0). 수리는 조선소에서 합니다.</p>
+  <div class="btns"><button class="main vrok">확인</button></div></div>`;}
+function showVoy(R){let d=document.getElementById('voyrep');if(!d){d=document.createElement('div');d.id='voyrep';document.body.appendChild(d);}
+  d.innerHTML=voyHTML(R);d.style.display='flex';const c=()=>d.style.display='none';d.querySelector('.fwx').onclick=c;d.querySelector('.vrok').onclick=c;d.onclick=e=>{if(e.target===d)c();};}
+{const e1=enterPort;enterPort=function(id){let R=null;try{if(S&&!PORTS[id].inland&&S.voy){R=voyReport(id);S.lastVoy=R;S.voy=null;S.fat=0;S.scurvy=0;}}catch(e){console.warn(e);}
+  const r=e1.apply(this,arguments);if(R){const tut=S.tut&&!S.tut.done,big=R.days>=5||R.ev.length||R.grow.length;
+    if(S.opt.voyRep!==0&&big&&!tut)setTimeout(()=>{try{showVoy(R);}catch(e){}},350);
+    else setTimeout(()=>toast(`📜 항해 ${Math.round(R.days)}일 · ${Math.round(R.km).toLocaleString()}km · 선체 손상 ${R.dmg} (수리비 약 ${R.fix.toLocaleString()}골드) · 운송비 ${R.trans.toLocaleString()}골드`),500);}return r;};}
+document.addEventListener('keydown',e=>{const d=document.getElementById('voyrep');if(e.key==='Escape'&&d&&d.style.display==='flex'){d.style.display='none';e.stopPropagation();}},true);
+// ---------- 내륙 길 그림 ----------
+// 오솔길 = 발자국 점선, 마찻길 = 두 줄 바퀴 자국, 큰길 = 돌 깐 길과 역참. 막히면 붉게.
+function drawRoad(LP,L){const P=[],pts=LP.pts;for(let i=0;i<pts.length;i++){if(i===0){P.push(toScr(...proj(pts[0][0],pts[0][1])));continue;}
+    const a=pts[i-1],b=pts[i];let dl=b[1]-a[1];if(dl>180)dl-=360;if(dl<-180)dl+=360;const n=Math.max(1,Math.ceil(Math.hypot(b[0]-a[0],dl)/1.5));for(let u=1;u<=n;u++)P.push(toScr(...proj(a[0]+(b[0]-a[0])*u/n,a[1]+dl*u/n)));}
+  if(P.length<2)return;const blk=L.block>S.day,ink=blk?'rgba(168,50,42,.85)':'rgba(92,58,26,.9)',k=Math.max(.7,Math.min(1.8,cam.z*.35));
+  const line=()=>{ctx.beginPath();P.forEach((s,i)=>i?ctx.lineTo(s[0],s[1]):ctx.moveTo(s[0],s[1]));};
+  // 길을 따라 일정 간격으로 점 찍기
+  const walk=(step,fn)=>{let acc=step/2,idx=0;for(let i=1;i<P.length;i++){const a=P[i-1],b=P[i],d=Math.hypot(b[0]-a[0],b[1]-a[1]);if(!d)continue;const ux=(b[0]-a[0])/d,uy=(b[1]-a[1])/d;let t=acc;while(t<=d){fn(a[0]+ux*t,a[1]+uy*t,ux,uy,idx++);t+=step;}acc=t-d;}};
+  ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
+  if(L.lv<=1){ // 오솔길: 왼발·오른발 자국
+    ctx.fillStyle=ink;walk(6*k,(x,y,ux,uy,i)=>{const o=(i%2?1:-1)*1.6*k;ctx.beginPath();ctx.ellipse(x-uy*o,y+ux*o,1.5*k,1*k,Math.atan2(uy,ux),0,7);ctx.fill();});}
+  else if(L.lv===2){ // 마찻길: 흙길 + 두 줄 바퀴 자국
+    ctx.strokeStyle=blk?'rgba(200,120,100,.35)':'rgba(196,160,108,.55)';ctx.lineWidth=6*k;line();ctx.stroke();
+    for(const o of [-1.7,1.7]){ctx.strokeStyle=ink;ctx.lineWidth=.9*k;ctx.setLineDash([5*k,2.5*k]);ctx.beginPath();
+      for(let i=0;i<P.length;i++){const a=P[Math.max(0,i-1)],b=P[Math.min(P.length-1,i+1)];let nx=-(b[1]-a[1]),ny=b[0]-a[0];const n=Math.hypot(nx,ny)||1;nx/=n;ny/=n;const x=P[i][0]+nx*o*k,y=P[i][1]+ny*o*k;i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();}
+    ctx.setLineDash([]);}
+  else{ // 큰길: 테두리 있는 돌길 + 가운데 줄 + 역참
+    ctx.strokeStyle=ink;ctx.lineWidth=7*k;line();ctx.stroke();ctx.strokeStyle=blk?'rgba(230,180,170,.95)':'rgba(222,196,150,.95)';ctx.lineWidth=4.6*k;ctx.stroke();
+    ctx.strokeStyle='rgba(120,84,44,.75)';ctx.lineWidth=.9*k;ctx.setLineDash([3*k,4*k]);ctx.stroke();ctx.setLineDash([]);}
+  if(L.lv>=2){let tot=0;for(let i=1;i<P.length;i++)tot+=Math.hypot(P[i][0]-P[i-1][0],P[i][1]-P[i-1][1]);const step=Math.max(60*k,tot/Math.max(1,Math.round(tot/(85*k))));
+    walk(step,(x,y)=>{if(Math.hypot(x-P[0][0],y-P[0][1])<20*k||Math.hypot(x-P[P.length-1][0],y-P[P.length-1][1])<20*k)return; // 역참: 작은 집
+      ctx.fillStyle='#f3e8cf';ctx.strokeStyle=ink;ctx.lineWidth=1.2;const s=3.2*k;ctx.beginPath();ctx.rect(x-s,y-s*.6,s*2,s*1.5);ctx.fill();ctx.stroke();
+      ctx.fillStyle=ink;ctx.beginPath();ctx.moveTo(x-s*1.35,y-s*.55);ctx.lineTo(x,y-s*1.7);ctx.lineTo(x+s*1.35,y-s*.55);ctx.closePath();ctx.fill();
+      if(L.lv>=3){ctx.strokeStyle=ink;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x+s*.9,y-s*1.1);ctx.lineTo(x+s*.9,y-s*2.6);ctx.stroke();ctx.fillStyle=blk?'#a8322a':'#c9a24a';ctx.beginPath();ctx.moveTo(x+s*.9,y-s*2.6);ctx.lineTo(x+s*2.2,y-s*2.2);ctx.lineTo(x+s*.9,y-s*1.8);ctx.fill();}});}
+  if(blk){const m=P[Math.floor(P.length/2)];ctx.font=`${Math.round(13*k)}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('⛔',m[0],m[1]);ctx.textAlign='left';}
+  ctx.restore();}
+{const di=drawInland;drawInland=function(){const r=di.apply(this,arguments);try{railDraw();}catch(e){}return r;};}
+{const st=document.createElement('style');st.textContent=`
+#railask{position:fixed;left:50%;top:22%;transform:translateX(-50%);z-index:60;display:none;width:min(460px,92vw);background:#f6edd6;border:2px solid #5c3a1a;border-radius:10px;padding:12px 14px;box-shadow:0 8px 30px rgba(0,0,0,.35);color:#2d1c0e;font-size:14px}
+#railask .rah{font-size:16px;margin-bottom:6px}#railask .rar{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:4px 0 8px}#railask .rar span{background:#fffaf0;border:1px solid #cdb68e;border-radius:12px;padding:1px 8px;font-size:13px}
+#railask .rar span.end{background:#5c3a1a;color:#f6edd6}#railask .rar i{font-style:normal;color:#8a6a44}#railask .btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;justify-content:flex-end}
+body.mob #railask{top:auto;bottom:calc(var(--dock,60px) + 90px)}
+#voyrep{position:fixed;inset:0;z-index:9000;background:rgba(20,12,4,.45);display:none;align-items:center;justify-content:center}
+.vrbox{position:relative;width:min(600px,94vw);max-height:88vh;overflow:auto;background:#f6edd6;border:2px solid #5c3a1a;border-radius:10px;padding:14px 16px;color:#2d1c0e;font-size:14px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+.vrbox h3{margin:0 26px 8px 0}.vrbox h4{margin:12px 0 4px;color:#7a4a12}.vrbox ul{margin:2px 0;padding-left:18px}.vrbox .fwx{position:absolute;top:8px;right:8px}
+.vrsum{display:flex;flex-wrap:wrap;gap:6px 14px}.vrz{display:flex;height:20px;border-radius:5px;overflow:hidden;border:1px solid #8a6a44}.vrz i{font:11px/20px sans-serif;color:#fff;text-align:center;font-style:normal;white-space:nowrap;overflow:hidden}
+.vrt{width:100%;border-collapse:collapse}.vrt td{border-top:1px solid #d9c9a8;padding:5px 4px;vertical-align:top}.vrt td:first-child{white-space:nowrap;color:#5c3a1a}.vrt td:nth-child(2){white-space:nowrap}
+.vrbox .btns{display:flex;justify-content:flex-end;margin-top:10px}`;document.head.appendChild(st);}
 
 // ===== 바람과 해류를 '흐름'으로 보여 주기 =====
 // 보기: 0 흐름(하얀 바람 줄기 + 해류의 띠와 물결) · 1 화살표(예전 방식) · 2 끔. V 키로 바꾼다.
