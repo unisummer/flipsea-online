@@ -2157,7 +2157,8 @@ function startBattle(p,mode){$('bat').style.display='none';encOpen=false;paused=
 function shipVmax(s){const rel=Math.abs(((s.hd-B.wt+540)%360)-180);
   return (s.side===1&&typeof pirSpd==='function'?pirSpd():1)*70*s.T.spd*rigF(s.T.rig,rel)*[0,.55,1][s.sail]*(.45+.55*s.sailHp/100)*(.6+.4*Math.max(0,s.hp)/s.hpMax)*(.8+.4*Math.min(1,B.ws))*(s.side===0&&B.buff>0?(s.flag?1.25:1.1):1)*(1+.12*Math.min(100,s.side?s.lv*15:shipRoleB(s,1))/100);}
 const shipRoleB=(s,r)=>s.side===0?shipRole(s.k,r):0;
-const turnRate=s=>TURN_R[s.T.sz]*(.5+.5*Math.min(1,s.v/30));
+// 선회율(도/초): 멈추면 절반, 30 이상이면 최대. 빠른 배는 속도에 맞춰 키가 더 잘 들어 선회 반경이 지나치게 커지지 않게(반경 ∝ √속도)
+const turnRate=s=>TURN_R[s.T.sz]*(.55+.45*Math.min(1,s.v/30))*(s.v>60?Math.sqrt(s.v/60):1);
 function steerTo(s,want,dt){const d=((want-s.hd+540)%360)-180,r=turnRate(s)*dt;s.hd=(s.hd+Math.max(-r,Math.min(r,d))+360)%360;}
 function arcTarget(s,side,R){const h=s.hd*DEG,bx=Math.cos(h)*side,by=Math.sin(h)*side;let best=null,bd=1e9;
   for(const o of B.ships){if(o.side===s.side||o.out)continue;const dx=o.x-s.x,dy=o.y-s.y,d=Math.hypot(dx,dy);if(d>R||d<1)continue;if((dx*bx+dy*by)/d<Math.cos(52*DEG))continue;
@@ -2234,7 +2235,8 @@ function battleUpdate(dt){if(!B||B.pause)return;dt=Math.min(dt,.05);B.t+=dt;cons
     else{for(const sd of ['-1','1'])s.rl[sd]=Math.max(0,s.rl[sd]-dt);s.chainCd=Math.max(0,s.chainCd-dt);s.fireCd=Math.max(0,s.fireCd-dt);s.repCd=Math.max(0,s.repCd-dt);s.boardCd=Math.max(0,s.boardCd-dt);
       if(s===F&&!B.end){const tn=(keys['a']||keys['arrowleft']?-1:0)+(keys['d']||keys['arrowright']?1:0);s.hd=(s.hd+tn*turnRate(s)*dt+360)%360;}
       else if(!B.end)ai(s,dt);
-      s.v+=(shipVmax(s)-s.v)*Math.min(1,dt*.9);
+      {const vm=shipVmax(s);s.v+=(vm-s.v)*Math.min(1,dt*(vm<s.v?2.2:.9));} // 돛을 줄이면 물의 저항으로 빨리 느려진다
+      if(s===F&&!B.end&&(keys['a']||keys['arrowleft']||keys['d']||keys['arrowright']))s.v*=1-.3*dt; // 키를 크게 꺾으면 속도를 잃는다
       if(s.repT>0){s.repT-=dt;s.hp=Math.min(s.hpMax,s.hp+s.repRate*dt);}
       if(s.fire>0){s.hp-=s.hpMax*.012*dt;s.fire=Math.max(0,s.fire-dt*(1+s.rep/50));if(Math.random()<dt*14)B.fx.push({k:'flame',x:s.x+(Math.random()-.5)*s.W,y:s.y+(Math.random()-.5)*s.L*.6,t:0,T:.7});if(s.hp<=0)shipDown(s);}}
     if(s.out!=='sunk'||s.outT<4){s.x+=Math.sin(s.hd*DEG)*s.v*dt;s.y-=Math.cos(s.hd*DEG)*s.v*dt;}
@@ -6021,42 +6023,86 @@ function bfxFig(g,f,side,t){const s=f.lead?1.35:1,bob=f.st?0:Math.abs(Math.sin(t
   if(down&&f.t<1.2){g.fillStyle='#ffd84a';for(let i=0;i<3;i++){const a=t*4+i*2.1;g.beginPath();g.arc(Math.cos(a)*9,-24+Math.sin(a)*3,1.6,0,7);g.fill();}}
   if(f.st===2){g.fillStyle='#8fd0ff';g.beginPath();g.moveTo(9,-20);g.quadraticCurveTo(12,-15,9,-14);g.quadraticCurveTo(6,-15,9,-20);g.fill();}
   g.restore();}
-function bfxLoop(){BFX.raf=0;const w=document.getElementById('bdwin');if(!BD||!w||w.style.display==='none')return;const c=document.getElementById('bdcv');if(!c){BFX.raf=requestAnimationFrame(bfxLoop);return;}
-  const g=c.getContext('2d'),now=performance.now()/1000,A=BFX.anim,at=A?now-A.t0:0;bfxSync();bfxDeck(g);
+// 연출 속도: 결과는 그대로, 그림만 느리게/빠르게. 가상 시계(BFX.vt)로 모든 움직임을 잰다.
+const BFX_SPD=[[.25,'아주 느리게'],[.5,'느리게'],[1,'보통'],[2,'빠르게']];
+const bfxSpd=()=>(S&&S.opt&&S.opt.bdSpd)||1;
+BFX.vt=0;BFX.last=0;BFX.q=[];
+const bfxNow=()=>BFX.vt;
+function bfxAt(dt,fn){BFX.q.push({at:BFX.vt+dt,fn});}
+const BFX_ORDTAG={adv:['⚔ 진격','#ffe2a8'],hold:['🛡 버티기','#cfe6ff'],shoot:['🎯 사수','#ffd0d0'],flank:['↪ 우회','#d8ffc8']};
+function bfxLoop(){BFX.raf=0;const w=document.getElementById('bdwin');if(!BD||!w||w.style.display==='none'){BFX.last=0;return;}const c=document.getElementById('bdcv');if(!c){BFX.raf=requestAnimationFrame(bfxLoop);return;}
+  const rn=performance.now()/1000,rdt=BFX.last?Math.min(.05,rn-BFX.last):1/60;BFX.last=rn;const sp=bfxSpd(),dt=rdt*sp,fk=dt*60;BFX.vt+=dt;
+  const due=BFX.q.filter(e=>e.at<=BFX.vt);BFX.q=BFX.q.filter(e=>e.at>BFX.vt);due.forEach(e=>{try{e.fn();}catch(err){console.error(err);}});
+  const g=c.getContext('2d'),now=BFX.vt,A=BFX.anim,at=A?now-A.t0:0;bfxSync();bfxDeck(g);
+  const lerp=r=>1-Math.pow(1-r,fk);
   const ord=[];for(const u of BD.them.concat(BD.us))for(const f of u.figs)ord.push([f,u]);ord.sort((a,b)=>a[0].y-b[0].y);
   for(const [f,u] of ord){
     if(f.st===0){let tx=f.hx,ty=f.hy;f.atk=0;
-      if(A&&A.fight.has(u)){const k=Math.max(0,Math.min(1,(at-.15)/1.0)),lu=Math.sin(Math.PI*k);const dy=(BFX_MID-f.hy)*.78;ty=f.hy+dy*lu;tx=f.hx+Math.sin(f.ph*3)*6*lu;f.atk=lu;}
-      if(A&&A.shoot.has(u)){f.atk=.4;}
-      f.x+=(tx-f.x)*.18;f.y+=(ty-f.y)*.18;f.a=Math.min(1,f.a+.06);}
-    else if(f.st===1){f.t+=1/60;f.rot=Math.min(1,f.t/.35)*1.45*f.rd;if(f.t>1.1&&f.a>.38)f.a-=.02;}
-    else if(f.st===2){f.t+=1/60;f.y+=(u.side?-1.6:1.6);f.x+=f.rd*.6;f.a-=.02;}
+      if(A&&A.fight.has(u)){const k=Math.max(0,Math.min(1,(at-A.T.lunge)/A.T.lungeD)),lu=Math.sin(Math.PI*k);const dy=(BFX_MID-f.hy)*.78;ty=f.hy+dy*lu;tx=f.hx+Math.sin(f.ph*3)*6*lu;f.atk=lu;}
+      if(A&&A.shoot.has(u)&&at>A.T.shot-.1&&at<A.T.shot+.9){f.atk=.5;}
+      if(A&&A.hold.has(u)&&at<A.T.end-.2){f.atk=0;ty=f.hy+(u.side?-3:3);}
+      if(BFX.cheer&&!u.side&&now<BFX.cheer){ty-=Math.abs(Math.sin((now*6+f.ph)))*7;}
+      f.x+=(tx-f.x)*lerp(.18);f.y+=(ty-f.y)*lerp(.18);f.a=Math.min(1,f.a+.06*fk);}
+    else if(f.st===1){f.t+=dt;f.rot=Math.min(1,f.t/.35)*1.45*f.rd;if(f.t>1.1&&f.a>.38)f.a-=.02*fk;}
+    else if(f.st===2){f.t+=dt;f.y+=(u.side?-1.6:1.6)*fk;f.x+=f.rd*.6*fk;f.a-=.02*fk;}
     bfxFig(g,f,u.side,now);}
   for(const u of BD.us.concat(BD.them))u.figs=u.figs.filter(f=>f.a>0||f.st===0);
+  // 명령 이름표 (턴 동안 소대 위에)
+  if(A&&at<A.T.end-.15){const sl=[bfxSlots(0),bfxSlots(1)];g.font='bold 12px sans-serif';g.textAlign='center';
+    for(const u of A.tagged){const H=bfxHomes(u,sl[u.side].get(u)||{k:0,n:1})(2),T=BFX_ORDTAG[u.ord]||BFX_ORDTAG.adv,y=u.side?H[1]-42:H[1]+34,tw=g.measureText(T[0]).width+12,al=Math.min(1,at*4)*Math.min(1,(A.T.end-.15-at)*4);
+      g.globalAlpha=Math.max(0,al);g.fillStyle='rgba(40,30,20,.75)';bfxRR(g,H[0]-tw/2,y-12,tw,17,8);g.fill();g.fillStyle=T[1];g.fillText(T[0],H[0],y+1);g.globalAlpha=1;}g.textAlign='left';}
   // 불꽃·총알·숫자
-  BFX.fx=BFX.fx.filter(e=>now-e.t0<e.d);for(const e of BFX.fx){const k=(now-e.t0)/e.d;
+  BFX.fx=BFX.fx.filter(e=>now-e.t0<e.d);for(const e of BFX.fx){const k=(now-e.t0)/e.d;if(k<0)continue;
     if(e.k==='spark'){g.strokeStyle=`rgba(255,${200+Math.random()*55|0},120,${1-k})`;g.lineWidth=2;for(let i=0;i<5;i++){const a=Math.random()*7,r=4+k*14;g.beginPath();g.moveTo(e.x,e.y);g.lineTo(e.x+Math.cos(a)*r,e.y+Math.sin(a)*r);g.stroke();}}
-    else if(e.k==='shot'){const x=e.x+(e.x2-e.x)*Math.min(1,k*1.6),y=e.y+(e.y2-e.y)*Math.min(1,k*1.6);g.fillStyle='#2a2a2a';g.beginPath();g.arc(x,y,2,0,7);g.fill();if(k<.15){g.fillStyle='rgba(255,220,120,.9)';g.beginPath();g.arc(e.x,e.y,6,0,7);g.fill();}}
+    else if(e.k==='shot'){const q=Math.min(1,k*1.6),x=e.x+(e.x2-e.x)*q,y=e.y+(e.y2-e.y)*q-Math.sin(q*Math.PI)*18;g.strokeStyle='rgba(255,255,255,.5)';g.lineWidth=1;g.beginPath();g.moveTo(e.x,e.y);g.lineTo(x,y);g.stroke();g.fillStyle='#2a2a2a';g.beginPath();g.arc(x,y,2.4,0,7);g.fill();if(k<.15){g.fillStyle='rgba(255,220,120,.9)';g.beginPath();g.arc(e.x,e.y,7,0,7);g.fill();}if(q>=1&&k<.8){g.fillStyle='rgba(255,140,90,.8)';g.beginPath();g.arc(e.x2,e.y2,5*(1-k),0,7);g.fill();}}
     else if(e.k==='txt'){g.font='bold 20px sans-serif';g.textAlign='center';g.lineWidth=3;g.strokeStyle='rgba(0,0,0,.6)';const y=e.y-k*26;g.globalAlpha=1-k*k;g.strokeText(e.s,e.x,y);g.fillStyle=e.c;g.fillText(e.s,e.x,y);g.globalAlpha=1;g.textAlign='left';}}
   BFX.raf=requestAnimationFrame(bfxLoop);}
 function bfxStart(){if(!BFX.raf)BFX.raf=requestAnimationFrame(bfxLoop);}
-{const d0=bdDraw;bdDraw=function(){const r=d0.apply(this,arguments);bfxStart();return r;};}
-// 한 턴의 싸움 장면: 달려듦 → 부딪힘(불꽃) → 쓰러짐(줄어든 수만큼) → 무너진 소대는 달아남 → 끝나면 다음 처리
-function bdAnim(before,done){const now=performance.now()/1000,fight=new Set(),shoot=new Set(),sl=[bfxSlots(0),bfxSlots(1)];
-  for(const [u,b] of before){if(b.c<=0||b.mor<=0)continue;if(u.ord==='shoot'){shoot.add(u);continue;}const foes=before.size&&[...before].filter(([v,bb])=>v.side!==u.side&&bb.c>0&&bb.mor>0&&bb.lane===u.lane);if(foes.length||u.ord==='flank')fight.add(u);}
-  BFX.anim={t0:now,fight,shoot};
-  // 사수대의 총알
+// 속도 단추를 백병전 창 머리에 붙인다
+function bfxSpdUI(){const h=document.querySelector('#bdwin .bdh');if(!h||h.querySelector('.bdspd'))return;const d=document.createElement('div');d.className='bdspd';
+  d.innerHTML=`<span>연출 속도</span>${BFX_SPD.map(([v,n])=>`<button data-bsp="${v}" class="${bfxSpd()===v?'on':''}" title="${n}">×${v===.25?'¼':v===.5?'½':v}</button>`).join('')}`;
+  h.insertBefore(d,h.querySelector('canvas')||null);d.querySelectorAll('[data-bsp]').forEach(b=>b.onclick=()=>{S.opt.bdSpd=+b.dataset.bsp;try{save();}catch(e){}d.querySelectorAll('[data-bsp]').forEach(x=>x.classList.toggle('on',x===b));});}
+{const d0=bdDraw;bdDraw=function(){const r=d0.apply(this,arguments);bfxSpdUI();bfxStart();return r;};}
+// 한 턴의 싸움 장면: 명령 이름표 → 사수 총알 → 달려듦·부딪힘 → 쓰러짐(줄어든 수만큼)·−N → 무너진 소대는 달아남 → 다음 처리
+// 시간은 가상 시계(보통 속도 기준 약 2.4초). 느리게 하면 그림만 천천히 흐른다.
+function bdAnim(before,done){const now=bfxNow(),fight=new Set(),shoot=new Set(),hold=new Set(),tagged=new Set(),sl=[bfxSlots(0),bfxSlots(1)];
+  const T={shot:.35,lunge:.55,lungeD:1.0,hit:1.15,end:2.4};
+  for(const [u,b] of before){if(b.c<=0||b.mor<=0)continue;tagged.add(u);if(u.ord==='shoot'){shoot.add(u);continue;}if(u.ord==='hold'){hold.add(u);}
+    const foes=[...before].filter(([v,bb])=>v.side!==u.side&&bb.c>0&&bb.mor>0&&v.lane===u.lane);if((foes.length||u.ord==='flank')&&u.ord!=='hold')fight.add(u);}
+  BFX.anim={t0:now,fight,shoot,hold,tagged,T};
   for(const u of shoot){const foes=(u.side?BD.us:BD.them).filter(v=>v.crew>0);if(!foes.length)continue;const tg=foes.slice().sort((a,b)=>(before.get(b)||{c:0}).c-(before.get(a)||{c:0}).c)[0];
-    const fs=(u.figs||[]).filter(f=>f.st===0).slice(0,4),tf=(tg.figs||[]).filter(f=>f.st===0);fs.forEach((f,i)=>{const t=tf[i%Math.max(1,tf.length)]||{x:BFX_W/2,y:BFX_MID};BFX.fx.push({k:'shot',x:f.x+8,y:f.y-6,x2:t.x,y2:t.y-6,t0:now+.25+i*.08,d:.6});});}
-  // 부딪히는 불꽃
-  for(let l=0;l<3;l++){const a=[...fight].some(u=>u.side===0&&u.lane===l),b=[...fight].some(u=>u.side===1&&u.lane===l);if(a&&b)for(let i=0;i<7;i++)BFX.fx.push({k:'spark',x:BFX_W*(l+.2+.6*Math.random())/3,y:BFX_MID+(Math.random()-.5)*30,t0:now+.45+Math.random()*.45,d:.35});}
-  try{bsfx('hit');}catch(e){}
-  setTimeout(()=>{if(!BD)return;try{bsfx('cannon');}catch(e){}
+    const fs=(u.figs||[]).filter(f=>f.st===0).slice(0,4),tf=(tg.figs||[]).filter(f=>f.st===0);fs.forEach((f,i)=>{const t=tf[i%Math.max(1,tf.length)]||{x:BFX_W/2,y:BFX_MID};BFX.fx.push({k:'shot',x:f.x+8,y:f.y-6,x2:t.x,y2:t.y-6,t0:now+T.shot+i*.1,d:.7});});
+    bfxAt(T.shot,()=>{try{bsfx('fire');}catch(e){}});}
+  for(let l=0;l<3;l++){const a=[...fight].some(u=>u.side===0&&u.lane===l),b=[...fight].some(u=>u.side===1&&u.lane===l);if(a&&b)for(let i=0;i<8;i++)BFX.fx.push({k:'spark',x:BFX_W*(l+.2+.6*Math.random())/3,y:BFX_MID+(Math.random()-.5)*30,t0:now+T.lunge+.35+Math.random()*.5,d:.35});}
+  bfxAt(T.lunge+.35,()=>{try{bsfx('hit');}catch(e){}});
+  bfxAt(T.hit,()=>{if(!BD)return;try{bsfx('cannon');}catch(e){}
     for(const [u,b] of before){const lost=b.c-u.crew,H=bfxHomes(u,sl[u.side].get(u)||{k:0,n:1})(2);
-      if(lost>0)BFX.fx.push({k:'txt',s:'-'+lost,c:'#ff6a5a',x:H[0],y:H[1]-26,t0:performance.now()/1000,d:1.3});else if(lost<0)BFX.fx.push({k:'txt',s:'+'+(-lost),c:'#7ee08a',x:H[0],y:H[1]-26,t0:performance.now()/1000,d:1.3});
+      if(lost>0)BFX.fx.push({k:'txt',s:'-'+lost,c:'#ff6a5a',x:H[0],y:H[1]-26,t0:bfxNow(),d:1.3});else if(lost<0)BFX.fx.push({k:'txt',s:'+'+(-lost),c:'#7ee08a',x:H[0],y:H[1]-26,t0:bfxNow(),d:1.3});
       const live=(u.figs||[]).filter(f=>f.st===0),want=(u.crew<=0||u.mor<=0)?0:bfxN(u.crew);if(live.length>want){const die=live.slice().sort(()=>Math.random()-.5).slice(0,live.length-want);
-        const flee=u.mor<=0&&u.crew>0;die.forEach((f,i)=>{f.st=flee&&i%2?2:1;f.t=0;f.rd=Math.random()<.5?-1:1;});}}},700);
-  setTimeout(()=>{BFX.anim=null;done();},1750);}
+        const flee=u.mor<=0&&u.crew>0;die.forEach((f,i)=>{f.st=flee&&i%2?2:1;f.t=0;f.rd=Math.random()<.5?-1:1;});}}});
+  bfxAt(T.end,()=>{BFX.anim=null;done();});}
+// ---------- 호령 컷신 ----------
+const BFX_HORN=['모두 진격하라!','물러서지 마라! 바다는 우리 편이다!','저 갑판을 우리 것으로!','지금이다, 밀어붙여라!','동료를 지켜라! 함께 싸운다!'];
+function bfxHorn(cmd){const w=document.getElementById('bdwin');if(!w)return;const box=w.querySelector('.bdbox')||w;let d=document.getElementById('bdhorn');if(d)d.remove();d=document.createElement('div');d.id='bdhorn';
+  const hero=cmd==null||cmd===HY,nm=cmd!=null&&MATES[cmd]?MATES[cmd].name:'선장',line=BFX_HORN[Math.floor(Math.random()*BFX_HORN.length)];
+  const sprite=hero&&typeof IGART!=='undefined'&&IGART.hy&&IGART.hy.win&&IGART.hy.win.u?`<img class="hsp" src="${IGART.hy.win.u}" alt="">`:'';
+  const pt=cmd!=null&&typeof portrait==='function'?`<img class="hpt" src="${portrait(cmd)}" alt="">`:'';
+  d.innerHTML=`<div class="hband"><div class="hrays"></div>${sprite||`<div class="hraise">${pt}<span class="hhand">✋</span></div>`}<div class="htx"><small>📯 ${nm}의 호령</small><b>“${line}”</b><em>모든 소대 사기 +30</em></div>${sprite?pt:''}</div>`;
+  box.appendChild(d);try{bsfx('horn');}catch(e){}const sp=Math.max(.5,Math.min(1,bfxSpd()));const life=2300/sp;d.style.setProperty('--hd',(life/1000)+'s');
+  BFX.cheer=bfxNow()+2.2;const sl=bfxSlots(0);for(const u of bdAlive(BD.us)){const H=bfxHomes(u,sl.get(u)||{k:0,n:1})(2);BFX.fx.push({k:'txt',s:'사기 +30',c:'#ffd84a',x:H[0],y:H[1]-30,t0:bfxNow()+.6,d:1.6});}
+  const kill=()=>{d.classList.add('out');setTimeout(()=>d.remove(),350);};d.onclick=kill;setTimeout(kill,life);}
+{const a0=bdAct;bdAct=function(a){const can=a==='horn'&&BD&&BD.horn&&!BD.busy;const cmd=BD&&BD.cmd;const r=a0.apply(this,arguments);if(can&&BD&&!BD.horn)setTimeout(()=>bfxHorn(cmd),30);return r;};}
+{const st=document.createElement('style');st.textContent=`.bdspd{display:flex;align-items:center;gap:3px;font-size:12px;color:#6a4a2a;margin-left:auto;margin-right:8px}.bdspd button{padding:3px 8px;border-radius:12px;border:1px solid #b58a5a;background:#fff8e8;font-weight:700;cursor:pointer}.bdspd button.on{background:#2f5d73;color:#fff;border-color:#2f5d73}
+.bdbox{position:relative}#bdhorn{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:rgba(10,8,4,.45);animation:hfade .3s ease-out;cursor:pointer}#bdhorn.out{opacity:0;transition:opacity .3s}
+#bdhorn .hband{position:relative;width:100%;height:190px;background:linear-gradient(90deg,#3a1a0a 0%,#8a3a12 45%,#c8701c 100%);border-top:4px solid #ffd36a;border-bottom:4px solid #ffd36a;display:flex;align-items:center;gap:18px;padding:0 30px;overflow:hidden;animation:hband .45s cubic-bezier(.2,1.4,.4,1)}
+#bdhorn .hrays{position:absolute;left:-40px;top:50%;width:420px;height:420px;margin-top:-210px;background:repeating-conic-gradient(rgba(255,220,120,.18) 0 10deg,transparent 10deg 20deg);animation:hspin 6s linear infinite;pointer-events:none}
+#bdhorn .hsp{position:relative;height:230px;margin-top:30px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.5));animation:hjump .6s ease-out .15s both}
+#bdhorn .hraise{position:relative;animation:hjump .6s ease-out .15s both}#bdhorn .hraise .hpt{width:120px;height:120px;border-radius:50%;border:4px solid #ffd36a;object-fit:cover;background:#ddd}#bdhorn .hhand{position:absolute;right:-18px;top:-22px;font-size:46px;animation:hwave .5s ease-in-out .5s 3 alternate;transform-origin:bottom center}
+#bdhorn .hpt{width:96px;height:96px;border-radius:50%;border:4px solid #ffd36a;object-fit:cover;background:#ddd;margin-left:auto;position:relative}
+#bdhorn .htx{position:relative;display:flex;flex-direction:column;gap:4px;color:#fff;animation:htx .5s ease-out .25s both}#bdhorn .htx small{font-size:14px;color:#ffe2a8}#bdhorn .htx b{font:900 34px/1.15 serif;text-shadow:0 3px 0 #5a1a0a,0 0 18px rgba(255,200,80,.6);letter-spacing:1px}#bdhorn .htx em{font-style:normal;color:#ffd84a;font-weight:700}
+@keyframes hband{from{transform:scaleY(0)}to{transform:scaleY(1)}}@keyframes hfade{from{opacity:0}to{opacity:1}}@keyframes hspin{to{transform:rotate(360deg)}}
+@keyframes hjump{0%{transform:translateX(-140px) scale(.8);opacity:0}60%{transform:translateX(8px) scale(1.05);opacity:1}100%{transform:none}}@keyframes htx{from{transform:translateX(60px);opacity:0}to{transform:none;opacity:1}}@keyframes hwave{from{transform:rotate(-15deg)}to{transform:rotate(20deg)}}
+@media (max-width:600px){#bdhorn .hband{height:140px;gap:8px;padding:0 10px}#bdhorn .hsp{height:160px}#bdhorn .htx b{font-size:20px}#bdhorn .hpt{width:60px;height:60px}.bdspd span{display:none}}`;document.head.appendChild(st);}
 
 // ===== 지도에서 해적을 골라 싸우기 =====
 // 해적 배를 누르면 [공격하기 / 따라가기] 메뉴. 가까우면 바로 싸울지 묻고, 멀면 쫓아가 닿으면 묻는다.
