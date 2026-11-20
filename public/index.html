@@ -5819,6 +5819,106 @@ function pracDuel(lv){pracSnap();const boss=lv===9,p={lv:boss?6:lv,boss:boss?2:n
 {const st=document.createElement('style');st.textContent=`#bsur{position:fixed;right:12px;top:118px;z-index:30;display:none;background:#f6ecd4;border:2px solid #6b4a2a;border-radius:8px;padding:4px 10px;font-weight:700}
 body.battle #bsur{display:block}#b2m{position:fixed;inset:0;z-index:9200;background:rgba(20,12,4,.55);display:none;align-items:center;justify-content:center}#b2m .btns{display:flex;gap:6px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap}`;document.head.appendChild(st);}
 
+// ===== 새 백병전 (턴제) =====
+// 접현(B)하면 백병전 화면으로 넘어간다. 1턴 = 바깥 포격전 3초. 명령을 고르는 동안 바깥은 멈추고, 턴을 진행하면 정확히 3초만 흐른다.
+// 지휘: 총대장(그 배의 선장, 기함은 호연 또는 일기토 대표) 아래, 배에 탄 항해자가 모두 소대장. 선원은 소대마다 나눈다.
+// 예전 방식(B 한 번에 확률 판정)은 연습장에서 「예전 방식 백병전」을 켜면 그대로 쓸 수 있다.
+const BD_LANE=['좌현','중앙','우현'],BD_MAXT=8;
+const BD_TYPE={guard:{n:'근위대',ic:'🛡',d:'사기가 잘 안 떨어짐'},shoot:{n:'사수대',ic:'🎯',d:'사수 명령이 강함'},rush:{n:'돌격대',ic:'💨',d:'우회가 강함'},wall:{n:'방패대',ic:'🧱',d:'버티기가 강함'},aid:{n:'지원대',ic:'⛑',d:'다친 선원을 되살림'},crew:{n:'선원대',ic:'👥',d:'소대장 없음'}};
+const BD_ORD={adv:{n:'진격',a:1.3,d:1.2},hold:{n:'버티기',a:.6,d:.55},shoot:{n:'사수',a:.5,d:1},flank:{n:'우회',a:1.5,d:1.1}};
+let BD=null;
+function bdType(m){if(m==null)return 'crew';const st=[0,1,2,3,4,5,6,7].map(r=>curSt(m,r));const b=st.indexOf(Math.max(...st));return b===0?'guard':b===4?'shoot':b===1||b===2?'rush':b===5?'wall':'aid';}
+function bdCmd(s){if(s.k===0)return S.duelist!=null&&S.mt[S.duelist]&&S.fleet[0].as.some(a=>a.m===S.duelist)?S.duelist:HY;const a=S.fleet[s.k]&&S.fleet[s.k].as.find(x=>x.r===0&&!x.aux);return a?a.m:null;}
+function bdUnitsUs(s,crew,from){const sh=S.fleet[s.k],cmd=bdCmd(s);const L=[...new Set((sh?sh.as:[]).map(a=>a.m))].filter(m=>m!==cmd).slice(0,6);const n=Math.max(1,L.length),per=Math.floor(crew/n);
+  const cl=cmd!=null?curSt(cmd,0):30,eff=sh?crewEffSh(sh):1,bd=s.T.bd||1;
+  return (L.length?L:[null]).map((m,i)=>{const t=bdType(m),lead=m!=null?Math.max(...[0,1,2,3,4,5,6,7].map(r=>curSt(m,r))):20,gp=m!=null&&typeof gearPow==='function'?gearPow(m):0;
+    const c=i===n-1?crew-per*(n-1):per;return {side:0,m,nm:m!=null?MATES[m].name:'선원대',t,crew:c,crew0:c,mor:100,lane:i%3,ord:'adv',pow:eff*(1+lead/200)*(1+cl/400)*(1+gp/300)*bd*(m!=null&&typeof loyF==='function'?loyF(m):1),from,fell:0};});}
+function bdUnitsThem(o){const lv=(B.p&&B.p.lv)||2,boss=B.p&&B.p.boss!=null&&(o.chief||o===B.ships.find(x=>x.side===1));const n=({'소형':2,'중형':3,'대형':4})[o.T.sz]||2;const tot=n+(boss?1:0),per=Math.floor(o.crew/tot);
+  const nm=['갑판장','포수장','칼잡이','조타수','작살꾼'],tps=['rush','shoot','guard','wall','rush'];
+  const U=[];for(let i=0;i<tot;i++){const isB=boss&&i===tot-1,lead=(isB?45:25)+lv*9+Math.floor(Math.random()*12),c=i===tot-1?o.crew-per*(tot-1):per;
+    U.push({side:1,m:null,nm:isB?'두목 부대':'해적 '+nm[i%5],t:isB?'guard':tps[i%5],crew:c,crew0:c,mor:100,lane:i%3,ord:'adv',pow:(.8+.07*lv)*(1+lead/200)*(1+(30+lv*10)/400),fell:0});}return U;}
+{const b0=board;board=function(){if(!B||B.end)return;if(B.practice&&B.oldBoard)return b0.apply(this,arguments);const F=B.flag;
+  if(F.boardCd>0){toast(`선원들이 숨을 고릅니다. ${Math.ceil(F.boardCd)}초 뒤 다시 접현할 수 있습니다.`);return;}const o=boardTarget();
+  if(!o){toast('붙을 적선이 가까이 없습니다. 적선 바로 옆까지 다가가세요.');return;}bdOpen(F,o);};}
+function bdOpen(F,o){B.pause=true;const cmd=bdCmd(F);
+  BD={F,o,turn:1,cmd,cmdHp:100,ecmdHp:100,ecmd:B.p&&B.p.boss!=null?B.p.name:'해적 선장',horn:1,sent:{},us:bdUnitsUs(F,F.crew,F),them:bdUnitsThem(o),log:[`⚔ ${F.name}이(가) ${o.name||'적선'}에 밧줄을 걸었다! 백병전 시작.`]};
+  bsfx('board');bdDraw();}
+const bdAlive=L=>L.filter(u=>u.crew>0&&u.mor>0);
+function bdAI(){for(const u of bdAlive(BD.them)){const r=Math.random();u.ord=r<.5?'adv':r<.72?'hold':r<.88?'shoot':'flank';if(u.ord==='flank'){}}}
+function bdTurn(){const lg=BD.log;bdAI();const all=bdAlive(BD.us).concat(bdAlive(BD.them)),dmg=new Map(),mor=new Map();const add=(M,u,v)=>M.set(u,(M.get(u)||0)+v);
+  // 우회: 옆 줄로 옮겨 이번 턴 기습
+  for(const u of all)if(u.ord==='flank'){const foes=u.side?BD.us:BD.them;const best=[0,1,2].filter(l=>l!==u.lane).sort((a,b)=>bdAlive(foes).filter(x=>x.lane===b).length-bdAlive(foes).filter(x=>x.lane===a).length)[0];u.lane=best;}
+  for(const u of all){const foes=bdAlive(u.side?BD.us:BD.them);if(!foes.length)continue;const O=BD_ORD[u.ord];let mul=O.a*(u.t==='rush'&&u.ord==='flank'?1.2:1);
+    if(u.ord==='shoot'){const tg=foes.slice().sort((a,b)=>b.crew-a.crew)[0];add(dmg,tg,u.crew*u.pow*.12*mul*(u.t==='shoot'?1.4:1)*(BD_ORD[tg.ord].d)*(tg.t==='wall'&&tg.ord==='hold'?.75:1)*(.85+.3*Math.random()));add(mor,tg,u.t==='shoot'?30:20);continue;}
+    const inL=foes.filter(f=>f.lane===u.lane);
+    if(inL.length){const tg=inL[Math.floor(Math.random()*inL.length)];let dm=BD_ORD[tg.ord].d*(tg.t==='wall'&&tg.ord==='hold'?.75:1);add(dmg,tg,u.crew*u.pow*.12*mul*dm*(.85+.3*Math.random()));}
+    else if(u.ord!=='hold'){const hit=u.crew*u.pow*.06*mul;if(u.side===0)BD.ecmdHp-=hit*100/Math.max(20,(BD.o.T.crew||40));else BD.cmdHp-=hit*100/Math.max(20,(BD.F.T.crew||40));}}
+  for(const [u,d] of dmg){const r=Math.min(u.crew,Math.round(d));u.crew-=r;add(mor,u,r/Math.max(1,u.crew0)*90);}
+  for(const [u,m] of mor){u.mor=Math.max(0,u.mor-m*(u.t==='guard'?.6:1));}
+  for(const L of [BD.us,BD.them]){const al=bdAlive(L);for(const u of al)if(u.t==='aid'){const w=al.slice().sort((a,b)=>a.crew/a.crew0-b.crew/b.crew0)[0];const h=Math.min(w.crew0-w.crew,Math.round(w.crew0*.06));if(h>0){w.crew+=h;}}
+    for(const u of L)if(!u.fell&&u.crew<u.crew0*.3&&u.crew>0){u.fell=1;u.mor=Math.max(0,u.mor-40);lg.push(`${u.side?'☠':'⚠'} ${u.nm}${u.m!=null?' 소대장이':'이'} 쓰러졌다! 소대의 사기가 꺾인다.`);}
+    for(const u of L)if((u.crew<=0||u.mor<=0)&&!u.gone){u.gone=1;lg.push(`${u.side?'✔ 적':'✖ 우리'} ${u.nm} 무너짐${u.crew>0?' (남은 선원은 물러남)':''}`);}}
+  lg.push(`— ${BD.turn}턴: 우리 ${bdAlive(BD.us).reduce((a,u)=>a+u.crew,0)}명 · 적 ${bdAlive(BD.them).reduce((a,u)=>a+u.crew,0)}명`);
+  bdOuter();if(!BD)return;
+  if(!bdAlive(BD.them).length||BD.ecmdHp<=0)return bdEnd('win');if(!bdAlive(BD.us).length||BD.cmdHp<=0)return bdEnd('lose');if(BD.turn>=BD_MAXT)return bdEnd('draw');BD.turn++;bdDraw();}
+// 바깥 포격전을 3초 진행 (붙은 두 배는 제자리, 대포도 쏘지 않음). 그 사이 날아든 포탄은 갑판의 소대를 다치게 한다.
+function bdOuter(){const {F,o}=BD,keep=[F,o].map(s=>({x:s.x,y:s.y,hd:s.hd}));B.pause=false;
+  for(let i=0;i<60&&B&&!B.end;i++){for(const s of [F,o]){s.v=0;s.rl['-1']=Math.max(s.rl['-1'],.3);s.rl['1']=Math.max(s.rl['1'],.3);}const c0=[F.crew,o.crew];battleUpdate(.05);
+    [F,o].forEach((s,k)=>{s.x=keep[k].x;s.y=keep[k].y;s.hd=keep[k].hd;const lost=c0[k]-s.crew;if(lost>0){s.crew=c0[k];const L=bdAlive(k?BD.them:BD.us);if(L.length){const u=L[Math.floor(Math.random()*L.length)];u.crew=Math.max(0,u.crew-lost);BD.log.push(`💥 포탄이 갑판에 떨어져 ${u.nm} 선원 ${lost}명이 다쳤다!`);}}});}
+  if(B)B.pause=true;if(o.out==='sunk')return bdEnd('sunk');if(F.out==='sunk')return bdEnd('lose');}
+function bdEnd(kind){const {F,o}=BD,lg=BD.log;let back=0;const ret=new Map();
+  for(const u of BD.us){const s=u.from||F,c=Math.max(0,u.crew);ret.set(s,(ret.get(s)||0)+c);}
+  const loss=kind==='retreat'?.9:1;for(const [s,c] of ret){const v=Math.round(c*loss);if(s===F){s.crew=v;back=v;}else s.crew+=v;}
+  const eLeft=bdAlive(BD.them).reduce((a,u)=>a+u.crew,0)+BD.them.filter(u=>u.mor<=0).reduce((a,u)=>a+u.crew,0);
+  if(kind==='win'){o.out='captured';o.v*=.3;o.crew=0;B.res.cap.push(o);flt(o,'백병전 승리! 나포!','#ffd36a');bsfx('board');crewXp(F.k,0,3);crewXp(F.k,5,2);S.cq=Math.min(4,(S.cq||0)+.03);}
+  else{o.crew=Math.max(1,eLeft);F.boardCd=kind==='draw'?8:20;flt(F,kind==='draw'?'밧줄을 끊고 물러난다':kind==='sunk'?'적선이 가라앉았다!':'백병전에서 밀려났다','#ff9a8a');}
+  F.crew=Math.max(1,F.crew);const R={win:'🏆 나포 성공!',lose:'백병전에서 밀려났습니다',draw:'8턴이 지나 서로 물러났습니다',retreat:'퇴각했습니다',sunk:'적선이 포격으로 가라앉았습니다',duel:'일기토로 넘어갑니다'}[kind];
+  const w=document.getElementById('bdwin');if(w)w.style.display='none';BD=null;if(kind!=='duel'){B.pause=false;toast(`⚔ 백병전: ${R} (돌아온 선원 ${back}명)`,true);}}
+function bdAct(a){if(!BD)return;const lg=BD.log;
+  if(a==='horn'){if(!BD.horn)return;BD.horn=0;for(const u of bdAlive(BD.us))u.mor=Math.min(100,u.mor+30);lg.push(`📯 ${BD.cmd!=null?MATES[BD.cmd].name:'선장'}의 호령! 모든 소대의 사기가 오른다.`);bsfx('horn');}
+  else if(a==='call'){let n=0;for(const s of B.ships){const si=B.ships.indexOf(s);if(s.side!==0||s.out||s===BD.F||BD.sent[si])continue;if(Math.hypot(s.x-BD.F.x,s.y-BD.F.y)>250)continue;const half=Math.floor(s.crew/2);if(half<4)continue;
+      s.crew-=half;BD.sent[si]=1;const U=bdUnitsUs(s,half,s);U.forEach(u=>{u.nm=u.nm+` (${s.name})`;u.lane=Math.floor(Math.random()*3);});BD.us.push(...U);n+=U.length;lg.push(`🚩 ${s.name}에서 ${half}명이 소대 ${U.length}개로 건너왔다! (그 배는 선원이 줄어 느려진다)`);}
+    if(!n)lg.push('🚩 가까이(250 안)에 선원을 보낼 수 있는 우리 배가 없습니다.');}
+  else if(a==='duel'){if(BD.turn<2){lg.push('🗡 첫 턴이 지나야 적 선장과 마주칠 수 있습니다.');}else{bdEnd('duel');try{igFromBattle();}catch(e){B.pause=false;}return;}}
+  else if(a==='retreat'){bdEnd('retreat');return;}
+  else if(a==='go'){bdTurn();return;}
+  bdDraw();}
+function bdCard(u,i){const T=BD_TYPE[u.t],dead=u.crew<=0||u.mor<=0,pc=Math.round(u.crew/Math.max(1,u.crew0)*100);
+  return `<div class="bdu ${u.side?'e':'u'}${dead?' dead':''}">${u.m!=null?ptImg(u.m,40,'sm'):`<span class="bdi">${u.side?'☠':T.ic}</span>`}<div class="bdn"><b>${u.nm}</b><small>${T.ic} ${T.n}${u.side&&!dead?` · ${BD_ORD[u.ord].n}`:''}</small>
+   <div class="bdbar"><i style="width:${pc}%"></i></div><small>선원 ${u.crew}/${u.crew0} · 사기 ${Math.round(u.mor)}</small></div>
+   ${!u.side&&!dead?`<div class="bdo">${Object.keys(BD_ORD).map(k=>`<button data-bdo="${i}|${k}" class="${u.ord===k?'on':''}">${BD_ORD[k].n}</button>`).join('')}<button data-bdl="${i}|-1" title="왼쪽 줄로">◀</button><button data-bdl="${i}|1" title="오른쪽 줄로">▶</button></div>`:''}</div>`;}
+function bdDraw(){let w=document.getElementById('bdwin');if(!w){w=document.createElement('div');w.id='bdwin';document.body.appendChild(w);}const D=BD;
+  const tot=L=>bdAlive(L).reduce((a,u)=>a+u.crew,0),cn=D.cmd!=null?MATES[D.cmd].name:'선장';
+  w.innerHTML=`<div class="bdbox"><div class="bdh"><b>⚔ 백병전 ${D.turn}/${BD_MAXT}턴</b><small>1턴 = 바깥 포격전 3초 · 명령을 고르는 동안 바깥은 멈춰 있습니다</small><canvas id="bdmini" width="200" height="120"></canvas></div>
+   <div class="bdcmd"><div>🚩 우리 총대장 <b>${cn}</b> <small>(통솔 ${D.cmd!=null?curSt(D.cmd,0):'-'})</small><div class="bdbar g"><i style="width:${Math.max(0,D.cmdHp)}%"></i></div><small>선원 ${tot(D.us)}명</small></div>
+    <div>☠ 적 총대장 <b>${D.ecmd}</b><div class="bdbar r"><i style="width:${Math.max(0,D.ecmdHp)}%"></i></div><small>선원 ${tot(D.them)}명</small></div></div>
+   <div class="bdlanes">${[0,1,2].map(l=>`<div class="bdlane"><div class="bdlh">${BD_LANE[l]}</div><div class="bdside">${D.them.map((u,i)=>u.lane===l?bdCard(u,i):'').join('')||'<small class="hint">적 없음 — 진격하면 적 총대장을 친다</small>'}</div><div class="bdvs">⚔</div><div class="bdside">${D.us.map((u,i)=>u.lane===l?bdCard(u,i):'').join('')||'<small class="hint">우리 소대 없음</small>'}</div></div>`).join('')}</div>
+   <div class="bdlog">${D.log.slice(-6).map(x=>`<div>${x}</div>`).join('')}</div>
+   <div class="bdbtn"><button data-bda="horn" ${D.horn?'':'disabled'}>📯 호령 (1회)</button><button data-bda="call">🚩 파병 요청</button><button data-bda="duel">🗡 일기토 신청</button><button data-bda="retreat">🏳 퇴각</button><button class="main" data-bda="go">▶ 턴 진행 (+3초)</button></div>
+   <div class="hint">진격 = 세게 치고 세게 맞음 · 버티기 = 약하게 치고 덜 맞음 · 사수 = 어느 줄이든 가장 큰 적 소대를 쏘아 사기를 꺾음 · 우회 = 적이 많은 옆 줄로 옮겨 기습. 적이 없는 줄에서 진격하면 적 총대장을 칩니다.</div></div>`;
+  w.style.display='flex';
+  w.querySelectorAll('[data-bdo]').forEach(b=>b.onclick=()=>{const [i,k]=b.dataset.bdo.split('|');D.us[+i].ord=k;bdDraw();});
+  w.querySelectorAll('[data-bdl]').forEach(b=>b.onclick=()=>{const [i,d]=b.dataset.bdl.split('|').map(Number);const u=D.us[i];u.lane=(u.lane+d+3)%3;bdDraw();});
+  w.querySelectorAll('[data-bda]').forEach(b=>b.onclick=()=>bdAct(b.dataset.bda));
+  try{const c=w.querySelector('#bdmini'),g=c.getContext('2d');g.fillStyle='#24506e';g.fillRect(0,0,200,120);const sc=200/(ARENA*2.2);
+    for(const s of B.ships){if(s.out==='sunk')continue;g.fillStyle=s.side?'#e05a4a':'#f3e8cf';if(s===D.F||s===D.o)g.fillStyle='#ffd36a';g.beginPath();g.arc(100+(s.x-D.F.x)*sc,60+(s.y-D.F.y)*sc,s===D.F||s===D.o?4:3,0,7);g.fill();}
+    g.strokeStyle='rgba(255,255,255,.4)';g.beginPath();g.arc(100,60,250*sc,0,7);g.stroke();g.fillStyle='#fff';g.font='10px sans-serif';g.fillText('바깥 포격전 (원 = 파병 거리)',4,12);}catch(e){}}
+// 연습장: 예전 방식 백병전 고르기
+{const pb0=pracBody;pracBody=function(){return pb0.apply(this,arguments).replace('<label><input type="checkbox" id="pter">','<label><input type="checkbox" id="pold"> 예전 방식 백병전(B 한 번에 확률 판정)</label><br><label><input type="checkbox" id="pter">');};BODY.prac=pracBody;}
+{const pt0=pracBattle;pracBattle=function(lv,ter){const old=!!(document.getElementById('pold')&&document.getElementById('pold').checked);const r=pt0.apply(this,arguments);if(B)B.oldBoard=old;return r;};}
+{const st=document.createElement('style');st.textContent=`#bdwin{position:fixed;inset:0;z-index:9300;background:rgba(10,18,28,.72);display:none;align-items:center;justify-content:center}
+.bdbox{width:min(980px,96vw);max-height:94vh;overflow:auto;background:#f3e8cf;border:2px solid #5c3a1a;border-radius:10px;padding:10px 12px;color:#2d1c0e;font-size:13px}
+.bdh{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}.bdh b{font-size:18px}.bdh small{flex:1;color:#7a5a3a;margin-top:4px}.bdh canvas{border-radius:6px;border:1px solid #5c3a1a}
+.bdcmd{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0}.bdcmd>div{background:#fffaf0;border:1px solid #cdb68e;border-radius:8px;padding:5px 8px}
+.bdbar{height:7px;background:#e6d8bc;border-radius:4px;overflow:hidden;margin:3px 0}.bdbar i{display:block;height:100%;background:#3b7a3b}.bdbar.r i{background:#a8322a}.bdbar.g i{background:#2f66a8}
+.bdlanes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.bdlane{background:#e9dcbf;border-radius:8px;padding:5px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.bdlh{text-align:center;font-weight:700;color:#5c3a1a}.bdvs{text-align:center;color:#a8322a}.bdside{display:flex;flex-direction:column;gap:4px;min-height:40px}
+.bdu{display:flex;flex-wrap:wrap;gap:5px;align-items:center;background:#fffaf0;border:1.5px solid #cdb68e;border-radius:7px;padding:4px}.bdu.e{border-color:#c98a7a;background:#fff1ec}.bdu.dead{opacity:.4}
+.bdu img.pt{width:40px;height:40px}.bdi{font-size:24px;width:40px;text-align:center}.bdn{flex:1;min-width:0;display:flex;flex-direction:column}.bdn small{color:#7a5a3a}
+.bdo{display:flex;flex-wrap:wrap;gap:2px;width:100%}.bdo button{font-size:11px;padding:2px 5px}.bdo button.on{background:#2f5d73;color:#fff}
+.bdlog{background:#2d1c0e;color:#f3e8cf;border-radius:6px;padding:5px 8px;margin:6px 0;font-size:12px;line-height:1.5}.bdbtn{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+@media(max-width:700px){.bdlanes{grid-template-columns:1fr}.bdcmd{grid-template-columns:1fr}}`;document.head.appendChild(st);}
+
 // ===== 바람과 해류를 '흐름'으로 보여 주기 =====
 // 보기: 0 흐름(하얀 바람 줄기 + 해류의 띠와 물결) · 1 화살표(예전 방식) · 2 끔. V 키로 바꾼다.
 const FLOW_NAMES=['바람·해류 흐름','바람·해류 화살표','표시 끔'];
