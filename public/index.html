@@ -3661,9 +3661,9 @@ const IGS=(()=>{let cv,cx,W=640,H=230,raf=0,act=null,endS=null,fx=[],t0=0,hpShow
   let last=0;
   function loop(ts){raf=requestAnimationFrame(loop);if(!cx||!IG||!$('igcv'))return;const now=performance.now()/1000,dt=Math.min(.05,now-(last||now));last=now;
     bg(now);const P={A:base('A'),B:base('B')};idle(P.A,'A',now);idle(P.B,'B',now);
-    if(act){act.t+=dt;const t=act.t,R=act.R;
+    if(act){act.t+=dt*(window.IG_SPD||1);const t=act.t,R=act.R;
       for(const [side,c] of [['A',R.ca],['B',R.cb]]){const p=P[side];const gA=seg(t,0,.25)*(1-seg(t,act.dur-.3,act.dur));p.guard=c.g;p.gA=gA;
-        const i=c.a.length>1&&t>ST(0)+.45?1:0,a=c.a[i];const k=(t-(ST(i)-.45))/1.0;if(k>0&&k<1){if(ART)attackArt(p,side,a,k);else attackPose(p,side,a,k);}else if(ART&&c.g&&c.g.length&&gA>.3)p.f='g'+c.g[0];
+        const i=c.a.length>1&&t>ST(0)+.45?1:0,a=c.a[i];const k=(t-(ST(i)-.45))/1.0;if(k>0&&k<1&&a){if(ART)attackArt(p,side,a,k);else attackPose(p,side,a,k);}else if(ART&&c.g&&c.g.length&&gA>.3)p.f='g'+c.g[0];
         if(act.kill&&c.sk==='kill')p.glow=Math.sin(Math.min(1,t/.6)*Math.PI);}
       impacts(t);
       if(act.push)for(const side of ['A','B'])if(act.push[side]){const dir=side==='A'?1:-1,k=Math.max(0,1-(t-(act.hpT||t))/.6);P[side].x-=dir*act.push[side]*k;}
@@ -5846,7 +5846,11 @@ body.battle #bsur{display:block}#b2m{position:fixed;inset:0;z-index:9200;backgro
 // 접현(B)하면 백병전 화면으로 넘어간다. 1턴 = 바깥 포격전 3초. 명령을 고르는 동안 바깥은 멈추고, 턴을 진행하면 정확히 3초만 흐른다.
 // 지휘: 총대장(그 배의 선장, 기함은 호연 또는 일기토 대표) 아래, 배에 탄 항해자가 모두 소대장. 선원은 소대마다 나눈다.
 // 예전 방식(B 한 번에 확률 판정)은 훈련장에서 「예전 방식 백병전」을 켜면 그대로 쓸 수 있다.
-const BD_LANE=['좌현','중앙','우현'],BD_MAXT=8;
+const BD_LANE=['좌현','중앙','우현'],BD_MAXT0=8;
+let BD_MAXT=8;
+// 한 줄(좌현·중앙·우현)에서 한 번에 칼을 섞을 수 있는 인원(뱃전 너비). 선원이 많아도 한 턴에 싸우는 수는 이만큼이라 여러 턴에 걸쳐 밀고 밀린다.
+const BD_FRONT={'소형':12,'중형':16,'대형':20};
+function bdEff(u){const side=u.side?BD.them:BD.us,sh=u.side?BD.o:BD.F,fr=BD_FRONT[sh.T.sz]||16;const tot=bdAlive(side).filter(x=>x.lane===u.lane).reduce((a,x)=>a+x.crew,0)||1;return u.crew*Math.min(1,fr/tot);}
 const BD_TYPE={guard:{n:'근위대',ic:'🛡',d:'사기가 잘 안 떨어짐'},shoot:{n:'사수대',ic:'🎯',d:'사수 명령이 강함'},rush:{n:'돌격대',ic:'💨',d:'우회가 강함'},wall:{n:'방패대',ic:'🧱',d:'버티기가 강함'},aid:{n:'지원대',ic:'⛑',d:'다친 선원을 되살림'},crew:{n:'선원대',ic:'👥',d:'소대장 없음'}};
 const BD_ORD={adv:{n:'진격',a:1.3,d:1.2},hold:{n:'버티기',a:.6,d:.55},shoot:{n:'사수',a:.5,d:1},flank:{n:'우회',a:1.5,d:1.1}};
 let BD=null;
@@ -5864,7 +5868,7 @@ function bdUnitsThem(o){const lv=(B.p&&B.p.lv)||2,boss=B.p&&B.p.boss!=null&&(o.c
   if(F.boardCd>0){toast(`선원들이 숨을 고릅니다. ${Math.ceil(F.boardCd)}초 뒤 다시 접현할 수 있습니다.`);return;}const o=boardTarget();
   if(!o){toast('붙을 적선이 가까이 없습니다. 적선 바로 옆까지 다가가세요.');return;}bdOpen(F,o);};}
 function bdOpen(F,o){B.pause=true;const cmd=bdCmd(F);
-  BD={F,o,turn:1,cmd,cmdHp:100,ecmdHp:100,ecmd:B.p&&B.p.boss!=null?B.p.name:'해적 선장',horn:1,sent:{},us:bdUnitsUs(F,F.crew,F),them:bdUnitsThem(o),log:[`⚔ ${F.name}이(가) ${o.name||'적선'}에 밧줄을 걸었다! 백병전 시작.`]};
+  BD_MAXT=B.p&&B.p.boss!=null?12:BD_MAXT0;BD={F,o,turn:1,cmd,cmdHp:100,ecmdHp:100,ecmd:B.p&&B.p.boss!=null?B.p.name:'해적 선장',horn:1,sent:{},esent:{},us:bdUnitsUs(F,F.crew,F),them:bdUnitsThem(o),log:[`⚔ ${F.name}이(가) ${o.name||'적선'}에 밧줄을 걸었다! 백병전 시작.`]};
   bsfx('board');bdDraw();}
 const bdAlive=L=>L.filter(u=>u.crew>0&&u.mor>0);
 function bdAI(){for(const u of bdAlive(BD.them)){const r=Math.random();u.ord=r<.5?'adv':r<.72?'hold':r<.88?'shoot':'flank';if(u.ord==='flank'){}}}
@@ -5872,15 +5876,18 @@ function bdTurn(){if(BD.busy)return;const lg=BD.log;const before=new Map(BD.us.c
   // 우회: 옆 줄로 옮겨 이번 턴 기습
   for(const u of all)if(u.ord==='flank'){const foes=u.side?BD.us:BD.them;const best=[0,1,2].filter(l=>l!==u.lane).sort((a,b)=>bdAlive(foes).filter(x=>x.lane===b).length-bdAlive(foes).filter(x=>x.lane===a).length)[0];u.lane=best;}
   for(const u of all){const foes=bdAlive(u.side?BD.us:BD.them);if(!foes.length)continue;const O=BD_ORD[u.ord];let mul=O.a*(u.t==='rush'&&u.ord==='flank'?1.2:1);
-    if(u.ord==='shoot'){const tg=foes.slice().sort((a,b)=>b.crew-a.crew)[0];add(dmg,tg,u.crew*u.pow*.12*mul*(u.t==='shoot'?1.4:1)*(BD_ORD[tg.ord].d)*(tg.t==='wall'&&tg.ord==='hold'?.75:1)*(.85+.3*Math.random()));add(mor,tg,u.t==='shoot'?30:20);continue;}
+    if(u.ord==='shoot'){const tg=foes.slice().sort((a,b)=>b.crew-a.crew)[0];add(dmg,tg,Math.min(u.crew,8)*u.pow*.1*mul*(u.t==='shoot'?1.4:1)*(BD_ORD[tg.ord].d)*(tg.t==='wall'&&tg.ord==='hold'?.75:1)*(.85+.3*Math.random()));add(mor,tg,u.t==='shoot'?30:20);continue;}
     const inL=foes.filter(f=>f.lane===u.lane);
-    if(inL.length){const tg=inL[Math.floor(Math.random()*inL.length)];let dm=BD_ORD[tg.ord].d*(tg.t==='wall'&&tg.ord==='hold'?.75:1);add(dmg,tg,u.crew*u.pow*.12*mul*dm*(.85+.3*Math.random()));}
-    else if(u.ord!=='hold'){const hit=u.crew*u.pow*.06*mul;if(u.side===0)BD.ecmdHp-=hit*100/Math.max(20,(BD.o.T.crew||40));else BD.cmdHp-=hit*100/Math.max(20,(BD.F.T.crew||40));}}
-  for(const [u,d] of dmg){const r=Math.min(u.crew,Math.round(d));u.crew-=r;add(mor,u,r/Math.max(1,u.crew0)*90);}
+    if(inL.length){const tg=inL[Math.floor(Math.random()*inL.length)];let dm=BD_ORD[tg.ord].d*(tg.t==='wall'&&tg.ord==='hold'?.75:1);add(dmg,tg,bdEff(u)*u.pow*.1*mul*dm*(.85+.3*Math.random()));}
+    else if(u.ord!=='hold'){const hit=bdEff(u)*u.pow*.05*mul;if(u.side===0)BD.ecmdHp-=hit*100/Math.max(20,(BD.o.T.crew||40));else BD.cmdHp-=hit*100/Math.max(20,(BD.F.T.crew||40));}}
+  for(const [u,d] of dmg){const r=Math.min(u.crew,Math.round(d));u.crew-=r;add(mor,u,r/Math.max(1,u.crew0)*55);}
   for(const [u,m] of mor){u.mor=Math.max(0,u.mor-m*(u.t==='guard'?.6:1));}
   for(const L of [BD.us,BD.them]){const al=bdAlive(L);for(const u of al)if(u.t==='aid'){const w=al.slice().sort((a,b)=>a.crew/a.crew0-b.crew/b.crew0)[0];const h=Math.min(w.crew0-w.crew,Math.round(w.crew0*.06));if(h>0){w.crew+=h;}}
-    for(const u of L)if(!u.fell&&u.crew<u.crew0*.3&&u.crew>0){u.fell=1;u.mor=Math.max(0,u.mor-40);lg.push(`${u.side?'☠':'⚠'} ${u.nm}${u.m!=null?' 소대장이':'이'} 쓰러졌다! 소대의 사기가 꺾인다.`);}
+    for(const u of L)if(!u.fell&&u.crew<u.crew0*.3&&u.crew>0){u.fell=1;u.mor=Math.max(0,u.mor-25);lg.push(`${u.side?'☠':'⚠'} ${u.nm}${u.m!=null?' 소대장이':'이'} 쓰러졌다! 소대의 사기가 꺾인다.`);}
     for(const u of L)if((u.crew<=0||u.mor<=0)&&!u.gone){u.gone=1;lg.push(`${u.side?'✔ 적':'✖ 우리'} ${u.nm} 무너짐${u.crew>0?' (남은 선원은 물러남)':''}`);}}
+  // 이웃 해적선이 선원을 건네보냄 (두목 함대는 더 자주)
+  if(BD.turn>=1){const boss=B.p&&B.p.boss!=null;for(const s2 of B.ships){const si=B.ships.indexOf(s2);if(s2.side!==1||s2.out||s2===BD.o||BD.esent[si])continue;if(Math.hypot(s2.x-BD.o.x,s2.y-BD.o.y)>300)continue;if(Math.random()>(boss?.5:.3))continue;
+    const half=Math.floor(s2.crew/2);if(half<6)continue;s2.crew-=half;BD.esent[si]=1;const U=bdUnitsThem({T:s2.T,crew:half,chief:false});U.forEach(u=>{u.nm=u.nm+' (지원)';u.lane=Math.floor(Math.random()*3);});BD.them.push(...U);lg.push(`☠ 이웃 해적선에서 ${half}명이 건너왔다! 싸움이 다시 거세진다`);}}
   lg.push(`— ${BD.turn}턴: 우리 ${bdAlive(BD.us).reduce((a,u)=>a+u.crew,0)}명 · 적 ${bdAlive(BD.them).reduce((a,u)=>a+u.crew,0)}명`);
   BD.busy=1;bdDraw();const go=()=>{if(!BD)return;BD.busy=0;bdOuter();if(!BD)return;
   if(!bdAlive(BD.them).length||BD.ecmdHp<=0)return bdEnd('win');if(!bdAlive(BD.us).length||BD.cmdHp<=0)return bdEnd('lose');if(BD.turn>=BD_MAXT)return bdEnd('draw');BD.turn++;bdDraw();};
@@ -5896,7 +5903,7 @@ function bdEnd(kind){const {F,o}=BD,lg=BD.log;let back=0;const ret=new Map();
   const eLeft=bdAlive(BD.them).reduce((a,u)=>a+u.crew,0)+BD.them.filter(u=>u.mor<=0).reduce((a,u)=>a+u.crew,0);
   if(kind==='win'){o.out='captured';o.v*=.3;o.crew=0;B.res.cap.push(o);flt(o,'백병전 승리! 나포!','#ffd36a');bsfx('board');crewXp(F.k,0,3);crewXp(F.k,5,2);S.cq=Math.min(4,(S.cq||0)+.03);}
   else{o.crew=Math.max(1,eLeft);F.boardCd=kind==='draw'?8:20;flt(F,kind==='draw'?'밧줄을 끊고 물러난다':kind==='sunk'?'적선이 가라앉았다!':'백병전에서 밀려났다','#ff9a8a');}
-  F.crew=Math.max(1,F.crew);const R={win:'🏆 나포 성공!',lose:'백병전에서 밀려났습니다',draw:'8턴이 지나 서로 물러났습니다',retreat:'퇴각했습니다',sunk:'적선이 포격으로 가라앉았습니다',duel:'일기토로 넘어갑니다'}[kind];
+  F.crew=Math.max(1,F.crew);const R={win:'🏆 나포 성공!',lose:'백병전에서 밀려났습니다',draw:`${BD_MAXT}턴이 지나 서로 물러났습니다`,retreat:'퇴각했습니다',sunk:'적선이 포격으로 가라앉았습니다',duel:'일기토로 넘어갑니다'}[kind];
   const w=document.getElementById('bdwin');if(w)w.style.display='none';BD=null;if(kind!=='duel'){B.pause=false;toast(`⚔ 백병전: ${R} (돌아온 선원 ${back}명)`,true);if(B.pboard)setTimeout(()=>{if(B&&B.pboard)pracEnd(kind==='win'?'bwin':'blose');},900);}}
 function bdAct(a){if(!BD||BD.busy)return;const lg=BD.log;
   if(a==='horn'){if(!BD.horn)return;BD.horn=0;for(const u of bdAlive(BD.us))u.mor=Math.min(100,u.mor+30);lg.push(`📯 ${BD.cmd!=null?MATES[BD.cmd].name:'선장'}의 호령! 모든 소대의 사기가 오른다.`);bsfx('horn');}
@@ -6050,6 +6057,137 @@ addEventListener('keydown',e=>{if(e.key!=='Tab'||e.repeat||e.ctrlKey||e.altKey||
   e.preventDefault();const L=(S.pir||[]).filter(pirVisible).sort((a,b)=>pirKm(a)-pirKm(b));if(!L.length){toast('보이는 해적이 없습니다.');return;}huntGo(L[0],1);});
 {const st=document.createElement('style');st.textContent=`#pirmenu{position:fixed;z-index:60;background:#f6ecd6;border:2px solid #7a3a22;border-radius:10px;padding:8px 10px;box-shadow:0 4px 14px rgba(0,0,0,.35);font-size:13px;min-width:180px;display:flex;flex-direction:column;gap:5px}
 #pirmenu .pmi{color:#5a4026;font-size:12px}#pirmenu button{padding:6px 8px;border-radius:7px;border:1px solid #8a6a40;background:#fff8e8;font-weight:700;cursor:pointer}#pirmenu button.main{background:#a8322a;color:#fff;border-color:#7a1a14}`;document.head.appendChild(st);}
+
+// ===== 일기토 두 가지 방식 =====
+// 전통 방식: 지금까지의 일기토(매 판 방어·공격·비기를 고름).
+// 최근 방식: 삼국지11식. 작전 4가지(공격·방어·투지·일발필살)를 고르면 합이 저절로 오가고,
+//           모은 투지(0~3칸)로 필살 명령(필살기·무쌍·기합·견수·퇴각·암기·거짓 퇴각·교대)을 끼워 넣는다.
+// 일기토가 시작될 때 방식을 고른다(다음부터 묻지 않기 가능). 온라인 학생 대결은 전통 방식 그대로.
+const D11_MAXR=30,D11_SPD=1.7;
+const D11_TAC={atk:{n:'공격',ic:'⚔',sw:1,ki:.12,sp:.06,d:'공격 횟수가 가장 많음. 가끔 4연속 공격. 방어에 막히고, 투지에는 강함'},
+  def:{n:'방어',ic:'🛡',sw:.45,ki:.24,sp:.07,d:'평타 대부분을 막음. 가끔 철벽(몇 합 동안 평타를 모두 막음). 공격에 강함'},
+  tuji:{n:'투지',ic:'🔥',sw:.7,ki:.38,sp:.09,d:'투지가 가장 많이 참. 가끔 투지 1칸을 바로 채움. 방어를 뚫음'},
+  one:{n:'일발필살',ic:'✨',sw:0,ki:.25,sp:.2,d:'공격을 하지 않고, 위 세 고유 효과를 자주 냄. 훨씬 약한 상대에게만'}};
+const D11_BEAT={atk:'tuji',tuji:'def',def:'atk'}; // 앞이 뒤를 이김
+const D11_CMD={kill:{n:'필살기',c:1,d:'평타보다 강한 한 방. 3칸이면 세 번 연속 가능'},muso:{n:'무쌍',c:3,d:'연속 찌르기. 가장 강하고 부상 확률'},
+  gi:{n:'기합',c:1,d:'몇 합 동안 주는 피해 증가(붉은 기운)'},gyeon:{n:'견수',c:1,d:'몇 합 동안 받는 피해 감소(푸른 기운)'},
+  hide:{n:'암기',c:0,d:'예비 무기를 던짐. 피할 수 없고 상대의 철벽·기합·견수를 끔 (한 번)'},fake:{n:'거짓 퇴각',c:0,d:'도망치는 척하다 돌아서 쏨. 반드시 맞고 부상 확률 (총·활, 10합부터, 한 번)'},
+  swap:{n:'교대',c:0,d:'같은 배 항해자와 교대. 쉬는 사람은 체력이 천천히 참'},run:{n:'퇴각',c:1,d:'일기토를 포기(패배)'}};
+const d11Mu=F=>Math.round(F.atk*2.6+(F.def||0)*.6);
+const d11Ranged=w=>w&&/총|활|궁|머스킷|피스톨/.test(itName(w)||'');
+function d11Prep(F,side){F.tj=0;F.tac=side==='A'?'atk':'atk';F.buf={wall:0,gi:0,gyeon:0};F.inj=0;F.q2=[];F.used={};F.ki=0;F.stag=0;F.leg=0;
+  if(side==='A'){try{gearInit();const wEq=S.eq&&S.eq.w;const ws=(S.inv2||[]).filter(i=>i.k==='w');F.hasHide=ws.some(i=>i.id!==wEq);F.hasBow=ws.some(d11Ranged);}catch(e){}}
+  return F;}
+function d11Cands(){const cur=IG&&IG.A;try{const F=B&&B.flag;const k=F?F.k:0;const sh=S.fleet[k]||S.fleet[0];return (sh.as||[]).map(a=>a.m).filter(i=>i!=null&&MATES[i]&&!(cur&&cur.mid===i)&&!(IG.bench||[]).some(b=>b.mid===i&&b.hp<=0)).filter((v,i,a)=>a.indexOf(v)===i);}catch(e){return [];}}
+// 한 쪽의 한 합: 돌려주는 값 {a:[공격들], g:[막는 높이], ev:[], dmg(상대가 받은 피해), sk, txt}
+function d11Side(X,Y,xs,ys,r,rnd){const T=D11_TAC[X.tac],out={a:[],ev:[],dmg:0,txt:[],kill:0,inj:0};const f=Math.max(.3,Math.min(2.6,Math.pow(X.atk/Math.max(1,Y.atk),1.5)));
+  const injF=W=>Math.pow(.85,W.inj||0),mul=()=>(X.buf.gi>0?1.3:1)*(Y.buf.gyeon>0?.65:1)*(Y.tac==='def'?.85:1);
+  const hitDmg=k=>Math.max(1,Math.round((X.atk*k*injF(X)*mul()-(Y.def||0)*.3)*(.85+rnd()*.3)));
+  const H=()=>Math.floor(rnd()*3),wt=X.wt||'bash';
+  const cmd=X.q2.shift();
+  if(cmd){const C=D11_CMD[cmd];X.tj-=C.c;
+    if(cmd==='gi'){X.buf.gi=6;out.txt.push(`🔥 ${X.nm}의 기합! 붉은 기운이 감돈다`);}
+    else if(cmd==='gyeon'){X.buf.gyeon=6;out.txt.push(`💠 ${X.nm}의 견수! 푸른 기운이 몸을 감싼다`);}
+    else if(cmd==='kill'||cmd==='muso'||cmd==='hide'||cmd==='fake'){const k={kill:1.0,muso:1.9,hide:.8,fake:1.1}[cmd]*f;const d=Math.max(2,Math.round(X.atk*k*injF(X)*(X.buf.gi>0?1.3:1)*(Y.buf.gyeon>0?.7:1)*(.9+rnd()*.2)));
+      out.dmg+=d;const h=cmd==='fake'?0:H();out.a.push({h,t:cmd==='muso'?'thr':wt});out.ev.push({k:'hit',by:xs,h,t:cmd==='muso'?'thr':wt,kill:cmd!=='hide'});out.kill=1;
+      if(cmd==='hide'){X.used.hide=1;if(Y.buf.wall||Y.buf.gi||Y.buf.gyeon){Y.buf.wall=Y.buf.gi=Y.buf.gyeon=0;out.txt.push(`🗡 ${X.nm}의 암기! ${Y.nm}의 기운이 모두 꺼졌다`);}else out.txt.push(`🗡 ${X.nm}이(가) 숨겨 둔 무기를 던졌다! 피할 수 없다`);}
+      else if(cmd==='fake'){X.used.fake=1;out.txt.push(`🏹 ${X.nm}이(가) 달아나는 척하다 돌아서 쏜다! 거짓 퇴각!`);}
+      else out.txt.push(cmd==='muso'?`⚡ ${X.nm}의 무쌍! 연속 찌르기가 쏟아진다`:`💥 ${X.nm}의 필살기!`);
+      const ip=cmd==='muso'?.3:cmd==='fake'?.35:0;if(ip&&rnd()<ip+(Y.tac==='atk'?.2:0)){Y.inj++;out.inj=1;out.txt.push(`🩸 ${Y.nm}이(가) 부상을 입었다! (무력 −15%)`);}}
+    return out;}
+  // 고유 효과
+  let sp=null;if(rnd()<T.sp)sp=X.tac==='one'?['atk','def','tuji'][Math.floor(rnd()*3)]:X.tac;
+  if(sp==='def'){X.buf.wall=4;out.txt.push(`🛡 ${X.nm}의 몸에서 기운이 솟는다 — 철벽! (평타를 모두 막음)`);}
+  if(sp==='tuji'&&X.tj<3){X.tj=Math.min(3,Math.floor(X.tj)+1);out.txt.push(`🔥 ${X.nm}의 투지가 끓어오른다! (투지 +1칸)`);}
+  const n=sp==='atk'?4:(rnd()<T.sw?1:0);if(sp==='atk')out.txt.push(`⚔ ${X.nm}: "연속으로 싸우자!" 4연속 공격`);
+  for(let i=0;i<n;i++){const h=H();let parry=0;
+    if(Y.buf.wall>0)parry=1;else if(Y.tac==='def')parry=X.tac==='atk'?.8:X.tac==='tuji'?.3:.6;else if(Y.tac==='tuji'&&X.tac==='atk')parry=0;else parry=.12;
+    if(rnd()<parry){if(out.a.length<2){out.a.push({h,t:wt});out.ev.push({k:'block',by:xs,h,t:wt});}}
+    else{const d=hitDmg(.28*(D11_BEAT[X.tac]===Y.tac?1.25:1));out.dmg+=d;if(out.a.length<2){out.a.push({h,t:wt});out.ev.push({k:'hit',by:xs,h,t:wt});}}}
+  X.tj=Math.min(3,X.tj+T.ki*(D11_BEAT[X.tac]===Y.tac?1.3:1));
+  return out;}
+function d11Round(){const A=IG.A,Bf=IG.B,rnd=Math.random;
+  d11AI(Bf,A);
+  const ra=d11Side(A,Bf,'A','B',IG.r,rnd),rb=d11Side(Bf,A,'B','A',IG.r,rnd);
+  for(const [X,o] of [[A,rb],[Bf,ra]]){X.hp=Math.max(0,X.hp-o.dmg);if(o.dmg>0)X.tj=Math.min(3,X.tj+.08);}
+  for(const X of [A,Bf]){for(const k in X.buf)if(X.buf[k]>0)X.buf[k]--;X.ki=Math.floor(X.tj);}
+  (IG.bench||[]).forEach(b=>{if(b.hp>0)b.hp=Math.min(b.hpMax,b.hp+b.hpMax*.02);});
+  IG.r++;const R={ca:{g:[1],a:ra.a,sk:ra.kill?'kill':''},cb:{g:[1],a:rb.a,sk:rb.kill?'kill':''},ev:ra.ev.concat(rb.ev),dA:rb.dmg,dB:ra.dmg};
+  const tx=ra.txt.concat(rb.txt);
+  IG.log=`<b>${IG.r}합</b> — ${A.nm} ${D11_TAC[A.tac].ic}${D11_TAC[A.tac].n} · ${Bf.nm} ${D11_TAC[Bf.tac].ic}${D11_TAC[Bf.tac].n}<br>${tx.join('<br>')}${tx.length?'<br>':''}<small>${A.nm} −${rb.dmg} · ${Bf.nm} −${ra.dmg}${!ra.a.length&&!rb.a.length?' · 서로 노려본다':''}</small>`;
+  IG.hist.push(IG.log.replace(/<br>/g,' '));
+  // 항해자가 스스로 나섬
+  if(!IG.volDone&&A.hp<A.hpMax*.45&&A.hp>0&&IG.mode==='pve'&&!IG.noSwap){const c=d11Cands();if(c.length&&rnd()<.35){IG.volDone=1;IG.swapOk=1;const id=c[Math.floor(rnd()*c.length)];IG.log+=`<br>🙋 ${MATES[id].name}: "내가 나서겠소!"`;d11Swap(id);}}
+  return R;}
+function d11AI(F,O){const r=Math.random,hp=F.hp/F.hpMax,ohp=O.hp/O.hpMax;F.pers=F.pers||['brave','calm','sly'][Math.floor(r()*3)];
+  if(IG.r%4===0||r()<.12){const w=F.pers==='brave'?{atk:5,def:2,tuji:2}:F.pers==='calm'?{atk:2,def:5,tuji:2}:{atk:2,def:2,tuji:5};
+    if(O.tac==='atk')w.def+=3;if(O.tac==='def')w.tuji+=3;if(O.tac==='tuji')w.atk+=3;if(O.tac==='one')w.atk+=6;
+    const s=w.atk+w.def+w.tuji;let x=r()*s;F.tac=x<w.atk?'atk':x<w.atk+w.def?'def':'tuji';}
+  if(F.q2.length)return;
+  if(F.aiHide&&!F.used.hide&&IG.r>=1&&(O.buf.wall||O.buf.gi||O.buf.gyeon||r()<.08)){F.q2.push('hide');return;}
+  const tj=Math.floor(F.tj);if(tj>=3&&ohp<.45){F.q2.push('muso');return;}
+  if(tj>=1&&hp<.35&&F.pers==='calm'&&!F.buf.gyeon&&r()<.5){F.q2.push('gyeon');return;}
+  if(tj>=1&&!F.buf.gi&&hp>ohp&&r()<.15){F.q2.push('gi');return;}
+  if(tj>=1&&r()<(F.pers==='brave'?.55:.35))F.q2.push('kill');}
+function d11Swap(id){const A=IG.A;IG.bench=IG.bench||[];const old=IG.bench.find(b=>b.mid===id);IG.bench=IG.bench.filter(b=>b.mid!==id);
+  if(A.hp>0)IG.bench.push(A);let N=old;if(!N){N=mateFighter(id);N.mid=id;d11Prep(N,'B');N.hasHide=A.hasHide;N.hasBow=d11Ranged(mEqIt(id,'w'));}
+  N.tac=A.tac;N.buf={wall:0,gi:0,gyeon:0};N.q2=[];IG.A=N;IG.prev={A:{...N},B:{...IG.B}};IG.show=null;IG.log+=`<br>🔁 ${N.nm}이(가) 나섰다! (버프는 꺼짐)`;}
+function d11Draw(){if(!IG)return;const A=IG.A,Bf=IG.B;if(!$('igcv'))igSkel();const sh=IG.show||{A,B:Bf};
+  const st=F=>`${F.buf&&F.buf.wall?'<span style="color:#2f66a8">🛡철벽 </span>':''}${F.buf&&F.buf.gi?'<span style="color:#c0392b">🔥기합 </span>':''}${F.buf&&F.buf.gyeon?'<span style="color:#2f66a8">💠견수 </span>':''}${F.inj?`<span style="color:#a8322a">🩸부상×${F.inj} </span>`:''}`;
+  const side=(F,G,r)=>igSide(G,r).replace(/<span class="ki"[^<]*<\/span>/,`<span class="ki" title="투지">투지 ${'◆'.repeat(Math.floor(F.tj))}${'◇'.repeat(3-Math.floor(F.tj))}</span> · 무력 ${d11Mu(F)} · ${D11_TAC[F.tac].ic}${D11_TAC[F.tac].n}`).replace(/<div class="stt">[^<]*<\/div>/,`<div class="stt">${st(F)}</div>`);
+  $('ighd').innerHTML=`<div style="display:flex;justify-content:space-between"><b>🔥 일기토 (최근 방식) ${IG.title?'· '+igEsc(IG.title):''}</b><small class="hint">${Math.min(IG.r,D11_MAXR)} / ${D11_MAXR}합</small></div><div class="ih">${side(A,sh.A,0)}<div class="vs">VS</div>${side(Bf,sh.B,1)}</div>`;
+  let h='';
+  if(IG.done&&!IGS.busy())h+=IG.endHTML||'';
+  else{const tj=Math.floor(A.tj),q=A.q2[0];
+    const can={kill:tj>=1,muso:tj>=3,gi:tj>=1&&!A.buf.gi,gyeon:tj>=1&&!A.buf.gyeon,run:tj>=1,hide:A.hasHide&&!A.used.hide,fake:A.hasBow&&!A.used.fake&&IG.r>=10,swap:IG.swapOk&&d11Cands().length>0};
+    h+=`<div class="d11t">${Object.entries(D11_TAC).map(([k,v])=>`<button data-dt="${k}" class="${A.tac===k?'sel':''}" title="${v.d}">${v.ic} ${v.n}</button>`).join('')}<button data-dp="1" class="${IG.paused?'sel':''}">${IG.paused?'▶ 계속':'⏸ 멈춤'}</button></div>
+     <div class="d11c">${Object.entries(D11_CMD).map(([k,v])=>`<button data-dc="${k}" ${can[k]&&!q?'':'disabled'} class="${q===k?'sel':''}" title="${v.d}">${v.n}${v.c?` <small>투지 ${v.c}</small>`:''}</button>`).join('')}</div>
+     <div class="hint2">💡 ${D11_TAC[A.tac].d}${q?` · 다음 합에 <b>${D11_CMD[q].n}</b>!`:''}</div>
+     ${IG.log?`<div class="log">${IG.log}</div>`:''}`;}
+  $('igui').innerHTML=h;$('igbox').className='on';const el=$('igbox');
+  el.querySelectorAll('[data-dt]').forEach(b=>b.onclick=()=>{A.tac=b.dataset.dt;d11Draw();});
+  el.querySelectorAll('[data-dp]').forEach(b=>b.onclick=()=>{IG.paused=!IG.paused;d11Draw();if(!IG.paused)d11Next();});
+  el.querySelectorAll('[data-dc]').forEach(b=>b.onclick=()=>{const k=b.dataset.dc;
+    if(k==='run'){IG.paused=true;d11Draw();modal('퇴각할까요?','<p>퇴각하면 이번 일기토는 <b>패배</b>로 끝납니다. 무력 차이가 크면 달아나다 붙잡힐 수도 있습니다.</p>',[['main','퇴각한다',()=>d11End(false,'run')],['','계속 싸운다',()=>{IG.paused=false;d11Draw();d11Next();}]]);return;}
+    if(k==='swap'){const c=d11Cands();IG.paused=true;d11Draw();modal('누구와 교대할까요?',`<p class="hint">교대하면 기합·견수 같은 기운은 꺼집니다. 물러난 사람은 체력이 천천히 찹니다.</p>`,c.map(id=>{const bb=(IG.bench||[]).find(x=>x.mid===id);return ['',`${MATES[id].name}${bb?` (체력 ${Math.round(bb.hp)}/${bb.hpMax})`:''}`,()=>{d11Swap(id);IG.paused=false;d11Draw();d11Next();}];}).concat([['','그만두기',()=>{IG.paused=false;d11Draw();d11Next();}]]));return;}
+    A.q2=[k];d11Draw();});
+  const x=$('igX');if(x)x.onclick=()=>igClose();}
+function d11Next(){if(!IG||!IG.d11||IG.done||IG.paused||IGS.busy()||IG.stepping)return;IG.stepping=1;
+  const R=d11Round();const Bf=IG.B;IG.show=IG.prev;
+  IGS.play(R,()=>{if(!IG)return;IG.stepping=0;IG.show=null;IG.prev={A:{...IG.A},B:{...Bf}};if(IG.pend){const f=IG.pend;IG.pend=null;return f();}
+    if(IG.A.hp<=0){const nm=IG.A.nm,b=(IG.bench||[]).find(b=>b.hp>0);if(IG.swapOk&&b){IG.log+=`<br>🔁 ${nm}이(가) 쓰러져 ${b.nm}이(가) 대신 나선다!`;d11Swap(b.mid);}else return d11End(false);}
+    if(Bf.hp<=0)return d11End(true);
+    if(IG.r>=D11_MAXR)return d11End(null);
+    d11Draw();setTimeout(d11Next,180);});
+  d11Draw();}
+function d11End(won,why){if(!IG)return;if(IGS.busy()){IG.pend=()=>d11End(won,why);return;}IG.done=1;IG.paused=false;
+  if(won===null){IGS.end(IG.A.hp/IG.A.hpMax>=IG.B.hp/IG.B.hpMax);sfx('lose');IG.endHTML=`<div class="log">${IG.log||''}</div><div class="res" style="color:#7a5f40">⏳ ${D11_MAXR}합이 지나 무승부 — 서로 물러났다</div><div class="hint" style="text-align:center">${IG.onDraw?IG.onDraw():'승부가 나지 않았습니다.'}</div><div class="go" style="justify-content:center"><button class="main" id="igX">확인 ⏎</button></div>`;d11Draw();return;}
+  IGS.end(won);sfx(won?'win':'lose');let extra='';
+  if(why==='run'){const caught=d11Mu(IG.B)-d11Mu(IG.A)>25&&Math.random()<.5;extra=caught?' 달아나다 붙잡혀 크게 망신을 당했습니다.':' 무사히 물러났습니다.';}
+  const r=IG.onEnd?IG.onEnd(won):'';
+  IG.endHTML=`<div class="log">${IG.log||''}</div><div class="res" style="color:${won?'#2e7d4f':'#a8322a'}">${won?'🏆 일기토 승리!':why==='run'?'🏳 퇴각… 일기토 패배':'쓰러졌다… 일기토 패배'}</div><div class="hint" style="text-align:center">${r||''}${extra}</div><div class="go" style="justify-content:center"><button class="main" id="igX">확인 ⏎</button></div>`;d11Draw();}
+function d11Start(o){IG=Object.assign({r:0,hist:[],log:'',mode:'pve'},o,{d11:1,wait:'d11'});d11Prep(IG.A,'A');d11Prep(IG.B,'B');IG.A.mid=IG.A.mid!=null?IG.A.mid:(S.duelist!=null&&MATES[S.duelist]&&IG.A.nm===MATES[S.duelist].name?S.duelist:HY);
+  IG.B.aiHide=(IG.B.lv||2)>=3||Math.random()<.35;IG.prev={A:{...IG.A},B:{...IG.B}};window.IG_SPD=D11_SPD;igSkel();
+  IG.log=`일기토 시작! 작전을 고르면 합이 저절로 오갑니다. 투지가 차면 아래 필살 명령이 켜집니다.`;d11Draw();setTimeout(d11Next,900);}
+{const c0=igClose;igClose=function(){window.IG_SPD=1;return c0.apply(this,arguments);};}
+// ---------- 방식 고르기 ----------
+{const s0=igStart;igStart=function(o){if(o.mode==='pvp'||o.style==='old')return s0.call(this,o);if(o.style==='new')return d11Start(o);
+  const pref=S&&S.opt&&S.opt.duelStyle;if(pref==='old')return s0.call(this,o);if(pref==='new')return d11Start(o);
+  const el=$('igbox');el.className='on';el.innerHTML=`<div class="ic" style="max-width:560px"><h2 style="margin:4px 0 2px;text-align:center">⚔ 일기토 — ${igEsc(o.B.nm||'상대')}</h2><p class="hint" style="text-align:center">어떤 방식으로 겨룰까요?</p>
+   <div class="d11pick"><button data-ds="old"><b>🗡 전통적인 방식으로 승부!</b><small>매 판 막을 곳과 칠 곳을 직접 고르는 수 싸움. 12초 안에 확정</small></button>
+   <button data-ds="new"><b>🔥 최근 방식으로 승부!</b><small>작전(공격·방어·투지·일발필살)을 고르면 합이 저절로 오가고, 투지로 필살기·무쌍을 끼워 넣음</small></button></div>
+   <label class="hint" style="display:block;text-align:center;margin-top:8px"><input type="checkbox" id="dsRem"> 다음부터 묻지 않기 (조합 훈련장에서 바꿀 수 있음)</label></div>`;
+  el.querySelectorAll('[data-ds]').forEach(b=>b.onclick=()=>{const v=b.dataset.ds;if($('dsRem')&&$('dsRem').checked){S.opt.duelStyle=v;try{save();}catch(e){}}el.innerHTML='';if(v==='old')s0.call(this,o);else d11Start(o);});};}
+// 전통 방식의 Enter 처리 등은 IG.d11이면 건드리지 않게
+{const n0=igNewRound;igNewRound=function(){if(IG&&IG.d11)return;return n0.apply(this,arguments);};const f0=igFinish;igFinish=function(){if(IG&&IG.d11)return;return f0.apply(this,arguments);};const dr0=igDraw;igDraw=function(){if(IG&&IG.d11)return d11Draw();return dr0.apply(this,arguments);};}
+// 훈련장에 방식 설정
+{const pb=pracBody;pracBody=function(){const v=(S.opt&&S.opt.duelStyle)||'ask';return pb.apply(this,arguments).replace('<h4>🤺 일기토 훈련장</h4>',`<h4>🤺 일기토 훈련장</h4><p class="hint">일기토 방식: ${[['ask','매번 묻기'],['old','전통 방식'],['new','최근 방식']].map(([k,n])=>`<label style="margin-right:10px"><input type="radio" name="dstyle" value="${k}" ${v===k?'checked':''}> ${n}</label>`).join('')}</p>`);};BODY.prac=pracBody;}
+{const bb=bBind;bBind=function(box){bb(box);box.querySelectorAll('input[name="dstyle"]').forEach(r=>r.onchange=()=>{S.opt.duelStyle=r.value==='ask'?null:r.value;try{save();}catch(e){}toast(`일기토 방식: ${r.value==='ask'?'매번 묻기':r.value==='old'?'전통 방식':'최근 방식'}`);});};}
+{const st=document.createElement('style');st.textContent=`.d11pick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.d11pick button{display:flex;flex-direction:column;gap:6px;padding:14px 10px;border-radius:10px;border:2px solid #6b4a2a;background:#fff8e8;cursor:pointer;text-align:center}
+.d11pick button b{font-size:16px}.d11pick button small{color:#6b5236;line-height:1.4}.d11pick button:hover{background:#f3e2b8}.d11pick button[data-ds="new"]{border-color:#a8322a}
+#igbox .d11t{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}#igbox .d11t button{padding:10px 4px;font-weight:700;font-size:14px}
+#igbox .d11c{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:6px}#igbox .d11c button{padding:7px 3px;font-size:13px}#igbox .d11c button small{color:#a8322a;font-size:10.5px}
+@media (max-width:600px){.d11pick{grid-template-columns:1fr}#igbox .d11t button{font-size:12px;padding:8px 2px}#igbox .d11c button{font-size:11.5px}}`;document.head.appendChild(st);}
 
 // ===== 바람과 해류를 '흐름'으로 보여 주기 =====
 // 보기: 0 흐름(하얀 바람 줄기 + 해류의 띠와 물결) · 1 화살표(예전 방식) · 2 끔. V 키로 바꾼다.
