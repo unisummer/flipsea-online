@@ -5845,7 +5845,7 @@ function bdOpen(F,o){B.pause=true;const cmd=bdCmd(F);
   bsfx('board');bdDraw();}
 const bdAlive=L=>L.filter(u=>u.crew>0&&u.mor>0);
 function bdAI(){for(const u of bdAlive(BD.them)){const r=Math.random();u.ord=r<.5?'adv':r<.72?'hold':r<.88?'shoot':'flank';if(u.ord==='flank'){}}}
-function bdTurn(){const lg=BD.log;bdAI();const all=bdAlive(BD.us).concat(bdAlive(BD.them)),dmg=new Map(),mor=new Map();const add=(M,u,v)=>M.set(u,(M.get(u)||0)+v);
+function bdTurn(){if(BD.busy)return;const lg=BD.log;const before=new Map(BD.us.concat(BD.them).map(u=>[u,{c:u.crew,lane:u.lane,mor:u.mor}]));bdAI();const all=bdAlive(BD.us).concat(bdAlive(BD.them)),dmg=new Map(),mor=new Map();const add=(M,u,v)=>M.set(u,(M.get(u)||0)+v);
   // 우회: 옆 줄로 옮겨 이번 턴 기습
   for(const u of all)if(u.ord==='flank'){const foes=u.side?BD.us:BD.them;const best=[0,1,2].filter(l=>l!==u.lane).sort((a,b)=>bdAlive(foes).filter(x=>x.lane===b).length-bdAlive(foes).filter(x=>x.lane===a).length)[0];u.lane=best;}
   for(const u of all){const foes=bdAlive(u.side?BD.us:BD.them);if(!foes.length)continue;const O=BD_ORD[u.ord];let mul=O.a*(u.t==='rush'&&u.ord==='flank'?1.2:1);
@@ -5859,8 +5859,9 @@ function bdTurn(){const lg=BD.log;bdAI();const all=bdAlive(BD.us).concat(bdAlive
     for(const u of L)if(!u.fell&&u.crew<u.crew0*.3&&u.crew>0){u.fell=1;u.mor=Math.max(0,u.mor-40);lg.push(`${u.side?'☠':'⚠'} ${u.nm}${u.m!=null?' 소대장이':'이'} 쓰러졌다! 소대의 사기가 꺾인다.`);}
     for(const u of L)if((u.crew<=0||u.mor<=0)&&!u.gone){u.gone=1;lg.push(`${u.side?'✔ 적':'✖ 우리'} ${u.nm} 무너짐${u.crew>0?' (남은 선원은 물러남)':''}`);}}
   lg.push(`— ${BD.turn}턴: 우리 ${bdAlive(BD.us).reduce((a,u)=>a+u.crew,0)}명 · 적 ${bdAlive(BD.them).reduce((a,u)=>a+u.crew,0)}명`);
-  bdOuter();if(!BD)return;
-  if(!bdAlive(BD.them).length||BD.ecmdHp<=0)return bdEnd('win');if(!bdAlive(BD.us).length||BD.cmdHp<=0)return bdEnd('lose');if(BD.turn>=BD_MAXT)return bdEnd('draw');BD.turn++;bdDraw();}
+  BD.busy=1;bdDraw();const go=()=>{if(!BD)return;BD.busy=0;bdOuter();if(!BD)return;
+  if(!bdAlive(BD.them).length||BD.ecmdHp<=0)return bdEnd('win');if(!bdAlive(BD.us).length||BD.cmdHp<=0)return bdEnd('lose');if(BD.turn>=BD_MAXT)return bdEnd('draw');BD.turn++;bdDraw();};
+  if(typeof bdAnim==='function')bdAnim(before,go);else go();}
 // 바깥 포격전을 3초 진행 (붙은 두 배는 제자리, 대포도 쏘지 않음). 그 사이 날아든 포탄은 갑판의 소대를 다치게 한다.
 function bdOuter(){const {F,o}=BD,keep=[F,o].map(s=>({x:s.x,y:s.y,hd:s.hd}));B.pause=false;
   for(let i=0;i<60&&B&&!B.end;i++){for(const s of [F,o]){s.v=0;s.rl['-1']=Math.max(s.rl['-1'],.3);s.rl['1']=Math.max(s.rl['1'],.3);}const c0=[F.crew,o.crew];battleUpdate(.05);
@@ -5874,7 +5875,7 @@ function bdEnd(kind){const {F,o}=BD,lg=BD.log;let back=0;const ret=new Map();
   else{o.crew=Math.max(1,eLeft);F.boardCd=kind==='draw'?8:20;flt(F,kind==='draw'?'밧줄을 끊고 물러난다':kind==='sunk'?'적선이 가라앉았다!':'백병전에서 밀려났다','#ff9a8a');}
   F.crew=Math.max(1,F.crew);const R={win:'🏆 나포 성공!',lose:'백병전에서 밀려났습니다',draw:'8턴이 지나 서로 물러났습니다',retreat:'퇴각했습니다',sunk:'적선이 포격으로 가라앉았습니다',duel:'일기토로 넘어갑니다'}[kind];
   const w=document.getElementById('bdwin');if(w)w.style.display='none';BD=null;if(kind!=='duel'){B.pause=false;toast(`⚔ 백병전: ${R} (돌아온 선원 ${back}명)`,true);}}
-function bdAct(a){if(!BD)return;const lg=BD.log;
+function bdAct(a){if(!BD||BD.busy)return;const lg=BD.log;
   if(a==='horn'){if(!BD.horn)return;BD.horn=0;for(const u of bdAlive(BD.us))u.mor=Math.min(100,u.mor+30);lg.push(`📯 ${BD.cmd!=null?MATES[BD.cmd].name:'선장'}의 호령! 모든 소대의 사기가 오른다.`);bsfx('horn');}
   else if(a==='call'){let n=0;for(const s of B.ships){const si=B.ships.indexOf(s);if(s.side!==0||s.out||s===BD.F||BD.sent[si])continue;if(Math.hypot(s.x-BD.F.x,s.y-BD.F.y)>250)continue;const half=Math.floor(s.crew/2);if(half<4)continue;
       s.crew-=half;BD.sent[si]=1;const U=bdUnitsUs(s,half,s);U.forEach(u=>{u.nm=u.nm+` (${s.name})`;u.lane=Math.floor(Math.random()*3);});BD.us.push(...U);n+=U.length;lg.push(`🚩 ${s.name}에서 ${half}명이 소대 ${U.length}개로 건너왔다! (그 배는 선원이 줄어 느려진다)`);}
@@ -5890,11 +5891,11 @@ function bdCard(u,i){const T=BD_TYPE[u.t],dead=u.crew<=0||u.mor<=0,pc=Math.round
 function bdDraw(){let w=document.getElementById('bdwin');if(!w){w=document.createElement('div');w.id='bdwin';document.body.appendChild(w);}const D=BD;
   const tot=L=>bdAlive(L).reduce((a,u)=>a+u.crew,0),cn=D.cmd!=null?MATES[D.cmd].name:'선장';
   w.innerHTML=`<div class="bdbox"><div class="bdh"><b>⚔ 백병전 ${D.turn}/${BD_MAXT}턴</b><small>1턴 = 바깥 포격전 3초 · 명령을 고르는 동안 바깥은 멈춰 있습니다</small><canvas id="bdmini" width="200" height="120"></canvas></div>
-   <div class="bdcmd"><div>🚩 우리 총대장 <b>${cn}</b> <small>(통솔 ${D.cmd!=null?curSt(D.cmd,0):'-'})</small><div class="bdbar g"><i style="width:${Math.max(0,D.cmdHp)}%"></i></div><small>선원 ${tot(D.us)}명</small></div>
+   <canvas id="bdcv" width="960" height="300"></canvas><div class="bdcmd"><div>🚩 우리 총대장 <b>${cn}</b> <small>(통솔 ${D.cmd!=null?curSt(D.cmd,0):'-'})</small><div class="bdbar g"><i style="width:${Math.max(0,D.cmdHp)}%"></i></div><small>선원 ${tot(D.us)}명</small></div>
     <div>☠ 적 총대장 <b>${D.ecmd}</b><div class="bdbar r"><i style="width:${Math.max(0,D.ecmdHp)}%"></i></div><small>선원 ${tot(D.them)}명</small></div></div>
    <div class="bdlanes">${[0,1,2].map(l=>`<div class="bdlane"><div class="bdlh">${BD_LANE[l]}</div><div class="bdside">${D.them.map((u,i)=>u.lane===l?bdCard(u,i):'').join('')||'<small class="hint">적 없음 — 진격하면 적 총대장을 친다</small>'}</div><div class="bdvs">⚔</div><div class="bdside">${D.us.map((u,i)=>u.lane===l?bdCard(u,i):'').join('')||'<small class="hint">우리 소대 없음</small>'}</div></div>`).join('')}</div>
    <div class="bdlog">${D.log.slice(-6).map(x=>`<div>${x}</div>`).join('')}</div>
-   <div class="bdbtn"><button data-bda="horn" ${D.horn?'':'disabled'}>📯 호령 (1회)</button><button data-bda="call">🚩 파병 요청</button><button data-bda="duel">🗡 일기토 신청</button><button data-bda="retreat">🏳 퇴각</button><button class="main" data-bda="go">▶ 턴 진행 (+3초)</button></div>
+   <div class="bdbtn"><button data-bda="horn" ${D.horn?'':'disabled'}>📯 호령 (1회)</button><button data-bda="call">🚩 파병 요청</button><button data-bda="duel">🗡 일기토 신청</button><button data-bda="retreat">🏳 퇴각</button><button class="main" data-bda="go" ${D.busy?'disabled':''}>▶ 턴 진행 (+3초)</button></div>
    <div class="hint">진격 = 세게 치고 세게 맞음 · 버티기 = 약하게 치고 덜 맞음 · 사수 = 어느 줄이든 가장 큰 적 소대를 쏘아 사기를 꺾음 · 우회 = 적이 많은 옆 줄로 옮겨 기습. 적이 없는 줄에서 진격하면 적 총대장을 칩니다.</div></div>`;
   w.style.display='flex';
   w.querySelectorAll('[data-bdo]').forEach(b=>b.onclick=()=>{const [i,k]=b.dataset.bdo.split('|');D.us[+i].ord=k;bdDraw();});
@@ -5917,7 +5918,76 @@ function bdDraw(){let w=document.getElementById('bdwin');if(!w){w=document.creat
 .bdu img.pt{width:40px;height:40px}.bdi{font-size:24px;width:40px;text-align:center}.bdn{flex:1;min-width:0;display:flex;flex-direction:column}.bdn small{color:#7a5a3a}
 .bdo{display:flex;flex-wrap:wrap;gap:2px;width:100%}.bdo button{font-size:11px;padding:2px 5px}.bdo button.on{background:#2f5d73;color:#fff}
 .bdlog{background:#2d1c0e;color:#f3e8cf;border-radius:6px;padding:5px 8px;margin:6px 0;font-size:12px;line-height:1.5}.bdbtn{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
-@media(max-width:700px){.bdlanes{grid-template-columns:1fr}.bdcmd{grid-template-columns:1fr}}`;document.head.appendChild(st);}
+#bdcv{width:100%;height:auto;display:block;border-radius:8px;margin:6px 0;border:2px solid #5c3a1a;background:#6b4a2a}@media(max-width:700px){.bdlanes{grid-template-columns:1fr}.bdcmd{grid-template-columns:1fr}}`;document.head.appendChild(st);}
+
+// ===== 백병전 갑판 그림과 싸움 애니메이션 =====
+// 맞붙은 두 배의 갑판 위에 소대마다 작은 선원들을 세운다(선원 수에 비례, 소대당 최대 10명).
+// 턴을 진행하면 같은 줄의 소대끼리 달려들어 부딪히고, 줄어든 선원 수만큼 쓰러지며, 무너진 소대는 달아난다.
+const BFX={raf:0,fx:[],anim:null};
+function bfxPer(){if(!BD.per){const m=Math.max(1,...BD.us.concat(BD.them).map(u=>u.crew0||1));BD.per=Math.max(1,Math.ceil(m/10));}return BD.per;}
+const bfxN=c=>c<=0?0:Math.max(1,Math.ceil(c/bfxPer()));
+const BFX_W=960,BFX_H=300,BFX_MID=150;
+function bfxSlots(side){const L=(side?BD.them:BD.us),o=new Map();for(let l=0;l<3;l++){const inL=L.filter(u=>u.lane===l&&!u.gone);inL.forEach((u,k)=>o.set(u,{k,n:inL.length}));}return o;}
+function bfxHomes(u,slot){const n=slot?slot.n:1,k=slot?slot.k:0,cw=BFX_W/3,bx=u.lane*cw+cw*(k+.5)/n,by=u.side?62:BFX_H-62,sx=Math.min(15,(cw/n-14)/5),dir=u.side?1:-1;
+  return i=>{const c=i%5,r=Math.floor(i/5);return [bx+(c-2)*sx+(r?sx/2:0),by+dir*(r?-12:12)];};}
+function bfxSync(){const sl=[bfxSlots(0),bfxSlots(1)];
+  for(const u of BD.us.concat(BD.them)){u.figs=u.figs||[];const H=bfxHomes(u,sl[u.side].get(u)),live=u.figs.filter(f=>f.st===0);const want=(u.gone||u.mor<=0)?0:bfxN(u.crew);
+    if(!BFX.anim){if(live.length<want)for(let i=live.length;i<want;i++){const p=H(i);u.figs.push({x:p[0],y:p[1]+(u.side?-30:30),st:0,a:0,ph:Math.random()*6,lead:u.m!=null&&i===0&&u.figs.length===0});}
+      else if(live.length>want){live.slice(want).forEach(f=>{f.st=u.gone||u.mor<=0?2:1;f.t=0;f.rd=Math.random()<.5?-1:1;});}}
+    let i=0;for(const f of u.figs)if(f.st===0){const p=H(i++);f.hx=p[0];f.hy=p[1];}}}
+function bfxDeck(g){const W=BFX_W,H=BFX_H;
+  for(const [y0,y1,c1,c2] of [[0,BFX_MID-8,'#8a6440','#7a5634'],[BFX_MID+8,H,'#94704a','#83603c']]){for(let y=y0,i=0;y<y1;y+=16,i++){g.fillStyle=i%2?c1:c2;g.fillRect(0,y,W,Math.min(16,y1-y));g.fillStyle='rgba(0,0,0,.18)';g.fillRect(0,y,W,1);
+    for(let x=(i*137)%180;x<W;x+=180){g.fillRect(x,y,1,16);}}}
+  g.fillStyle='#2a1a0e';g.fillRect(0,BFX_MID-10,W,6);g.fillRect(0,BFX_MID+4,W,6);g.fillStyle='#1a3a52';g.fillRect(0,BFX_MID-4,W,8);
+  g.strokeStyle='#c9b48a';g.lineWidth=2;for(let x=60;x<W;x+=150){g.beginPath();g.moveTo(x,BFX_MID-12);g.quadraticCurveTo(x+20,BFX_MID,x+8,BFX_MID+12);g.stroke();}
+  g.setLineDash([6,6]);g.strokeStyle='rgba(255,240,210,.25)';g.lineWidth=1;for(const x of [BFX_W/3,BFX_W*2/3]){g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}g.setLineDash([]);
+  g.fillStyle='rgba(255,240,210,.55)';g.font='bold 12px serif';g.textAlign='center';BD_LANE.forEach((n,l)=>g.fillText(n,BFX_W*(l+.5)/3,BFX_MID+26));
+  g.textAlign='left';g.fillStyle='rgba(255,220,200,.85)';g.font='bold 13px serif';g.fillText('☠ '+(BD.o.name||'적선'),8,16);g.fillStyle='rgba(220,235,255,.9)';g.fillText('🚩 '+BD.F.name,8,BFX_H-8);}
+function bfxFig(g,f,side,t){const s=f.lead?1.3:1,x=f.x,y=f.y+Math.sin(t*4+f.ph)*(f.st?0:1.2);g.save();g.globalAlpha=Math.max(0,f.a);g.translate(x,y);
+  g.fillStyle='rgba(0,0,0,.3)';g.beginPath();g.ellipse(0,9*s,7*s,2.5*s,0,0,7);g.fill();if(f.rot)g.rotate(f.rot);g.scale(s,s);
+  g.fillStyle='#3a2a1a';g.fillRect(-4,3,3,6);g.fillRect(1,3,3,6);
+  g.fillStyle=side?'#8a2a22':'#2f5d9a';g.fillRect(-5,-6,10,10);g.fillStyle=side?'#d9c39a':'#f3ecdf';g.fillRect(-2,-6,4,9);
+  g.fillStyle='#f0c596';g.beginPath();g.arc(0,-10,5,0,7);g.fill();
+  g.fillStyle=side?'#c0392b':'#20456e';if(side){g.fillRect(-5.5,-15,11,4);}else{g.beginPath();g.arc(0,-12,5.5,Math.PI,0);g.fill();g.fillRect(-6,-12.5,12,2);}
+  const sw=f.st===0?Math.sin(t*9+f.ph)*(f.atk||0):0;g.strokeStyle='#dfe6ee';g.lineWidth=1.6;g.beginPath();g.moveTo(5,-2);g.lineTo(11+sw*2,-10+sw*4*(side?-1:1));g.stroke();
+  if(f.lead){g.fillStyle=side?'#5a1a14':'#c9a24a';g.fillRect(-1,-30,1.5,14);g.fillStyle=side?'#e05a4a':'#ffd36a';g.beginPath();g.moveTo(.5,-30);g.lineTo(9,-27);g.lineTo(.5,-24);g.fill();}
+  g.restore();}
+function bfxLoop(){BFX.raf=0;const w=document.getElementById('bdwin');if(!BD||!w||w.style.display==='none')return;const c=document.getElementById('bdcv');if(!c){BFX.raf=requestAnimationFrame(bfxLoop);return;}
+  const g=c.getContext('2d'),now=performance.now()/1000,A=BFX.anim,at=A?now-A.t0:0;bfxSync();bfxDeck(g);
+  const ord=[];for(const u of BD.them.concat(BD.us))for(const f of u.figs)ord.push([f,u]);ord.sort((a,b)=>a[0].y-b[0].y);
+  for(const [f,u] of ord){
+    if(f.st===0){let tx=f.hx,ty=f.hy;f.atk=0;
+      if(A&&A.fight.has(u)){const k=Math.max(0,Math.min(1,(at-.15)/1.0)),lu=Math.sin(Math.PI*k);const dy=(BFX_MID-f.hy)*.78;ty=f.hy+dy*lu;tx=f.hx+Math.sin(f.ph*3)*6*lu;f.atk=lu;}
+      if(A&&A.shoot.has(u)){f.atk=.4;}
+      f.x+=(tx-f.x)*.18;f.y+=(ty-f.y)*.18;f.a=Math.min(1,f.a+.06);}
+    else if(f.st===1){f.t+=1/60;f.rot=Math.min(1,f.t/.35)*1.45*f.rd;if(f.t>1.1&&f.a>.38)f.a-=.02;}
+    else if(f.st===2){f.t+=1/60;f.y+=(u.side?-1.6:1.6);f.x+=f.rd*.6;f.a-=.02;}
+    bfxFig(g,f,u.side,now);}
+  for(const u of BD.us.concat(BD.them))u.figs=u.figs.filter(f=>f.a>0||f.st===0);
+  // 불꽃·총알·숫자
+  BFX.fx=BFX.fx.filter(e=>now-e.t0<e.d);for(const e of BFX.fx){const k=(now-e.t0)/e.d;
+    if(e.k==='spark'){g.strokeStyle=`rgba(255,${200+Math.random()*55|0},120,${1-k})`;g.lineWidth=2;for(let i=0;i<5;i++){const a=Math.random()*7,r=4+k*14;g.beginPath();g.moveTo(e.x,e.y);g.lineTo(e.x+Math.cos(a)*r,e.y+Math.sin(a)*r);g.stroke();}}
+    else if(e.k==='shot'){const x=e.x+(e.x2-e.x)*Math.min(1,k*1.6),y=e.y+(e.y2-e.y)*Math.min(1,k*1.6);g.fillStyle='#2a2a2a';g.beginPath();g.arc(x,y,2,0,7);g.fill();if(k<.15){g.fillStyle='rgba(255,220,120,.9)';g.beginPath();g.arc(e.x,e.y,6,0,7);g.fill();}}
+    else if(e.k==='txt'){g.font='bold 18px serif';g.textAlign='center';g.lineWidth=3;g.strokeStyle='rgba(0,0,0,.6)';const y=e.y-k*26;g.globalAlpha=1-k*k;g.strokeText(e.s,e.x,y);g.fillStyle=e.c;g.fillText(e.s,e.x,y);g.globalAlpha=1;g.textAlign='left';}}
+  BFX.raf=requestAnimationFrame(bfxLoop);}
+function bfxStart(){if(!BFX.raf)BFX.raf=requestAnimationFrame(bfxLoop);}
+{const d0=bdDraw;bdDraw=function(){const r=d0.apply(this,arguments);bfxStart();return r;};}
+// 한 턴의 싸움 장면: 달려듦 → 부딪힘(불꽃) → 쓰러짐(줄어든 수만큼) → 무너진 소대는 달아남 → 끝나면 다음 처리
+function bdAnim(before,done){const now=performance.now()/1000,fight=new Set(),shoot=new Set(),sl=[bfxSlots(0),bfxSlots(1)];
+  for(const [u,b] of before){if(b.c<=0||b.mor<=0)continue;if(u.ord==='shoot'){shoot.add(u);continue;}const foes=before.size&&[...before].filter(([v,bb])=>v.side!==u.side&&bb.c>0&&bb.mor>0&&bb.lane===u.lane);if(foes.length||u.ord==='flank')fight.add(u);}
+  BFX.anim={t0:now,fight,shoot};
+  // 사수대의 총알
+  for(const u of shoot){const foes=(u.side?BD.us:BD.them).filter(v=>v.crew>0);if(!foes.length)continue;const tg=foes.slice().sort((a,b)=>(before.get(b)||{c:0}).c-(before.get(a)||{c:0}).c)[0];
+    const fs=(u.figs||[]).filter(f=>f.st===0).slice(0,4),tf=(tg.figs||[]).filter(f=>f.st===0);fs.forEach((f,i)=>{const t=tf[i%Math.max(1,tf.length)]||{x:BFX_W/2,y:BFX_MID};BFX.fx.push({k:'shot',x:f.x+8,y:f.y-6,x2:t.x,y2:t.y-6,t0:now+.25+i*.08,d:.6});});}
+  // 부딪히는 불꽃
+  for(let l=0;l<3;l++){const a=[...fight].some(u=>u.side===0&&u.lane===l),b=[...fight].some(u=>u.side===1&&u.lane===l);if(a&&b)for(let i=0;i<7;i++)BFX.fx.push({k:'spark',x:BFX_W*(l+.2+.6*Math.random())/3,y:BFX_MID+(Math.random()-.5)*30,t0:now+.45+Math.random()*.45,d:.35});}
+  try{bsfx('hit');}catch(e){}
+  setTimeout(()=>{if(!BD)return;try{bsfx('cannon');}catch(e){}
+    for(const [u,b] of before){const lost=b.c-u.crew,H=bfxHomes(u,sl[u.side].get(u)||{k:0,n:1})(2);
+      if(lost>0)BFX.fx.push({k:'txt',s:'-'+lost,c:'#ff6a5a',x:H[0],y:H[1]-26,t0:performance.now()/1000,d:1.3});else if(lost<0)BFX.fx.push({k:'txt',s:'+'+(-lost),c:'#7ee08a',x:H[0],y:H[1]-26,t0:performance.now()/1000,d:1.3});
+      const live=(u.figs||[]).filter(f=>f.st===0),want=(u.crew<=0||u.mor<=0)?0:bfxN(u.crew);if(live.length>want){const die=live.slice().sort(()=>Math.random()-.5).slice(0,live.length-want);
+        const flee=u.mor<=0&&u.crew>0;die.forEach((f,i)=>{f.st=flee&&i%2?2:1;f.t=0;f.rd=Math.random()<.5?-1:1;});}}},700);
+  setTimeout(()=>{BFX.anim=null;done();},1750);}
 
 // ===== 바람과 해류를 '흐름'으로 보여 주기 =====
 // 보기: 0 흐름(하얀 바람 줄기 + 해류의 띠와 물결) · 1 화살표(예전 방식) · 2 끔. V 키로 바꾼다.
