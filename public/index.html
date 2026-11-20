@@ -207,7 +207,7 @@ body.mob.battle #bctl{display:block}
 <tr><td>V</td><td>바람·해류 화살표 바꾸기</td></tr>
 <tr><td>I</td><td>상품 정보 창</td></tr>
 <tr><td>T</td><td>함대와 항해자</td></tr>
-<tr><td>B</td><td>소지품·장비 (무기·방어구·항해도구)</td></tr>
+<tr><td>B</td><td>호연 상태창 (능력·장비, ←→로 다른 항해자)</td></tr>
 <tr><td>R</td><td>자동 항로: 항구 경유 / 최단</td></tr>
 <tr><td>오른쪽 클릭</td><td>직접 몰 목표 찍기 (조타반에 추천 침로)</td></tr>
 <tr><td>해적 클릭</td><td>공격하기 / 따라가기 메뉴</td></tr>
@@ -3378,7 +3378,7 @@ function bindShop(root,redraw){
   if(portTab==='shop'){tb.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('on',x.dataset.tab==='shop'));const body=document.querySelector('#portbox .pbody');if(body){body.innerHTML=shopHTML(inPort);bindShop(body,()=>drawPort());}}}catch(e){console.error(e);}return r;};}
 
 // ---------- 소지품·장비 창 ----------
-const HS_N={mu:'무예',hp:'체력',dam:'담력'};
+const HS_N={mu:'검술',hp:'체력',dam:'담력'};
 function gearHTML(){gearInit();const E=S.eq,get=id=>id?S.inv2.find(i=>i.id===id):null,w=get(E.w),a=get(E.a),hs=S.hs,ts=toolSum();
   const slot=(lbl,it,key,i)=>`<div class="gslot"><div class="hint">${lbl}</div>${it?`<b>${itName(it)}</b><div class="hint">${itDesc(it)}</div><button data-gun="${key}" ${i!=null?`data-gi="${i}"`:''}>벗기</button>`:'<div class="hint">(비어 있음)</div>'}</div>`;
   const tot=Object.keys(ts).length?Object.entries(ts).map(([k,v])=>FX_ROLE[k]?`${FXN[k][0]} +${Math.round(v)}`:`${FXN[k][0]}${/[+−]$/.test(FXN[k][0])?'':' +'}${Math.round(toolPct(k)*100)}%`).join(' · '):'없음';
@@ -3397,7 +3397,7 @@ function openGear(){if(!S)return;gearInit();const draw=()=>{$('infobox').innerHT
     $('infobox').querySelectorAll('[data-gun]').forEach(b=>b.onclick=()=>{const k=b.dataset.gun;if(k==='t')S.eq.t[+b.dataset.gi]=null;else S.eq[k]=null;save();draw();});};
   draw();$('info').style.display='flex';infoOpen=true;paused=true;}
 addEventListener('keydown',e=>{if(typeof MW!=='undefined'&&MW)return;if(!S||$('title').style.display==='flex'||B||storyOpen||encOpen)return;if(e.target&&/INPUT|TEXTAREA/.test(e.target.tagName))return;if(e.ctrlKey||e.metaKey||e.altKey)return;
-  if(e.key.toLowerCase()!=='b')return;e.preventDefault();e.stopImmediatePropagation();if(infoOpen){closeInfo();if(inPort<0)paused=false;else drawPort();}else openGear();},true);
+  if(e.key.toLowerCase()!=='b')return;e.preventDefault();e.stopImmediatePropagation();if(infoOpen){closeInfo();if(inPort<0)paused=false;else drawPort();}else if(typeof openMWin==='function')openMWin(HY,hiredIds());else openGear();},true);
 (()=>{const st=document.createElement('style');st.textContent=`.gtop{display:grid;grid-template-columns:260px 1fr;gap:14px}.gport{display:flex;gap:10px;align-items:flex-start}.gport img,.gport svg{border-radius:8px}
 .gst{display:grid;grid-template-columns:36px 1fr 28px;gap:6px;align-items:center;font-size:13px;margin:3px 0}.gst .bar{height:8px}
 .gslots{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}.gslot{border:1px solid #d9c7a3;border-radius:8px;padding:6px 8px;background:#fbf4e3;font-size:13px;min-height:74px}
@@ -3737,12 +3737,12 @@ function igStart(o){IG=Object.assign({r:0,hist:[],log:'',mode:'pve'},o);IG.prev=
 // ---------- 성장과 부상 ----------
 const HS_XP=lv=>30*lv;
 function hsGain(xp){gearInit();const hs=S.hs;hs.xp+=xp;let up=[];while(hs.xp>=HS_XP(hs.lv)&&hs.lv<30){hs.xp-=HS_XP(hs.lv);hs.lv++;for(const k of ['mu','hp','dam']){const g=3+Math.floor(Math.random()*4);hs[k]=Math.min(100,hs[k]+g);}up.push(hs.lv);}
-  return up.length?` · <b>${MATES[HY].name} 일기토 ${hs.lv}레벨!</b> 무예 ${hs.mu} · 체력 ${hs.hp} · 담력 ${hs.dam}`:` · 경험 +${xp}`;}
+  return up.length?` · <b>${MATES[HY].name} 일기토 ${hs.lv}레벨!</b> 검술 ${hs.mu} · 체력 ${hs.hp} · 담력 ${hs.dam}`:` · 경험 +${xp}`;}
 const injured=()=>S&&S.hs&&S.hs.inj&&S.hs.inj>S.day;
 // 강한 상대일수록 경험이 크게 늘고, 무예·담력이 바로 0~2씩 오른다 (대항해시대 2의 검술·용기처럼)
 function hsVs(base,me,foe){gearInit();const pw=F=>F.atk*F.hpMax*(1+F.def/40),ratio=pw(foe)/Math.max(1,pw(me));let xp=base,txt='';
   if(ratio>=1){xp=Math.round(base*(1+Math.min(1.5,(ratio-1)*2+.5)));const hs=S.hs,a=Math.floor(Math.random()*3),b=Math.floor(Math.random()*3);hs.mu=Math.min(100,hs.mu+a);hs.dam=Math.min(100,hs.dam+b);
-    if(a||b)txt=` · 강한 상대와 겨뤄 ${a?'무예 +'+a:''}${a&&b?' · ':''}${b?'담력 +'+b:''}`;}
+    if(a||b)txt=` · 강한 상대와 겨뤄 ${a?'검술 +'+a:''}${a&&b?' · ':''}${b?'담력 +'+b:''}`;}
   return txt+hsGain(xp);}
 // ---------- 해전에서: T키 / 접현 전 / 두목의 도전 ----------
 function igFromBattle(){if(!B||B.end)return;gearInit();if(B.igDone){toast('이번 해전에서는 이미 일기토를 했습니다.');return;}
@@ -6276,6 +6276,46 @@ function d11Start(o){IG=Object.assign({r:0,hist:[],log:'',mode:'pve'},o,{d11:1,w
 #igbox .d11t{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}#igbox .d11t button{padding:10px 4px;font-weight:700;font-size:14px}
 #igbox .d11c{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:6px}#igbox .d11c button{padding:7px 3px;font-size:13px}#igbox .d11c button small{color:#a8322a;font-size:10.5px}
 @media (max-width:600px){.d11pick{grid-template-columns:1fr}#igbox .d11t button{font-size:12px;padding:8px 2px}#igbox .d11c button{font-size:11.5px}}`;document.head.appendChild(st);}
+
+// ===== 항해자 상태창 통합 =====
+// 사진을 누르면 나오는 항해자 창 하나에 항해 능력(8가지)·전투 능력(검술·체력·담력)·장비(무기·방어구, 호연은 항해도구까지)를 모은다.
+// 함대 카드의 흩어진 장비 선택은 걷어 내고 "장비·전투 능력 보기"로 이 창을 연다. B 키도 호연의 이 창을 연다.
+const CB_N={mu:['⚔','검술','일기토와 백병전에서 칼을 다루는 솜씨. 높을수록 세게, 정확하게 친다'],hp:['❤','체력','일기토 체력 막대의 길이. 높을수록 오래 버틴다'],dam:['🦁','담력','겁먹지 않는 배짱. 몰렸을 때(체력 30% 아래) 덜 다치고, 상대의 다음 수를 읽는 일이 잦아진다']};
+function cbSt(id){if(MATES[id]&&MATES[id].hero){gearInit();const h=S.hs;return {mu:h.mu,hp:h.hp,dam:h.dam,hero:1,lv:h.lv,xp:h.xp,inj:h.inj&&h.inj>S.day?Math.ceil(h.inj-S.day):0};}
+  return {mu:Math.round(curSt(id,4)*.6+curSt(id,0)*.3),hp:Math.round(curSt(id,5)*.6+10),dam:Math.round(curSt(id,0)*.6)};}
+function cbFighter(id){try{if(MATES[id].hero){const s=S.duelist;S.duelist=null;const F=heroFighter(false);S.duelist=s;return F;}return mateFighter(id);}catch(e){return null;}}
+function eqOf(id,k){gearInit();if(MATES[id].hero){const v=S.eq[k];return v?S.inv2.find(i=>i.id===v):null;}return S.mt[id]?mEqIt(id,k):null;}
+function eqSel(id,k,i){const cur=k==='t'?(S.eq.t[i]?S.inv2.find(x=>x.id===S.eq.t[i]):null):eqOf(id,k);
+  const free=(S.inv2||[]).filter(it=>itB(it).k===k&&!isEq(it.id));
+  return `<select data-sweq="${id}|${k}|${i==null?'':i}"><option value="">${k==='w'?'(무기 없음 · 맨주먹)':k==='a'?'(방어구 없음 · 평상복)':'(비어 있음)'}</option>${cur?`<option value="${cur.id}" selected>${itName(cur)}</option>`:''}${free.map(it=>`<option value="${it.id}">${itName(it)}</option>`).join('')}</select>${cur?`<div class="hint">${itDesc(cur)}</div>`:''}`;}
+function statusHTML(id){const m=MATES[id],x=S.mt[id],c=cbSt(id),F=x?cbFighter(id):null;
+  const bar=k=>`<div class="sbr"><span title="${CB_N[k][2]}">${CB_N[k][0]} ${CB_N[k][1]}</span><div class="bar"><i style="width:${Math.min(100,c[k])}%"></i></div><b>${c[k]}</b></div>`;
+  let h=`<div class="sbx"><h4>⚔ 전투 능력 ${c.hero?`<small>일기토 ${c.lv}레벨 · 경험 ${c.xp}/${30*c.lv}${c.inj?` · <b style="color:#a8322a">부상 ${c.inj}일</b>`:''}</small>`:`<small>항해 능력에서 정해짐 (검술 = 포술·통솔, 체력 = 수리, 담력 = 통솔)</small>`}</h4>
+    ${['mu','hp','dam'].map(bar).join('')}
+    ${F?`<div class="hint">실전 수치: 공격력 ${F.atk.toFixed(1)} · 일기토 체력 ${F.hpMax} · 방어 ${(F.def||0).toFixed?F.def.toFixed(0):F.def}${S.duelist===id?' · <b>🗡 일기토 대표</b>':''}</div>`:''}
+    <div class="hint sexp">${['mu','hp','dam'].map(k=>`<b>${CB_N[k][1]}</b>: ${CB_N[k][2]}`).join('<br>')}</div></div>`;
+  if(x){h+=`<div class="sbx"><h4>🎒 장비 <small>바꾸면 바로 적용됩니다</small></h4><div class="seq"><label>⚔ 무기${eqSel(id,'w')}</label><label>🛡 방어구${eqSel(id,'a')}</label>
+      ${m.hero?[0,1,2].map(i=>`<label>🧭 항해도구 ${i+1}${eqSel(id,'t',i)}</label>`).join(''):''}</div>
+      ${m.hero?`<div class="hint">항해도구는 함대 전체에 효과가 납니다. <button data-sgear="1">🎒 소지품 전체 보기·팔기</button></div>`:`<div class="hint">무기·방어구는 일기토와 백병전(소대 힘)에 쓰입니다. 남는 장비는 도구점에서 삽니다.</div>`}</div>`;}
+  return h;}
+{const w0=mwinHTML;mwinHTML=function(id){let h=w0.apply(this,arguments);try{h=h.replace('<div class="mwt">',`<div class="sgrid">${statusHTML(id)}</div><div class="mwt">`);}catch(e){console.warn(e);}return h;};}
+function swRefresh(){const el=$('mwin');if(el&&MW&&el.style.display!=='none'){const sc=el.querySelector('.mwbox')?el.querySelector('.mwbox').scrollTop:0;el.innerHTML=mwinHTML(MW.id);const b=el.querySelector('.mwbox');if(b)b.scrollTop=sc;}}
+document.addEventListener('change',e=>{const s=e.target.closest&&e.target.closest('[data-sweq]');if(!s||!S)return;const [id,k,i]=s.dataset.sweq.split('|'),mid=+id,v=s.value?+s.value:null;
+  if(MATES[mid].hero){gearInit();if(k==='t'){if(v){const it=S.inv2.find(x=>x.id===v);if(S.eq.t.some((t,j)=>t&&j!==+i&&S.inv2.find(z=>z.id===t)&&S.inv2.find(z=>z.id===t).b===it.b)){toast('같은 도구는 하나만 효과가 있습니다.');swRefresh();return;}}S.eq.t[+i]=v;}else S.eq[k]=v;sfx('coin');save();}
+  else{const x=S.mt[mid];x.eq=x.eq||{w:null,a:null};x.eq[k]=v;sfx('coin');save();}
+  if(v){const it=S.inv2.find(z=>z.id===v);toast(`${MATES[mid].name}: ${itName(it)} 장착`);}
+  swRefresh();try{if(inPort>=0)drawPort();}catch(err){}});
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-sgear]');if(!b)return;$('mwin').style.display='none';MW=null;openGear();},true);
+// 함대 카드: 흩어진 장비 선택 대신 요약 한 줄 + 상태창 열기
+{const mc0=mateCard;mateCard=function(id,extra){let h=mc0.apply(this,arguments);try{if(!S.mt[id])return h;
+  h=h.replace(/<select data-meq="[^"]*">[\s\S]*?<\/select>/g,'');const c=cbSt(id),w=eqOf(id,'w'),a=eqOf(id,'a');
+  const line=`<div class="mcb" data-mwin="${id}" title="눌러서 상태창(장비·전투 능력) 열기">⚔ 검술 <b>${c.mu}</b> · ❤ 체력 <b>${c.hp}</b> · 🦁 담력 <b>${c.dam}</b> <span>| ${w?itName(w):'맨주먹'} · ${a?itName(a):'평상복'}</span> <u>상태창 ›</u></div>`;
+  if(h.includes('<div class="mf">'))h=h.replace('<div class="mf">',line+'<div class="mf">');else h=h.replace(/<\/div><\/div><button class="mrad"/,line+'</div></div><button class="mrad"');}catch(err){console.warn(err);}return h;};}
+{const st=document.createElement('style');st.textContent=`.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}.sbx{background:#fbf4e3;border:1px solid #d9c7a3;border-radius:10px;padding:8px 10px}.sbx h4{margin:0 0 6px;font-size:15px}.sbx h4 small{font-weight:400;color:#7a5f40;font-size:11.5px}
+.sbr{display:grid;grid-template-columns:70px 1fr 30px;gap:6px;align-items:center;font-size:13px;margin:4px 0}.sbr .bar{height:9px;background:#e6d8bc;border-radius:5px;overflow:hidden}.sbr .bar i{display:block;height:100%;background:linear-gradient(90deg,#c0392b,#e0a21a)}.sbr span{cursor:help}
+.sexp{margin-top:6px;line-height:1.5}.seq{display:grid;grid-template-columns:1fr 1fr;gap:6px}.seq label{display:flex;flex-direction:column;gap:2px;font-size:12.5px;font-weight:700}.seq select{font-size:13px;padding:3px}.seq .hint{font-weight:400}
+.mcb{display:block;margin:4px 0;font-size:12.5px;background:#f3e6c6;border-radius:6px;padding:3px 7px;cursor:pointer}.mcb span{color:#6a5030}.mcb u{color:#2f5d73;margin-left:4px}.mcb:hover{background:#ead9b0}
+@media (max-width:640px){.sgrid,.seq{grid-template-columns:1fr}}`;document.head.appendChild(st);}
 
 // ===== 바람과 해류를 '흐름'으로 보여 주기 =====
 // 보기: 0 흐름(하얀 바람 줄기 + 해류의 띠와 물결) · 1 화살표(예전 방식) · 2 끔. V 키로 바꾼다.
