@@ -210,6 +210,8 @@ body.mob.battle #bctl{display:block}
 <tr><td>B</td><td>소지품·장비 (무기·방어구·항해도구)</td></tr>
 <tr><td>R</td><td>자동 항로: 항구 경유 / 최단</td></tr>
 <tr><td>오른쪽 클릭</td><td>직접 몰 목표 찍기 (조타반에 추천 침로)</td></tr>
+<tr><td>해적 클릭</td><td>공격하기 / 따라가기 메뉴</td></tr>
+<tr><td>Tab</td><td>가장 가까운 해적 공격 (멀면 쫓아감)</td></tr>
 <tr><td>Q</td><td>발견물 조사</td></tr>
 <tr><td>J</td><td>항해 일지·발견물 도감</td></tr>
 <tr><td>G</td><td>부스터 켜기</td></tr>
@@ -2098,7 +2100,7 @@ function pirTick(days){if(!S.pir||!S.pir.length||encOpen||B)return;const mp=myPo
     if(!moved)p.hd=(p.hd+150)%360;
     if(!p.seen&&pirVisible(p)){p.seen=1;slowDown();sfx('warn');toast(`☠ ${p.boss!=null?'현상범 '+p.name:'해적 '+p.name}의 함대가 보입니다 (위험도 ${'★'.repeat(p.lv)}). ${avd?'전투 명성을 듣고 우리를 피해 달아납니다.':pp>=mp*.55?'이쪽으로 올지도 모릅니다. 달아나려면 순풍을 받으세요.':'우리를 피하는 눈치입니다.'}`,true);}
     if(!calm&&anchorAt<0){if(p.mode==='chase'&&km<55&&!nearHarbor(S.lat,S.lon,90)){startEncounter(p,true);return;}
-      if(p.mode!=='chase'&&km<40){startEncounter(p,false);return;}}}}
+      if(p.mode!=='chase'&&km<40&&typeof huntNear==='function'&&huntNear(p)){startEncounter(p,false);return;}}}}
 function drawPirates(){if(!S.pir)return;const t=performance.now()/1000;
   bossHomes().forEach((h,i)=>{if(!S.bk[i]||S.bd[i])return;const s=toScr(...proj(h[0],h[1]));ctx.strokeStyle='rgba(168,50,42,.8)';ctx.setLineDash([4,4]);ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(s[0],s[1],16,0,7);ctx.stroke();ctx.setLineDash([]);
     ctx.font='bold 11px serif';ctx.textAlign='center';ctx.lineWidth=3;ctx.strokeStyle='rgba(243,232,207,.95)';const tx='☠ '+BOSS[i].n+' 근거지';ctx.strokeText(tx,s[0],s[1]+28);ctx.fillStyle='#a8322a';ctx.fillText(tx,s[0],s[1]+28);ctx.textAlign='left';});
@@ -5988,6 +5990,48 @@ function bdAnim(before,done){const now=performance.now()/1000,fight=new Set(),sh
       const live=(u.figs||[]).filter(f=>f.st===0),want=(u.crew<=0||u.mor<=0)?0:bfxN(u.crew);if(live.length>want){const die=live.slice().sort(()=>Math.random()-.5).slice(0,live.length-want);
         const flee=u.mor<=0&&u.crew>0;die.forEach((f,i)=>{f.st=flee&&i%2?2:1;f.t=0;f.rd=Math.random()<.5?-1:1;});}}},700);
   setTimeout(()=>{BFX.anim=null;done();},1750);}
+
+// ===== 지도에서 해적을 골라 싸우기 =====
+// 해적 배를 누르면 [공격하기 / 따라가기] 메뉴. 가까우면 바로 싸울지 묻고, 멀면 쫓아가 닿으면 묻는다.
+// 쫓아오는 해적이 덮치는 것 말고는 싸우기 창이 저절로 뜨지 않는다. 단축키 Tab: 가장 가까운 해적.
+const HUNT_NEAR=60;
+function huntNear(p){return S.hunt&&S.hunt.id===p.id&&S.hunt.atk;}
+function pirAt(sx,sy){let best=null,bd=26;for(const p of (S.pir||[])){if(!pirVisible(p))continue;const s=toScr(...proj(p.lat,p.lon)),d=Math.hypot(s[0]-sx,s[1]-sy);if(d<bd){bd=d;best=p;}}return best;}
+function pirKm(p){return Math.round(gcDist(S.lat,S.lon,p.lat,p.lon));}
+function huntClose(){const m=document.getElementById('pirmenu');if(m)m.remove();}
+function huntGo(p,atk){huntClose();const km=pirKm(p);
+  if(atk&&km<HUNT_NEAR){S.hunt=null;route=null;autop=false;startEncounter(p,false);return;}
+  S.hunt={id:p.id,atk:atk?1:0,lat:p.lat,lon:p.lon};legs=[];routeFinal=-1;setRoute(p.lat,p.lon,-1,true);
+  if(route&&route.length)toast(atk?`⚔ ${p.name}의 함대를 쫓아갑니다. 따라붙으면 싸울지 묻습니다. (약 ${km}km)`:`⛵ ${p.name}의 함대를 따라갑니다. (약 ${km}km) 바다를 누르면 그만 따라갑니다.`,true);else S.hunt=null;}
+function huntMenu(p,sx,sy){huntClose();const km=pirKm(p),near=km<HUNT_NEAR,d=document.createElement('div');d.id='pirmenu';
+  const pp=fleetPower(p.ships,p.lv),mp=myPower(),odds=mp>pp*1.4?['우리가 훨씬 셈','#3b7a3b']:mp>pp*.9?['해 볼 만함','#7a8a2a']:mp>pp*.6?['조금 불리','#b07a2e']:['매우 위험','#a8322a'];
+  d.innerHTML=`<b>☠ ${p.boss!=null?'현상범 ':''}${p.name}</b> <small>${'★'.repeat(p.lv)}</small><div class="pmi">${p.ships.length}척 · 약 ${km}km · <span style="color:${odds[1]};font-weight:700">${odds[0]}</span></div>
+   <button data-ph="1" class="main">⚔ ${near?'공격하기':'쫓아가 공격하기'}</button><button data-ph="0">⛵ 따라가기</button><button data-ph="x">닫기</button>`;
+  document.body.appendChild(d);const r=d.getBoundingClientRect();let x=sx+14,y=sy-10;x=Math.min(x,innerWidth-r.width-8);y=Math.max(8,Math.min(y,innerHeight-r.height-8));d.style.left=x+'px';d.style.top=y+'px';
+  d.onclick=e=>{const b=e.target.closest('[data-ph]');if(!b)return;if(b.dataset.ph==='x')return huntClose();huntGo(p,b.dataset.ph==='1');};}
+{const c0=clickAt;clickAt=function(sx,sy){huntClose();
+  if(!B&&!encOpen&&!S.car&&inPort<0){const p=pirAt(sx,sy);if(p){huntMenu(p,sx,sy);return;}}
+  if(!B&&S.hunt){S.hunt=null;}return c0.apply(this,arguments);};}
+// 쫓는 동안 해적이 움직이면 항로를 다시 잡고, 따라붙으면 싸울지 묻는다
+{const t0=pirTick;pirTick=function(days){const r=t0.apply(this,arguments);huntTick();return r;};}
+function huntTick(){const h=S.hunt;if(!h||B||encOpen||inPort>=0)return;const p=(S.pir||[]).find(q=>q.id===h.id);
+  if(!p){S.hunt=null;toast('쫓던 해적 함대가 사라졌습니다.');return;}
+  const km=gcDist(S.lat,S.lon,p.lat,p.lon);
+  if(km>1500){S.hunt=null;toast(`${p.name}의 함대를 놓쳤습니다.`,true);return;}
+  if(h.atk&&km<HUNT_NEAR){S.hunt=null;route=null;autop=false;startEncounter(p,false);return;}
+  if(!h.atk&&km<45)return;
+  if(gcDist(h.lat,h.lon,p.lat,p.lon)>(km<200?8:25)||!route||!route.length){h.lat=p.lat;h.lon=p.lon;legs=[];routeFinal=-1;setRoute(p.lat,p.lon,-1,true);}}
+// 쫓는 해적 표시
+{const d0=drawPirates;drawPirates=function(){d0.apply(this,arguments);const h=S.hunt;if(!h)return;const p=(S.pir||[]).find(q=>q.id===h.id);if(!p||!pirVisible(p))return;
+  const s=toScr(...proj(p.lat,p.lon)),t=performance.now()/300;ctx.save();ctx.strokeStyle=h.atk?'rgba(200,40,30,.9)':'rgba(30,90,160,.9)';ctx.lineWidth=2;
+  const R=19+Math.sin(t)*2;ctx.beginPath();ctx.arc(s[0],s[1],R,0,7);ctx.stroke();for(let i=0;i<4;i++){const a=i*Math.PI/2;ctx.beginPath();ctx.moveTo(s[0]+Math.cos(a)*(R-5),s[1]+Math.sin(a)*(R-5));ctx.lineTo(s[0]+Math.cos(a)*(R+6),s[1]+Math.sin(a)*(R+6));ctx.stroke();}
+  ctx.font='bold 11px serif';ctx.textAlign='center';ctx.lineWidth=3;ctx.strokeStyle='rgba(243,232,207,.95)';const tx=h.atk?'⚔ 추격 중':'⛵ 따라가는 중';ctx.strokeText(tx,s[0],s[1]-R-6);ctx.fillStyle=h.atk?'#a8322a':'#1e5aa0';ctx.fillText(tx,s[0],s[1]-R-6);ctx.restore();};}
+// 단축키 Tab: 보이는 해적 중 가장 가까운 함대를 공격(멀면 쫓아감)
+addEventListener('keydown',e=>{if(e.key!=='Tab'||e.repeat||e.ctrlKey||e.altKey||e.metaKey)return;const tg=e.target;if(tg&&(tg.tagName==='INPUT'||tg.tagName==='TEXTAREA'))return;
+  if(document.getElementById('title').style.display==='flex'||B||encOpen||inPort>=0||S.car||(typeof storyOpen!=='undefined'&&storyOpen)||(typeof infoOpen!=='undefined'&&infoOpen))return;
+  e.preventDefault();const L=(S.pir||[]).filter(pirVisible).sort((a,b)=>pirKm(a)-pirKm(b));if(!L.length){toast('보이는 해적이 없습니다.');return;}huntGo(L[0],1);});
+{const st=document.createElement('style');st.textContent=`#pirmenu{position:fixed;z-index:60;background:#f6ecd6;border:2px solid #7a3a22;border-radius:10px;padding:8px 10px;box-shadow:0 4px 14px rgba(0,0,0,.35);font-size:13px;min-width:180px;display:flex;flex-direction:column;gap:5px}
+#pirmenu .pmi{color:#5a4026;font-size:12px}#pirmenu button{padding:6px 8px;border-radius:7px;border:1px solid #8a6a40;background:#fff8e8;font-weight:700;cursor:pointer}#pirmenu button.main{background:#a8322a;color:#fff;border-color:#7a1a14}`;document.head.appendChild(st);}
 
 // ===== 바람과 해류를 '흐름'으로 보여 주기 =====
 // 보기: 0 흐름(하얀 바람 줄기 + 해류의 띠와 물결) · 1 화살표(예전 방식) · 2 끔. V 키로 바꾼다.
