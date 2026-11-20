@@ -5769,7 +5769,7 @@ function modal(title,body,btns){let d=document.getElementById('b2m');if(!d){d=do
   d.querySelectorAll('[data-b2]').forEach(x=>x.onclick=()=>{d.style.display='none';btns[+x.dataset.b2][2]();});}
 // 해전 중 항복 버튼과 조우 창의 항복
 {const b=document.createElement('button');b.id='bsur';b.textContent='🏳 항복';b.title='싸움을 포기하고 항복합니다';document.body.appendChild(b);
-  b.onclick=()=>{if(!B||B.end)return;B.pause=true;if(B.practice){modal('연습 그만두기','<p>연습을 끝낼까요?</p>',[['main','끝내기',()=>pracEnd('quit')],['','계속',()=>{B.pause=false;}]]);return;}
+  b.onclick=()=>{if(!B||B.end)return;B.pause=true;if(B.practice){modal('훈련 그만두기','<p>훈련을 끝낼까요? 그때까지 쌓은 경험의 일부는 받습니다.</p>',[['main','끝내기',()=>pracEnd('quit')],['','계속',()=>{B.pause=false;}]]);return;}
     modal('🏳 항복할까요?',`<p>항복하면 가진 돈 ${S.gold.toLocaleString()}골드와 짐, 함대(전설의 배 제외)를 잃고 부산에서 새 배로 다시 시작합니다.</p><p class="hint">항해자·소지품·투자·은행 예금·도크의 배는 남습니다.${insNow()?` 보험 ${INS[insNow()].n}이 일부를 돌려줍니다.`:' 보험이 없습니다.'}</p>`,
       [['main','항복',()=>surrender('battle',false)],['','계속 싸우기',()=>{if(B)B.pause=false;}]]);};}
 {const e0=startEncounter;startEncounter=function(p,theyAttack){const r=e0.apply(this,arguments);try{const bt=$('batbox').querySelector('.btns');if(bt&&theyAttack){const x=document.createElement('button');x.textContent='🏳 항복';x.onclick=()=>{$('bat').style.display='none';encOpen=false;surrender('battle',false);};bt.appendChild(x);}}catch(e){}return r;};}
@@ -5792,39 +5792,60 @@ function bankMove(v,dir){const b=S.bank||0;if(dir>0){const n=Math.min(v==='all'?
 {const d0=dailyTick;dailyTick=function(){const r=d0.apply(this,arguments);try{const day=Math.floor(S.day);
   if(day%30===0&&S.bank>0){const it=Math.min(BANK_MAX-S.bank,Math.floor(S.bank*.005));if(it>0){S.bank+=it;toast(`🏦 은행 이자 ${it.toLocaleString()}골드가 붙었습니다.`);}}
   if(S.ins&&S.ins.g&&S.ins.until<S.day&&!S.ins.lapsed){const g=S.ins.g,f=insFee(g);if(S.ins.auto&&S.gold+(S.bank||0)>=f){if(S.gold>=f)S.gold-=f;else{S.bank-=f-S.gold;S.gold=0;}S.ins.until=S.day+30;toast(`🛡 ${INS[g].n}을 30일 연장했습니다 (${f.toLocaleString()}골드).`);}else{S.ins.lapsed=1;toast('🛡 보험이 끝났습니다. 시장의 집에서 다시 들 수 있습니다.',true);}}}catch(e){}return r;};}
-// 시장의 집에 은행·보험 탭, 조합에 연습장 탭
+// 시장의 집에 은행·보험 탭, 조합에 훈련장 탭
 TOWN_B.find(b=>b.k==='invest').tabs.push(['bank','🏦 은행'],['ins','🛡 보험']);
-TOWN_B.find(b=>b.k==='guild').tabs.push(['prac','⚔ 연습장']);
+TOWN_B.find(b=>b.k==='guild').tabs.push(['prac','⚔ 훈련장']);
 BODY.bank=bankBody;BODY.ins=insBody;BODY.prac=pracBody;['bank','ins','prac'].forEach(t=>CUSTOM_T.add(t));
 {const bb=bBind;bBind=function(box){bb(box);
   box.querySelectorAll('[data-bin]').forEach(b=>b.onclick=()=>bankMove(b.dataset.bin,1));box.querySelectorAll('[data-bout]').forEach(b=>b.onclick=()=>bankMove(b.dataset.bout,-1));
   box.querySelectorAll('[data-ins]').forEach(b=>b.onclick=()=>insBuy(+b.dataset.ins));const ia=box.querySelector('[data-insauto]');if(ia)ia.onchange=()=>{S.ins.auto=ia.checked?1:0;save();};
   box.querySelectorAll('[data-pbat]').forEach(b=>b.onclick=()=>pracBattle(+b.dataset.pbat,box.querySelector('#pter')&&box.querySelector('#pter').checked));
+  box.querySelectorAll('[data-pboard]').forEach(b=>b.onclick=()=>pracBoard(+b.dataset.pboard,box.querySelector('#pold')&&box.querySelector('#pold').checked));
   box.querySelectorAll('[data-pduel]').forEach(b=>b.onclick=()=>pracDuel(+b.dataset.pduel));};}
-// ---------- 연습 모드 ----------
-// 조합의 연습장: 해전·일기토를 따로 연습한다. 끝나면 모든 것이 연습 전으로 돌아간다(보상도 손해도 없음).
-function pracBody(){return `<div class="note"><b>⚔ 연습장</b> — 진짜 싸움 전에 몸을 풀어 보세요. 연습에서는 무엇을 얻지도 잃지도 않습니다. 끝나면 연습 전 그대로 돌아옵니다.</div>
-  <h4>🚢 해전 연습</h4><p class="hint">지금 내 함대로 해적과 싸웁니다.</p><label><input type="checkbox" id="pter"> 섬·암초·안개가 있는 험한 바다</label>
+// ---------- 훈련장 ----------
+// 조합의 훈련장: 해전·백병전·일기토를 따로 훈련한다. 끝나면 배·선원·물건은 훈련 전으로 돌아가고,
+// 훈련 중 쌓인 경험만 실전의 TR_RATE(40%)만큼 받는다.
+const TR_RATE=.4;
+function pracBody(){const who=S.duelist!=null&&MATES[S.duelist]&&!MATES[S.duelist].hero?`일기토 대표 ${MATES[S.duelist].name}`:MATES[HY].name;
+  return `<div class="note"><b>⚔ 훈련장</b> — 실전 전에 몸을 풀어 보세요. 훈련에서는 배·선원·물건·골드를 잃지 않고, 끝나면 훈련 전 그대로 돌아옵니다.<br>대신 <b>경험은 실전의 ${Math.round(TR_RATE*100)}%</b>만큼 쌓입니다. 이긴 훈련일수록 경험이 많습니다.</div>
+  <h4>🚢 해전 훈련장</h4><p class="hint">지금 내 함대로 해적 함대와 포격전을 합니다. 포술장·갑판장·선장이 경험을 얻습니다.</p><label><input type="checkbox" id="pter"> 섬·암초·안개가 있는 험한 바다</label>
   <div class="btns">${[1,2,3,4,5].map(l=>`<button data-pbat="${l}">위험도 ${'★'.repeat(l)}</button>`).join('')}<button data-pbat="9">☠ 현상범과</button></div>
-  <h4>🤺 일기토 연습</h4><p class="hint">${S.duelist!=null&&MATES[S.duelist]&&!MATES[S.duelist].hero?`일기토 대표 ${MATES[S.duelist].name}`:'호연'}이(가) 해적 선장과 겨룹니다.</p>
+  <h4>⚔ 백병전 훈련장</h4><p class="hint">적선에 바로 밧줄을 건 채로 백병전을 시작합니다. 소대장(항해자)과 선원들이 경험을 얻고, 선원 등급도 조금 오릅니다.</p><label><input type="checkbox" id="pold"> 예전 방식 백병전(B 한 번에 확률 판정)</label>
+  <div class="btns">${[1,2,3,4,5].map(l=>`<button data-pboard="${l}">상대 ${'★'.repeat(l)}</button>`).join('')}<button data-pboard="9">☠ 두목 배와</button></div>
+  <h4>🤺 일기토 훈련장</h4><p class="hint">${who}이(가) 해적 선장과 겨룹니다. 일기토 경험이 쌓입니다.</p>
   <div class="btns">${[1,2,3,4,5].map(l=>`<button data-pduel="${l}">상대 ${'★'.repeat(l)}</button>`).join('')}<button data-pduel="9">☠ 두목급</button></div>`;}
-function pracSnap(){window.PRAC_SNAP={s:JSON.stringify(S),port:inPort};}
-function pracRestore(){const P=window.PRAC_SNAP;if(!P)return;S=JSON.parse(P.s);window.PRAC_SNAP=null;window.PRAC_OPT=null;try{spSync();}catch(e){}inPort=P.port;paused=true;
-  try{$('port').style.display='flex';drawPort();}catch(e){}}
-function pracBattle(lv,ter){pracSnap();const boss=lv===9;window.PRAC_OPT={ter:!!ter||boss};const p={id:-1,lat:S.lat,lon:S.lon,hd:0,lv:boss?6:lv,ships:boss?BOSS[0].ships.slice():pirShipsFor(lv),boss:boss?0:null,name:boss?BOSS[0].n+' (연습)':'연습 해적단',born:S.day,calm:0,seen:1,mode:'roam'};
-  $('port').style.display='none';startBattle(p,'normal');B.practice=1;toast('⚔ 해전 연습을 시작합니다. 무엇을 얻지도 잃지도 않습니다. 끝내려면 🏳 버튼.',true);}
-function pracEnd(kind){const t={win:'🏆 연습 승리!',escape:'전장을 벗어났습니다',lose:'연습 패배',quit:'연습을 그만두었습니다'}[kind]||'연습 끝';const st=B?{sunk:B.res.sunk.length,cap:B.res.cap.length}:{sunk:0,cap:0};
-  battleOff();modal(t,`<p>격침·백기 ${st.sunk}척 · 나포 ${st.cap}척</p><p class="hint">연습이었으므로 모든 것이 연습 전으로 돌아갑니다.</p>`,[['main','조합으로 돌아가기',()=>pracRestore()]]);}
-function pracDuel(lv){pracSnap();const boss=lv===9,p={lv:boss?6:lv,boss:boss?2:null,name:boss?BOSS[2].n:'연습 상대',lat:S.lat,lon:S.lon};$('port').style.display='none';
-  let me;try{me=heroFighter(false);}catch(e){me=heroFighter();}const foe=pirateFighter(p,{name:boss?BOSS[2].n:'연습 상대 해적',boss:boss});
-  igStart({A:me,B:foe,title:'일기토 연습',mode:'pve',onEnd:won=>won?'연습 승리! (기록되지 않음)':'연습 패배 (부상도 없습니다)',after:()=>pracRestore()});}
+// 훈련 중 경험은 바로 주지 않고 적어 두었다가, 되돌린 뒤 TR_RATE만큼 준다
+{const g0=gainXp;gainXp=function(i,r,v){if(window.PRAC_SNAP&&!window.TR_REPLAY){(window.TR_LOG=window.TR_LOG||[]).push([i,r,v]);return;}return g0.apply(this,arguments);};}
+function pracSnap(){window.PRAC_SNAP={s:JSON.stringify(S),port:inPort,cq:S.cq||0};window.TR_LOG=[];window.TR_HS=0;}
+function trApply(cqNow){const L=window.TR_LOG||[],hx=window.TR_HS||0,cq0=window.TR_CQ0||0;window.TR_LOG=[];window.TR_HS=0;const out=[];
+  const sum=new Map();for(const [i,r,v] of L){const k=i+'|'+r;sum.set(k,(sum.get(k)||0)+v);}
+  window.TR_REPLAY=1;try{for(const [k,v] of sum){const [i,r]=k.split('|').map(Number);if(!S.mt[i])continue;const b=curStF(i,r);gainXp(i,r,v*TR_RATE);const d=curStF(i,r)-b;if(d>.0005)out.push(`${MATES[i].name} ${STATK[r]} +${d.toFixed(2)}`);}}finally{window.TR_REPLAY=0;}
+  const dq=(cqNow||0)-cq0;if(dq>0){S.cq=Math.min(4,(S.cq||0)+dq*TR_RATE);out.push(`선원 등급 +${(dq*TR_RATE).toFixed(3)}`);}
+  if(hx>0){const t=hsGain(Math.max(1,Math.round(hx*TR_RATE)));out.push(`${MATES[HY].name} 일기토${t.replace(/<[^>]+>/g,'')}`);}
+  return out;}
+function pracRestore(){const P=window.PRAC_SNAP;if(!P)return;const cqNow=S.cq||0;window.TR_CQ0=P.cq;S=JSON.parse(P.s);window.PRAC_SNAP=null;window.PRAC_OPT=null;try{spSync();}catch(e){}inPort=P.port;paused=true;
+  const out=trApply(cqNow);try{save();}catch(e){}
+  try{$('port').style.display='flex';drawPort();}catch(e){}
+  toast(out.length?`🎯 훈련 경험 (실전의 ${Math.round(TR_RATE*100)}%): ${out.slice(0,6).join(' · ')}${out.length>6?` 외 ${out.length-6}`:''}`:'🎯 이번 훈련에서는 쌓인 경험이 거의 없습니다.',true);}
+function pracFleet(lv){const boss=lv===9;return {id:-1,lat:S.lat,lon:S.lon,hd:0,lv:boss?6:lv,ships:boss?BOSS[0].ships.slice():pirShipsFor(lv),boss:boss?0:null,name:boss?BOSS[0].n+' (훈련)':'훈련 상대 해적단',born:S.day,calm:0,seen:1,mode:'roam'};}
+function pracBattle(lv,ter){const old=!!(document.getElementById('pold')&&document.getElementById('pold').checked);pracSnap();const boss=lv===9;window.PRAC_OPT={ter:!!ter||boss};
+  $('port').style.display='none';startBattle(pracFleet(lv),'normal');B.practice=1;B.oldBoard=old;toast('🚢 해전 훈련을 시작합니다. 잃는 것은 없고 경험은 실전의 40%만큼 쌓입니다. 끝내려면 🏳 버튼.',true);}
+function pracBoard(lv,old){pracSnap();window.PRAC_OPT={ter:false};$('port').style.display='none';startBattle(pracFleet(lv),'normal');B.practice=1;B.pboard=1;B.oldBoard=!!old;
+  const F=B.flag,E=B.ships.filter(s=>s.side===1).sort((a,b)=>b.T.crew-a.T.crew)[0];E.x=F.x+F.L*.5+E.L*.5+5;E.y=F.y;E.a=F.a;E.v=0;F.v=0;F.boardCd=0;
+  toast('⚔ 백병전 훈련: 적선에 밧줄을 걸었습니다!',true);setTimeout(()=>{if(!B)return;const n0=B.res.cap.length;board();if(B&&B.oldBoard)setTimeout(()=>{if(B&&B.pboard)pracEnd(B.res.cap.length>n0?'bwin':'blose');},900);},350);}
+function pracEnd(kind){if(B&&B.pboard){if(kind==='win')kind='bwin';else if(kind==='lose')kind='blose';}const t={win:'🏆 해전 훈련 승리!',escape:'전장을 벗어났습니다',lose:'해전 훈련 패배',quit:'훈련을 그만두었습니다',bwin:'🏆 백병전 훈련 승리!',blose:'백병전 훈련 패배'}[kind]||'훈련 끝';const st=B?{sunk:B.res.sunk.length,cap:B.res.cap.length}:{sunk:0,cap:0};
+  if(kind==='win'&&B){crewXp(0,0,3);B.ships.forEach(s=>{if(s.side===0&&s.k>0&&!s.out)crewXp(s.k,0,2);});}
+  battleOff();modal(t,`<p>격침·백기 ${st.sunk}척 · 나포 ${st.cap}척</p><p class="hint">훈련이었으므로 배·선원·물건은 훈련 전으로 돌아가고, 쌓은 경험의 ${Math.round(TR_RATE*100)}%를 받습니다.</p>`,[['main','조합으로 돌아가기',()=>pracRestore()]]);}
+function pracDuel(lv){pracSnap();const boss=lv===9,p={lv:boss?6:lv,boss:boss?2:null,name:boss?BOSS[2].n:'훈련 상대',lat:S.lat,lon:S.lon};$('port').style.display='none';
+  let me;try{me=heroFighter(false);}catch(e){me=heroFighter();}const foe=pirateFighter(p,{name:boss?BOSS[2].n:'훈련 상대 해적',boss:boss});
+  igStart({A:me,B:foe,title:'일기토 훈련',mode:'pve',onEnd:won=>{window.TR_HS=won?15+p.lv*8:6;return won?`훈련 승리! 경험은 돌아가서 실전의 ${Math.round(TR_RATE*100)}%만큼 받습니다.`:'훈련 패배 (부상은 없습니다). 그래도 경험은 조금 쌓였습니다.';},after:()=>pracRestore()});}
 {const st=document.createElement('style');st.textContent=`#bsur{position:fixed;right:12px;top:118px;z-index:30;display:none;background:#f6ecd4;border:2px solid #6b4a2a;border-radius:8px;padding:4px 10px;font-weight:700}
 body.battle #bsur{display:block}#b2m{position:fixed;inset:0;z-index:9200;background:rgba(20,12,4,.55);display:none;align-items:center;justify-content:center}#b2m .btns{display:flex;gap:6px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap}`;document.head.appendChild(st);}
 
 // ===== 새 백병전 (턴제) =====
 // 접현(B)하면 백병전 화면으로 넘어간다. 1턴 = 바깥 포격전 3초. 명령을 고르는 동안 바깥은 멈추고, 턴을 진행하면 정확히 3초만 흐른다.
 // 지휘: 총대장(그 배의 선장, 기함은 호연 또는 일기토 대표) 아래, 배에 탄 항해자가 모두 소대장. 선원은 소대마다 나눈다.
-// 예전 방식(B 한 번에 확률 판정)은 연습장에서 「예전 방식 백병전」을 켜면 그대로 쓸 수 있다.
+// 예전 방식(B 한 번에 확률 판정)은 훈련장에서 「예전 방식 백병전」을 켜면 그대로 쓸 수 있다.
 const BD_LANE=['좌현','중앙','우현'],BD_MAXT=8;
 const BD_TYPE={guard:{n:'근위대',ic:'🛡',d:'사기가 잘 안 떨어짐'},shoot:{n:'사수대',ic:'🎯',d:'사수 명령이 강함'},rush:{n:'돌격대',ic:'💨',d:'우회가 강함'},wall:{n:'방패대',ic:'🧱',d:'버티기가 강함'},aid:{n:'지원대',ic:'⛑',d:'다친 선원을 되살림'},crew:{n:'선원대',ic:'👥',d:'소대장 없음'}};
 const BD_ORD={adv:{n:'진격',a:1.3,d:1.2},hold:{n:'버티기',a:.6,d:.55},shoot:{n:'사수',a:.5,d:1},flank:{n:'우회',a:1.5,d:1.1}};
@@ -5876,7 +5897,7 @@ function bdEnd(kind){const {F,o}=BD,lg=BD.log;let back=0;const ret=new Map();
   if(kind==='win'){o.out='captured';o.v*=.3;o.crew=0;B.res.cap.push(o);flt(o,'백병전 승리! 나포!','#ffd36a');bsfx('board');crewXp(F.k,0,3);crewXp(F.k,5,2);S.cq=Math.min(4,(S.cq||0)+.03);}
   else{o.crew=Math.max(1,eLeft);F.boardCd=kind==='draw'?8:20;flt(F,kind==='draw'?'밧줄을 끊고 물러난다':kind==='sunk'?'적선이 가라앉았다!':'백병전에서 밀려났다','#ff9a8a');}
   F.crew=Math.max(1,F.crew);const R={win:'🏆 나포 성공!',lose:'백병전에서 밀려났습니다',draw:'8턴이 지나 서로 물러났습니다',retreat:'퇴각했습니다',sunk:'적선이 포격으로 가라앉았습니다',duel:'일기토로 넘어갑니다'}[kind];
-  const w=document.getElementById('bdwin');if(w)w.style.display='none';BD=null;if(kind!=='duel'){B.pause=false;toast(`⚔ 백병전: ${R} (돌아온 선원 ${back}명)`,true);}}
+  const w=document.getElementById('bdwin');if(w)w.style.display='none';BD=null;if(kind!=='duel'){B.pause=false;toast(`⚔ 백병전: ${R} (돌아온 선원 ${back}명)`,true);if(B.pboard)setTimeout(()=>{if(B&&B.pboard)pracEnd(kind==='win'?'bwin':'blose');},900);}}
 function bdAct(a){if(!BD||BD.busy)return;const lg=BD.log;
   if(a==='horn'){if(!BD.horn)return;BD.horn=0;for(const u of bdAlive(BD.us))u.mor=Math.min(100,u.mor+30);lg.push(`📯 ${BD.cmd!=null?MATES[BD.cmd].name:'선장'}의 호령! 모든 소대의 사기가 오른다.`);bsfx('horn');}
   else if(a==='call'){let n=0;for(const s of B.ships){const si=B.ships.indexOf(s);if(s.side!==0||s.out||s===BD.F||BD.sent[si])continue;if(Math.hypot(s.x-BD.F.x,s.y-BD.F.y)>250)continue;const half=Math.floor(s.crew/2);if(half<4)continue;
@@ -5906,9 +5927,6 @@ function bdDraw(){let w=document.getElementById('bdwin');if(!w){w=document.creat
   try{const c=w.querySelector('#bdmini'),g=c.getContext('2d');g.fillStyle='#24506e';g.fillRect(0,0,200,120);const sc=200/(ARENA*2.2);
     for(const s of B.ships){if(s.out==='sunk')continue;g.fillStyle=s.side?'#e05a4a':'#f3e8cf';if(s===D.F||s===D.o)g.fillStyle='#ffd36a';g.beginPath();g.arc(100+(s.x-D.F.x)*sc,60+(s.y-D.F.y)*sc,s===D.F||s===D.o?4:3,0,7);g.fill();}
     g.strokeStyle='rgba(255,255,255,.4)';g.beginPath();g.arc(100,60,250*sc,0,7);g.stroke();g.fillStyle='#fff';g.font='10px sans-serif';g.fillText('바깥 포격전 (원 = 파병 거리)',4,12);}catch(e){}}
-// 연습장: 예전 방식 백병전 고르기
-{const pb0=pracBody;pracBody=function(){return pb0.apply(this,arguments).replace('<label><input type="checkbox" id="pter">','<label><input type="checkbox" id="pold"> 예전 방식 백병전(B 한 번에 확률 판정)</label><br><label><input type="checkbox" id="pter">');};BODY.prac=pracBody;}
-{const pt0=pracBattle;pracBattle=function(lv,ter){const old=!!(document.getElementById('pold')&&document.getElementById('pold').checked);const r=pt0.apply(this,arguments);if(B)B.oldBoard=old;return r;};}
 {const st=document.createElement('style');st.textContent=`#bdwin{position:fixed;inset:0;z-index:9300;background:rgba(10,18,28,.72);display:none;align-items:center;justify-content:center}
 .bdbox{width:min(980px,96vw);max-height:94vh;overflow:auto;background:#f3e8cf;border:2px solid #5c3a1a;border-radius:10px;padding:10px 12px;color:#2d1c0e;font-size:13px}
 .bdh{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}.bdh b{font-size:18px}.bdh small{flex:1;color:#7a5a3a;margin-top:4px}.bdh canvas{border-radius:6px;border:1px solid #5c3a1a}
